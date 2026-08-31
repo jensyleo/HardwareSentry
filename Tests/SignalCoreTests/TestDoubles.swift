@@ -35,3 +35,38 @@ final class MutableClock: @unchecked Sendable {
     init(_ date: Date = Date(timeIntervalSince1970: 1000)) { self.date = date }
     func advance(by seconds: TimeInterval) { date = date.addingTimeInterval(seconds) }
 }
+
+/// Preferences that answer from fixed sets, for exercising the enablement filters.
+struct StubPreferences: NotificationPreferences {
+    var disabledCategories: Set<String> = []
+    var disabledEvents: Set<String> = []
+
+    func isCategoryEnabled(_ category: NotificationCategory) async -> Bool {
+        !disabledCategories.contains(category.rawValue)
+    }
+
+    func isEventEnabled(_ name: String, in category: NotificationCategory) async -> Bool {
+        !disabledEvents.contains(name)
+    }
+}
+
+/// Conforms to nothing beyond the protocol's own defaults, to prove a host can opt out
+/// of gating entirely.
+struct SilentPreferences: NotificationPreferences {}
+
+extension MiddlewareDecision {
+    var isDeliver: Bool {
+        if case .deliver = self { return true }
+        return false
+    }
+
+    var isSuppress: Bool {
+        if case .suppress = self { return true }
+        return false
+    }
+
+    var deliveredEvent: NotificationEvent? {
+        if case .deliver(let event) = self { return event }
+        return nil
+    }
+}

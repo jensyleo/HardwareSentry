@@ -104,15 +104,3 @@ struct DuplicateSuppressionMiddlewareTests {
         #expect(await middleware.trackedKeyCount == 1)
     }
 }
-
-private extension MiddlewareDecision {
-    var isDeliver: Bool {
-        if case .deliver = self { return true }
-        return false
-    }
-
-    var isSuppress: Bool {
-        if case .suppress = self { return true }
-        return false
-    }
-}
