@@ -57,12 +57,15 @@ public actor NotificationDispatcher {
             }
         }
 
-        await delivery.present(current, context: context)
-        return .delivered(current)
+        let outcome = await delivery.present(current, context: context)
+        return .delivered(current, outcome: outcome)
     }
 
     public enum FireResult: Sendable {
-        case delivered(NotificationEvent)
+        /// The event cleared the pipeline and was handed to the delivery channel, which
+        /// reported the enclosed outcome. Reaching delivery and being shown are separate
+        /// things: a channel can accept an event and still fail to present it.
+        case delivered(NotificationEvent, outcome: DeliveryOutcome)
         case suppressed(reason: String)
 
         public var isDelivered: Bool {
@@ -72,7 +75,12 @@ public actor NotificationDispatcher {
 
         /// The event as it reached delivery, after any stage transformed it.
         public var deliveredEvent: NotificationEvent? {
-            if case .delivered(let event) = self { return event }
+            if case .delivered(let event, _) = self { return event }
+            return nil
+        }
+
+        public var deliveryOutcome: DeliveryOutcome? {
+            if case .delivered(_, let outcome) = self { return outcome }
             return nil
         }
 

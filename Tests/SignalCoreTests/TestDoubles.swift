@@ -5,9 +5,14 @@ import Foundation
 actor RecordingDelivery: NotificationDelivering {
     private(set) var presented: [(event: NotificationEvent, context: DispatchContext)] = []
 
-    func present(_ event: NotificationEvent, context: DispatchContext) async {
+    var outcome: DeliveryOutcome = .presented
+
+    func present(_ event: NotificationEvent, context: DispatchContext) async -> DeliveryOutcome {
         presented.append((event, context))
+        return outcome
     }
+
+    func setOutcome(_ outcome: DeliveryOutcome) { self.outcome = outcome }
 
     var presentedEvents: [NotificationEvent] { presented.map(\.event) }
 }
