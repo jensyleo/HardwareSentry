@@ -3,27 +3,35 @@ import Foundation
 
 /// Records every event handed to it, for assertion in tests.
 actor RecordingDelivery: NotificationDelivering {
-    private(set) var presented: [NotificationEvent] = []
+    private(set) var presented: [(event: NotificationEvent, context: DispatchContext)] = []
 
-    func present(_ event: NotificationEvent) async {
-        presented.append(event)
+    func present(_ event: NotificationEvent, context: DispatchContext) async {
+        presented.append((event, context))
     }
+
+    var presentedEvents: [NotificationEvent] { presented.map(\.event) }
 }
 
 func makeEvent(
-    id: String = "test-id",
+    name: String = "TestEvent",
+    subject: String? = nil,
     category: NotificationCategory = "TestCategory",
     title: String = "Title",
     body: String = "Body"
 ) -> NotificationEvent {
-    NotificationEvent(id: id, category: category, title: title, body: body)
+    NotificationEvent(name: name, subject: subject, category: category, title: title, body: body)
 }
 
-/// A mutable clock to drive time-dependent middleware in tests without racing
-/// Swift 6's sendable-capture checks — the class itself is the sendable unit,
-/// not the `var` inside it.
+func makeContext(
+    phase: DispatchPhase = .steady,
+    at seconds: TimeInterval = 0
+) -> DispatchContext {
+    DispatchContext(phase: phase, firedAt: Date(timeIntervalSince1970: 1000 + seconds))
+}
+
+/// A mutable clock for driving the dispatcher's `firedAt` stamping in tests.
 final class MutableClock: @unchecked Sendable {
     var date: Date
-    init(_ date: Date) { self.date = date }
+    init(_ date: Date = Date(timeIntervalSince1970: 1000)) { self.date = date }
     func advance(by seconds: TimeInterval) { date = date.addingTimeInterval(seconds) }
 }

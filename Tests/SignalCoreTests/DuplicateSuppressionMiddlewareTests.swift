@@ -7,57 +7,112 @@ struct DuplicateSuppressionMiddlewareTests {
     @Test("first occurrence is always delivered")
     func firstOccurrenceDelivered() async {
         let middleware = DuplicateSuppressionMiddleware()
-        let decision = await middleware.process(makeEvent())
+        let decision = await middleware.process(makeEvent(), context: makeContext())
 
-        guard case .deliver = decision else {
-            Issue.record("expected .deliver, got \(decision)")
-            return
-        }
+        #expect(decision.isDeliver)
     }
 
-    @Test("repeat within the window is suppressed")
+    @Test("an identical repeat within the window is suppressed")
     func repeatWithinWindowSuppressed() async {
-        let clock = MutableClock(Date(timeIntervalSince1970: 1000))
-        let middleware = DuplicateSuppressionMiddleware(window: 3, now: { clock.date })
+        let middleware = DuplicateSuppressionMiddleware(window: 3)
 
-        _ = await middleware.process(makeEvent())
-        clock.advance(by: 1) // 1s later, still inside the 3s window
+        _ = await middleware.process(makeEvent(), context: makeContext(at: 0))
+        let decision = await middleware.process(makeEvent(), context: makeContext(at: 1))
 
-        let decision = await middleware.process(makeEvent())
-
-        guard case .suppress = decision else {
-            Issue.record("expected .suppress, got \(decision)")
-            return
-        }
+        #expect(decision.isSuppress)
     }
 
-    @Test("repeat after the window elapses is delivered again")
+    @Test("an identical repeat after the window elapses is delivered again")
     func repeatAfterWindowDelivered() async {
-        let clock = MutableClock(Date(timeIntervalSince1970: 1000))
-        let middleware = DuplicateSuppressionMiddleware(window: 3, now: { clock.date })
+        let middleware = DuplicateSuppressionMiddleware(window: 3)
 
-        _ = await middleware.process(makeEvent())
-        clock.advance(by: 4) // past the 3s window
+        _ = await middleware.process(makeEvent(), context: makeContext(at: 0))
+        let decision = await middleware.process(makeEvent(), context: makeContext(at: 4))
 
-        let decision = await middleware.process(makeEvent())
-
-        guard case .deliver = decision else {
-            Issue.record("expected .deliver, got \(decision)")
-            return
-        }
+        #expect(decision.isDeliver)
     }
 
-    @Test("started/stopped suffixed identifiers are exempt from dedup")
-    func startedStoppedSuffixExempt() async {
-        let clock = Date(timeIntervalSince1970: 1000)
-        let middleware = DuplicateSuppressionMiddleware(window: 3, now: { clock })
+    // Regression guard for the design fault this middleware was rewritten to fix: the
+    // event name must take part in the key. A connect and a disconnect of the same
+    // device share category, subject and body, and differ only by name — collapsing
+    // them would silently swallow the second half of every quick state flip.
+    @Test("same subject and body but a different event name is not a duplicate")
+    func differentEventNameIsNotDuplicate() async {
+        let middleware = DuplicateSuppressionMiddleware(window: 3)
 
-        _ = await middleware.process(makeEvent(id: "Mic-started"))
-        let decision = await middleware.process(makeEvent(id: "Mic-started"))
+        _ = await middleware.process(
+            makeEvent(name: "USBConnected", subject: "Cruzer", body: "Cruzer"),
+            context: makeContext(at: 0)
+        )
+        let decision = await middleware.process(
+            makeEvent(name: "USBDisconnected", subject: "Cruzer", body: "Cruzer"),
+            context: makeContext(at: 1)
+        )
 
-        guard case .deliver = decision else {
-            Issue.record("expected .deliver (exempt suffix), got \(decision)")
-            return
+        #expect(decision.isDeliver)
+    }
+
+    @Test("the same event for a different subject is not a duplicate")
+    func differentSubjectIsNotDuplicate() async {
+        let middleware = DuplicateSuppressionMiddleware(window: 3)
+
+        _ = await middleware.process(
+            makeEvent(name: "USBConnected", subject: "Cruzer"),
+            context: makeContext(at: 0)
+        )
+        let decision = await middleware.process(
+            makeEvent(name: "USBConnected", subject: "Kingston"),
+            context: makeContext(at: 1)
+        )
+
+        #expect(decision.isDeliver)
+    }
+
+    @Test("title alone does not distinguish two otherwise identical events")
+    func titleIsNotPartOfIdentity() async {
+        let middleware = DuplicateSuppressionMiddleware(window: 3)
+
+        _ = await middleware.process(makeEvent(title: "One phrasing"), context: makeContext(at: 0))
+        let decision = await middleware.process(makeEvent(title: "Another phrasing"), context: makeContext(at: 1))
+
+        #expect(decision.isSuppress)
+    }
+
+    @Test("subjects with paired-transition suffixes are exempt from suppression")
+    func pairedTransitionSuffixesExempt() async {
+        let middleware = DuplicateSuppressionMiddleware(window: 3)
+
+        _ = await middleware.process(makeEvent(subject: "Mic-started"), context: makeContext(at: 0))
+        let decision = await middleware.process(makeEvent(subject: "Mic-started"), context: makeContext(at: 1))
+
+        #expect(decision.isDeliver)
+    }
+
+    @Test("the dedup table is pruned once it passes its threshold")
+    func tableIsPruned() async {
+        let middleware = DuplicateSuppressionMiddleware(window: 3, pruneThreshold: 4)
+
+        // Fill past the threshold with distinct subjects, all inside the window.
+        for index in 0..<5 {
+            _ = await middleware.process(makeEvent(subject: "device-\(index)"), context: makeContext(at: 0))
         }
+        #expect(await middleware.trackedKeyCount > 0)
+
+        // A later event triggers a prune; everything older than the window drops out,
+        // leaving only the entry just recorded.
+        _ = await middleware.process(makeEvent(subject: "device-later"), context: makeContext(at: 100))
+        #expect(await middleware.trackedKeyCount == 1)
+    }
+}
+
+private extension MiddlewareDecision {
+    var isDeliver: Bool {
+        if case .deliver = self { return true }
+        return false
+    }
+
+    var isSuppress: Bool {
+        if case .suppress = self { return true }
+        return false
     }
 }

@@ -2,19 +2,27 @@ import Foundation
 
 /// The central actor every emitting module talks to.
 ///
-/// Being an `actor` gives data-race safety for free at the type-system level —
-/// no `@synchronized` blocks, no static globals, no manually-guarded dictionaries.
-/// Replaces the legacy design's single delegate method (disabled-plugin check,
-/// dedup, flap-detection, history recording and final dispatch all inlined
-/// together) with an ordered, independently-testable pipeline plus a pluggable
-/// delivery channel.
+/// Being an `actor` gives data-race safety at the type-system level — no lock blocks,
+/// no static mutable globals, no manually guarded dictionaries. It replaces a legacy
+/// design in which the disabled-module check, deduplication, instability detection,
+/// history recording and final dispatch were all inlined into one method, with an
+/// ordered pipeline of independently testable stages plus a pluggable delivery channel.
 public actor NotificationDispatcher {
     private var pipeline: [any NotificationMiddleware]
     private var delivery: any NotificationDelivering
+    private var phase: DispatchPhase
+    private let now: @Sendable () -> Date
 
-    public init(pipeline: [any NotificationMiddleware] = [], delivery: any NotificationDelivering) {
+    public init(
+        pipeline: [any NotificationMiddleware] = [],
+        delivery: any NotificationDelivering,
+        phase: DispatchPhase = .steady,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         self.pipeline = pipeline
         self.delivery = delivery
+        self.phase = phase
+        self.now = now
     }
 
     public func setPipeline(_ pipeline: [any NotificationMiddleware]) {
@@ -25,37 +33,52 @@ public actor NotificationDispatcher {
         self.delivery = delivery
     }
 
-    /// Runs `event` through every registered middleware stage in order, then
-    /// hands the (possibly transformed) result to the delivery channel — unless
-    /// any stage suppresses it first.
+    /// Switches the phase stamped onto subsequent events.
+    ///
+    /// A host announcing pre-existing state at startup sets `.launching` before it
+    /// begins and `.steady` once that sweep is done.
+    public func setPhase(_ phase: DispatchPhase) {
+        self.phase = phase
+    }
+
+    /// Runs `event` through every registered stage in order, then hands the (possibly
+    /// transformed) result to the delivery channel — unless a stage suppresses it first.
     @discardableResult
     public func fire(_ event: NotificationEvent) async -> FireResult {
+        let context = DispatchContext(phase: phase, firedAt: now())
         var current = event
+
         for stage in pipeline {
-            switch await stage.process(current) {
+            switch await stage.process(current, context: context) {
             case .deliver(let updated):
                 current = updated
             case .suppress(let reason):
                 return .suppressed(reason: reason)
             }
         }
-        await delivery.present(current)
+
+        await delivery.present(current, context: context)
         return .delivered(current)
     }
 
-    public enum FireResult: Sendable, Equatable {
+    public enum FireResult: Sendable {
         case delivered(NotificationEvent)
         case suppressed(reason: String)
 
-        public static func == (lhs: FireResult, rhs: FireResult) -> Bool {
-            switch (lhs, rhs) {
-            case (.delivered(let a), .delivered(let b)):
-                return a.id == b.id
-            case (.suppressed(let a), .suppressed(let b)):
-                return a == b
-            default:
-                return false
-            }
+        public var isDelivered: Bool {
+            if case .delivered = self { return true }
+            return false
+        }
+
+        /// The event as it reached delivery, after any stage transformed it.
+        public var deliveredEvent: NotificationEvent? {
+            if case .delivered(let event) = self { return event }
+            return nil
+        }
+
+        public var suppressionReason: String? {
+            if case .suppressed(let reason) = self { return reason }
+            return nil
         }
     }
 }
