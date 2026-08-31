@@ -19,6 +19,13 @@ let package = Package(
                 .swiftLanguageMode(.v6)
             ]
         ),
+        .executableTarget(
+            name: "BannerDemo",
+            dependencies: ["SignalCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
         .testTarget(
             name: "SignalCoreTests",
             dependencies: ["SignalCore"],
