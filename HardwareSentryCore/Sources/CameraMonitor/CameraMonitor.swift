@@ -19,6 +19,13 @@ public actor CameraMonitor: Monitor {
         .init(name: CameraEvent.backgroundReplacementChanged.rawValue, title: "Background Replacement changed", enabledByDefault: false)
     ]
 
+    // All off by default. These describe the camera rather than report anything that
+    // happened, and the connect notification's job is to say a camera showed up — someone
+    // who wants the specification can turn on the lines they care about.
+    public static let fields: [MonitorFieldDescription] = CameraField.allCases.map {
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: false)
+    }
+
     private let source: any CameraSource
     private let context: MonitorContext
     /// How long a camera dropping out of the running set is held before being believed —
@@ -60,10 +67,23 @@ public actor CameraMonitor: Monitor {
 
     private func handle(_ event: CameraSourceEvent) async {
         switch event {
-        case .connected(let uid, let name):
+        case .connected(let uid, let name, let detail):
             await context.notify(
                 CameraEvent.connected.rawValue, subject: uid,
-                title: "Camera Connected", body: name,
+                title: "Camera Connected",
+                body: await context.body([
+                    .always(name),
+                    .field(CameraField.transport.rawValue, "Transport", detail?.transport),
+                    .field(CameraField.manufacturer.rawValue, "Manufacturer", detail?.manufacturer),
+                    .field(CameraField.position.rawValue, "Position", detail?.position),
+                    .field(CameraField.maxResolution.rawValue, "Max Resolution", detail?.maxResolution),
+                    .field(CameraField.maxFrameRate.rawValue, "Max Frame Rate", detail?.maxFrameRate),
+                    .field(CameraField.continuityCamera.rawValue, "Continuity Camera", detail?.continuityNote),
+                    .field(CameraField.deskView.rawValue, "Desk View", detail?.deskViewNote),
+                    .field(CameraField.centerStage.rawValue, "Center Stage", detail?.centerStageNote),
+                    .field(CameraField.systemPreferred.rawValue, "System Preferred", detail?.systemPreferredNote),
+                    .field(CameraField.linkedDevices.rawValue, "Linked", detail?.linkedDevices)
+                ]),
                 icon: .asset("CameraMonitor-Icon", in: .module)
             )
 

@@ -111,7 +111,7 @@ private final class Watcher: NSObject, @unchecked Sendable {
         guard !AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(device.transportType) else { return }
         continuation.yield(
             connected
-                ? .connected(uid: device.uniqueID, name: device.localizedName)
+                ? .connected(uid: device.uniqueID, name: device.localizedName, detail: CameraDetail(device: device))
                 : .disconnected(uid: device.uniqueID, name: device.localizedName)
         )
     }

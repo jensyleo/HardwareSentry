@@ -144,3 +144,118 @@ struct CameraMonitorTests {
         await monitor.stop()
     }
 }
+
+private struct ChosenFields: NotificationPreferences {
+    let allowed: Set<String>
+    func isFieldEnabled(_ name: String, in category: NotificationCategory) async -> Bool {
+        allowed.contains(name)
+    }
+}
+
+@Suite("CameraMonitor optional fields")
+struct CameraMonitorFieldTests {
+    private static let iPhone = CameraDetail(
+        transport: "Continuity",
+        manufacturer: "Apple Inc.",
+        position: "Back",
+        maxResolution: "1920 × 1080",
+        maxFrameRate: "60 fps",
+        isContinuityCamera: true,
+        isDeskViewCamera: false,
+        isCenterStageActive: true,
+        isSystemPreferred: true,
+        linkedDevices: "Desk View Camera"
+    )
+
+    private func body(_ event: CameraSourceEvent, allowing allowed: Set<String>) async -> String? {
+        let delivery = CollectingDelivery()
+        let monitor = CameraMonitor(
+            source: ScriptedCameraSource(script: [event]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: CameraMonitor.category,
+                preferences: ChosenFields(allowed: allowed)
+            )
+        )
+        await monitor.start()
+        for _ in 0..<100 where await delivery.events.isEmpty { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events.first?.body
+    }
+
+    @Test("with everything switched on, the details read in the declared order")
+    func fullDetailReadsInOrder() async {
+        let body = await body(
+            .connected(uid: "cam-1", name: "iPhone Camera", detail: Self.iPhone),
+            allowing: Set(CameraField.allCases.map(\.rawValue))
+        )
+
+        #expect(body == """
+        iPhone Camera
+        Transport:\tContinuity
+        Manufacturer:\tApple Inc.
+        Position:\tBack
+        Max Resolution:\t1920 × 1080
+        Max Frame Rate:\t60 fps
+        Continuity Camera:\tYes
+        Center Stage:\tActive
+        System Preferred:\tYes
+        Linked:\tDesk View Camera
+        """)
+    }
+
+    @Test("every detail line is off out of the box, so the connect message stays one line")
+    func allFieldsAreOffByDefault() async {
+        #expect(CameraMonitor.fields.allSatisfy { !$0.shownByDefault })
+        #expect(CameraMonitor.fields.count == CameraField.allCases.count)
+
+        let body = await body(.connected(uid: "cam-1", name: "iPhone Camera", detail: Self.iPhone), allowing: [])
+        #expect(body == "iPhone Camera")
+    }
+
+    @Test("a capability the camera does not have is not reported as absent")
+    func absentCapabilitiesAreSilent() async {
+        // The iPhone above is not a Desk View camera, and no "Desk View: No" line appears
+        // for it above. Same for an ordinary webcam with nothing special at all.
+        let webcam = CameraDetail(transport: "Built-in", manufacturer: "Apple Inc.")
+        let body = await body(
+            .connected(uid: "cam-2", name: "FaceTime HD Camera", detail: webcam),
+            allowing: Set(CameraField.allCases.map(\.rawValue))
+        )
+
+        #expect(body == "FaceTime HD Camera\nTransport:\tBuilt-in\nManufacturer:\tApple Inc.")
+    }
+
+    @Test("only the connect message carries the specification")
+    func startingToBeUsedStaysShort() async {
+        // The in-use notification is the privacy signal and is read at a glance; the
+        // camera's fixed properties were already said when it appeared.
+        let delivery = CollectingDelivery()
+        let monitor = CameraMonitor(
+            source: ScriptedCameraSource(script: [
+                .runningStateChanged(running: [:]),
+                .runningStateChanged(running: ["cam-1": "iPhone Camera"])
+            ]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: CameraMonitor.category,
+                preferences: ChosenFields(allowed: Set(CameraField.allCases.map(\.rawValue)))
+            )
+        )
+        await monitor.start()
+        for _ in 0..<100 where await delivery.events.isEmpty { await Task.yield() }
+        await monitor.stop()
+
+        #expect(await delivery.events.first?.body == "iPhone Camera")
+    }
+
+    @Test("a source that says nothing about the camera still produces a usable message")
+    func noDetailIsFine() async {
+        let body = await body(
+            .connected(uid: "cam-3", name: "Some Camera"),
+            allowing: Set(CameraField.allCases.map(\.rawValue))
+        )
+
+        #expect(body == "Some Camera")
+    }
+}

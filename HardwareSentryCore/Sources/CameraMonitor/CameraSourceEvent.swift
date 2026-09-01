@@ -15,7 +15,10 @@ public enum CameraVideoEffect: Sendable, Equatable {
 /// firing means "go re-read what's running now", and the monitor is what turns that into
 /// started/stopped per device.
 public enum CameraSourceEvent: Sendable, Equatable {
-    case connected(uid: String, name: String)
+    /// Carries the device description only here: everything in `CameraDetail` is a fixed
+    /// property of the camera, so it belongs to the moment it appears, not to every
+    /// subsequent start/stop of use.
+    case connected(uid: String, name: String, detail: CameraDetail? = nil)
     case disconnected(uid: String, name: String)
     /// uid → name, for every camera currently in use by any app.
     case runningStateChanged(running: [String: String])
