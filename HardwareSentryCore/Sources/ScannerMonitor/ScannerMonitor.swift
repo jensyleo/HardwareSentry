@@ -21,6 +21,10 @@ public actor ScannerMonitor: Monitor {
         .init(name: ScannerEvent.lost.rawValue, title: "Network scanner lost")
     ]
 
+    public static let fields: [MonitorFieldDescription] = ScannerField.allCases.map {
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+    }
+
     private let source: any ScannerSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -48,12 +52,26 @@ public actor ScannerMonitor: Monitor {
 
     private static func report(_ change: NetworkScannerChange, through context: MonitorContext) async {
         switch change {
-        case .found(let name):
+        case .found(let name, let detail):
             await context.notify(
                 ScannerEvent.found.rawValue,
                 subject: name,
                 title: "Network Scanner Found",
-                body: name,
+                body: await context.body([
+                    .always(name),
+                    // Left out when it just repeats the service name — plenty of scanners
+                    // advertise the same string in both places, and a message that says
+                    // the same thing twice reads as a bug.
+                    .field(ScannerField.model.rawValue, "Model", detail?.model == name ? nil : detail?.model),
+                    .field(ScannerField.location.rawValue, "Location", detail?.location),
+                    .field(ScannerField.address.rawValue, "Address", detail?.addressNote),
+                    .field(ScannerField.scanProtocol.rawValue, "Protocol", detail?.scanProtocol),
+                    .field(ScannerField.inputSources.rawValue, "Sources", detail?.inputSources),
+                    .field(ScannerField.duplex.rawValue, "Duplex", detail?.duplexNote),
+                    .field(ScannerField.formats.rawValue, "Formats", detail?.formats),
+                    .field(ScannerField.colorModes.rawValue, "Colour", detail?.colorModes),
+                    .field(ScannerField.adminURL.rawValue, "Admin", detail?.adminURL)
+                ]),
                 icon: .asset("ScannerMonitor-Icon-Found", in: .module)
             )
         case .lost(let name):

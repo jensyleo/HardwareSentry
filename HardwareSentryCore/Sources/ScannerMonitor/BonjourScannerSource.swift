@@ -26,13 +26,21 @@ public struct BonjourScannerSource: ScannerSource {
 /// `NSObject` subclass, the same shape as `SystemNotificationResponder` in `SignalCore`:
 /// `NetServiceBrowserDelegate` callbacks are not actor-isolated, so the delegate has to be
 /// something that can receive them unisolated and forward into the stream.
-private final class BrowserPair: NSObject, NetServiceBrowserDelegate, @unchecked Sendable {
+private final class BrowserPair: NSObject, NetServiceBrowserDelegate, NetServiceDelegate, @unchecked Sendable {
     private let continuation: AsyncStream<NetworkScannerChange>.Continuation
     private var scannerTCP: NetServiceBrowser?
     private var uscan: NetServiceBrowser?
     /// Keeps a strong reference to every currently-known service so it isn't deallocated
     /// while still resolving — `NetServiceBrowser` does not retain them.
     private var known: [String: NetService] = [:]
+    /// Services whose sighting has already been announced, so the two ways resolution can
+    /// end — success and failure — cannot both report the same scanner.
+    private var announced: Set<String> = []
+
+    /// How long to wait for a scanner to answer with its TXT record before announcing it
+    /// without one. Long enough for a device that is merely slow, short enough that the
+    /// sighting is still news by the time it arrives.
+    private static let resolveTimeout: TimeInterval = 3
 
     init(continuation: AsyncStream<NetworkScannerChange>.Continuation) {
         self.continuation = continuation
@@ -55,7 +63,11 @@ private final class BrowserPair: NSObject, NetServiceBrowserDelegate, @unchecked
         uscan?.stop()
         scannerTCP = nil
         uscan = nil
+        // Any service still waiting to answer is told to stop first: a resolution that
+        // completes after this would call into a continuation that has already finished.
+        known.values.forEach { $0.stop() }
         known.removeAll()
+        announced.removeAll()
         continuation.finish()
     }
 
@@ -63,11 +75,48 @@ private final class BrowserPair: NSObject, NetServiceBrowserDelegate, @unchecked
 
     func netServiceBrowser(_ browser: NetServiceBrowser, didFind service: NetService, moreComing: Bool) {
         known[key(for: service)] = service
-        continuation.yield(.found(name: service.name))
+        // Announced once resolution finishes rather than immediately: what makes the
+        // notification worth reading is which scanner it is and where, and none of that
+        // is known until the device answers. It is announced either way — see both
+        // delegate callbacks below — so a scanner that never answers is not lost.
+        service.delegate = self
+        service.resolve(withTimeout: Self.resolveTimeout)
     }
 
     func netServiceBrowser(_ browser: NetServiceBrowser, didRemove service: NetService, moreComing: Bool) {
-        known.removeValue(forKey: key(for: service))
+        let key = key(for: service)
+        known.removeValue(forKey: key)
+        announced.remove(key)
+        service.stop()
         continuation.yield(.lost(name: service.name))
+    }
+
+    // MARK: Resolution
+
+    func netServiceDidResolveAddress(_ service: NetService) {
+        let txt = service.txtRecordData().map(NetService.dictionary(fromTXTRecord:)) ?? [:]
+        announce(
+            service,
+            detail: ScannerDetail(
+                txt: txt,
+                serviceType: service.type,
+                host: service.hostName,
+                // `NetService` reports -1 until it has resolved a port.
+                port: service.port > 0 ? service.port : nil
+            )
+        )
+    }
+
+    func netService(_ service: NetService, didNotResolve errorDict: [String: NSNumber]) {
+        // A scanner that will not say anything about itself is still a scanner that
+        // appeared, so this reports the sighting with nothing attached rather than
+        // swallowing it.
+        announce(service, detail: nil)
+    }
+
+    private func announce(_ service: NetService, detail: ScannerDetail?) {
+        let key = key(for: service)
+        guard known[key] != nil, announced.insert(key).inserted else { return }
+        continuation.yield(.found(name: service.name, detail: detail))
     }
 }
