@@ -17,6 +17,10 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false)
     ]
 
+    public static let fields: [MonitorFieldDescription] = NetworkField.allCases.map {
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+    }
+
     private let source: any NetworkSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -50,10 +54,26 @@ public actor NetworkMonitor: Monitor {
 
     private func handle(_ event: NetworkSourceEvent) async {
         switch event {
-        case .reachability(let isReachable):
-            await handleReachability(isReachable)
-        case .wifiConnected(let ssid):
-            await context.notify(NetworkEvent.wifiConnected.rawValue, subject: ssid, title: "AirPort Connected", body: "Joined network.\nSSID:\t\(ssid)", icon: .asset("Network-Wifi-4", in: .module))
+        case .reachability(let isReachable, let detail):
+            await handleReachability(isReachable, detail: detail)
+        case .wifiConnected(let ssid, let detail):
+            await context.notify(
+                NetworkEvent.wifiConnected.rawValue, subject: ssid,
+                title: "AirPort Connected",
+                body: await context.body([
+                    .always("Joined network.\nSSID:\t\(ssid)"),
+                    .field(NetworkField.bssid.rawValue, "BSSID", detail?.bssid),
+                    .field(NetworkField.channel.rawValue, "Channel", detail?.channel),
+                    .field(NetworkField.generation.rawValue, "Standard", detail?.generation),
+                    .field(NetworkField.security.rawValue, "Security", detail?.security),
+                    .field(NetworkField.signal.rawValue, "Signal", detail?.rssiNote),
+                    .field(NetworkField.quality.rawValue, "Quality", detail?.qualityNote),
+                    .field(NetworkField.transmitRate.rawValue, "Rate", detail?.rateNote),
+                    .field(NetworkField.countryCode.rawValue, "Country", detail?.countryCode),
+                    .field(NetworkField.wifiInterface.rawValue, "Interface", detail?.interfaceName)
+                ]),
+                icon: .asset("Network-Wifi-4", in: .module)
+            )
         case .wifiDisconnected:
             await context.notify(NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi", title: "AirPort Disconnected", body: "", icon: .asset("Network-Wifi-Off", in: .module))
         case .linkSnapshot(let links):
@@ -63,7 +83,7 @@ public actor NetworkMonitor: Monitor {
         }
     }
 
-    private func handleReachability(_ isReachable: Bool) async {
+    private func handleReachability(_ isReachable: Bool, detail: NetworkPathDetail?) async {
         let previous = lastKnownReachable
         lastKnownReachable = isReachable
         guard let previous, previous != isReachable else { return } // first sighting — baseline only
@@ -72,7 +92,17 @@ public actor NetworkMonitor: Monitor {
             NetworkEvent.reachabilityChanged.rawValue,
             subject: "Internet",
             title: isReachable ? "Internet Reachable" : "Internet Unreachable",
-            body: isReachable ? "General Internet connectivity was restored" : "General Internet connectivity was lost",
+            body: await context.body([
+                .always(isReachable ? "General Internet connectivity was restored" : "General Internet connectivity was lost"),
+                // Only worth saying about a path that works. Which connection carries the
+                // traffic and what it costs are answers about a live path; on the way
+                // down there is no path left to describe.
+                .field(NetworkField.pathInterface.rawValue, "Over", isReachable ? detail?.interfaceType : nil),
+                .field(NetworkField.expensive.rawValue, "Metered", isReachable ? detail?.expensiveNote : nil),
+                .field(NetworkField.constrained.rawValue, "Constrained", isReachable ? detail?.constrainedNote : nil),
+                .field(NetworkField.ipProtocols.rawValue, "Protocols", isReachable ? detail?.protocolsNote : nil),
+                .field(NetworkField.dns.rawValue, "Warning", isReachable ? detail?.dnsNote : nil)
+            ]),
             icon: .asset(isReachable ? "Network-Generic-On" : "Network-Generic-Off", in: .module)
         )
     }

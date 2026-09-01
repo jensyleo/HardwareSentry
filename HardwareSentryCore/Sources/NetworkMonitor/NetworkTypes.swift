@@ -2,8 +2,8 @@ import Foundation
 
 /// What the system told this monitor just happened.
 public enum NetworkSourceEvent: Sendable, Equatable {
-    case reachability(isReachable: Bool)
-    case wifiConnected(ssid: String)
+    case reachability(isReachable: Bool, detail: NetworkPathDetail? = nil)
+    case wifiConnected(ssid: String, detail: WiFiDetail? = nil)
     case wifiDisconnected
     /// The full current set of network interfaces with an active link — not a delta, same
     /// reasoning as `DisplaySourceEvent.snapshot`.

@@ -57,7 +57,7 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
         let monitor = NWPathMonitor()
         pathMonitor = monitor
         monitor.pathUpdateHandler = { [weak self] path in
-            self?.continuation.yield(.reachability(isReachable: path.status == .satisfied))
+            self?.continuation.yield(.reachability(isReachable: path.status == .satisfied, detail: NetworkPathDetail(path: path)))
         }
         monitor.start(queue: .main)
     }
@@ -114,8 +114,9 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
     }
 
     func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
-        if let ssid = CWWiFiClient.shared().interface(withName: interfaceName)?.ssid() {
-            continuation.yield(.wifiConnected(ssid: ssid))
+        if let interface = CWWiFiClient.shared().interface(withName: interfaceName),
+           let ssid = interface.ssid() {
+            continuation.yield(.wifiConnected(ssid: ssid, detail: WiFiDetail(interface: interface)))
         } else {
             continuation.yield(.wifiDisconnected)
         }
