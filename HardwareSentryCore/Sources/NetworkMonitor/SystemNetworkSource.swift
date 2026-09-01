@@ -1,0 +1,123 @@
+import CoreWLAN
+import Foundation
+import Network
+import SystemConfiguration
+
+/// Watches `NWPathMonitor` for general Internet reachability, `SCDynamicStore` for link
+/// state and the primary interface, and CoreWLAN for Wi-Fi joining/leaving a network.
+///
+/// Deliberately thin and untested, for the same reason `IOKitUSBDeviceSource` is: none of
+/// it can run without a real network event. Everything worth reasoning about lives in
+/// `NetworkMonitor`, behind `NetworkSource`.
+public struct SystemNetworkSource: NetworkSource {
+    public init() {}
+
+    public func changes() -> AsyncStream<NetworkSourceEvent> {
+        AsyncStream { continuation in
+            let watcher = Watcher(continuation: continuation)
+            continuation.onTermination = { _ in watcher.stop() }
+            watcher.start()
+        }
+    }
+}
+
+private let linkKeyPattern = "State:/Network/Interface/[^/]+/Link"
+private let globalIPv4Key = "State:/Network/Global/IPv4"
+
+private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
+    private let continuation: AsyncStream<NetworkSourceEvent>.Continuation
+    private var pathMonitor: NWPathMonitor?
+    private var dynamicStore: SCDynamicStore?
+    private var runLoopSource: CFRunLoopSource?
+
+    init(continuation: AsyncStream<NetworkSourceEvent>.Continuation) {
+        self.continuation = continuation
+    }
+
+    func start() {
+        startReachability()
+        startDynamicStore()
+        startWiFi()
+    }
+
+    func stop() {
+        pathMonitor?.cancel()
+        if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .defaultMode) }
+        CWWiFiClient.shared().delegate = nil
+        try? CWWiFiClient.shared().stopMonitoringAllEvents()
+        continuation.finish()
+    }
+
+    // MARK: Reachability
+
+    /// `NWPathMonitor`, not the older `SCNetworkReachability` C API (deprecated since
+    /// macOS 14.4 in favor of exactly this) — same "general Internet reachability" fact,
+    /// `.satisfied` standing in for "reachable".
+    private func startReachability() {
+        let monitor = NWPathMonitor()
+        pathMonitor = monitor
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.continuation.yield(.reachability(isReachable: path.status == .satisfied))
+        }
+        monitor.start(queue: .main)
+    }
+
+    // MARK: Link + primary interface (SCDynamicStore)
+
+    private func startDynamicStore() {
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        var scContext = SCDynamicStoreContext(version: 0, info: context, retain: nil, release: nil, copyDescription: nil)
+        guard let store = SCDynamicStoreCreate(kCFAllocatorDefault, "com.jensyleo.hardwaresentry.network" as CFString, { _, _, info in
+            guard let info else { return }
+            Unmanaged<Watcher>.fromOpaque(info).takeUnretainedValue().emitDynamicStoreSnapshots()
+        }, &scContext) else { return }
+        dynamicStore = store
+
+        SCDynamicStoreSetNotificationKeys(store, [globalIPv4Key as CFString] as CFArray, [linkKeyPattern as CFString] as CFArray)
+        guard let source = SCDynamicStoreCreateRunLoopSource(kCFAllocatorDefault, store, 0) else { return }
+        runLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+
+        emitDynamicStoreSnapshots()
+    }
+
+    private func emitDynamicStoreSnapshots() {
+        guard let dynamicStore else { return }
+
+        var links: [String: Bool] = [:]
+        if let keys = SCDynamicStoreCopyKeyList(dynamicStore, linkKeyPattern as CFString) as? [String] {
+            for key in keys {
+                guard let interfaceName = Self.interfaceName(fromLinkKey: key) else { continue }
+                let active = (SCDynamicStoreCopyValue(dynamicStore, key as CFString) as? [String: AnyObject])?[kSCPropNetLinkActive as String] as? Bool
+                links[interfaceName] = active ?? false
+            }
+        }
+        continuation.yield(.linkSnapshot(links))
+
+        let global = SCDynamicStoreCopyValue(dynamicStore, globalIPv4Key as CFString) as? [String: AnyObject]
+        continuation.yield(.primaryInterfaceSnapshot(global?[kSCDynamicStorePropNetPrimaryInterface as String] as? String))
+    }
+
+    /// "State:/Network/Interface/en0/Link" → "en0".
+    private static func interfaceName(fromLinkKey key: String) -> String? {
+        let parts = key.split(separator: "/")
+        guard parts.count >= 4 else { return nil }
+        return String(parts[2])
+    }
+
+    // MARK: Wi-Fi (CoreWLAN)
+
+    private func startWiFi() {
+        let client = CWWiFiClient.shared()
+        client.delegate = self
+        try? client.startMonitoringEvent(with: .ssidDidChange)
+    }
+
+    func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
+        if let ssid = CWWiFiClient.shared().interface(withName: interfaceName)?.ssid() {
+            continuation.yield(.wifiConnected(ssid: ssid))
+        } else {
+            continuation.yield(.wifiDisconnected)
+        }
+    }
+}

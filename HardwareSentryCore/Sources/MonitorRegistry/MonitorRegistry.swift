@@ -4,6 +4,7 @@ import CameraMonitor
 import DisplayMonitor
 import Foundation
 import GamepadMonitor
+import NetworkMonitor
 import PowerMonitor
 import PrinterMonitor
 import SentryContract
@@ -80,6 +81,10 @@ public actor MonitorRegistry {
             PowerMonitor(
                 source: IOPSPowerSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category)
+            ),
+            NetworkMonitor(
+                source: SystemNetworkSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category)
             )
             // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
@@ -98,7 +103,8 @@ public actor MonitorRegistry {
             (BluetoothMonitor.category, BluetoothMonitor.events),
             (AudioMonitor.category, AudioMonitor.events),
             (VolumeMonitor.category, VolumeMonitor.events),
-            (PowerMonitor.category, PowerMonitor.events)
+            (PowerMonitor.category, PowerMonitor.events),
+            (NetworkMonitor.category, NetworkMonitor.events)
         ]
     }
 
