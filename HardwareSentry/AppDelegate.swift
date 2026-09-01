@@ -1,7 +1,6 @@
 import AppKit
 import MonitorRegistry
 import SignalCore
-import UserNotifications
 
 /// Puts the application together and runs it.
 ///
@@ -15,9 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var eventSettings: EventSettingsModel!
     private var dispatcher: NotificationDispatcher!
     private var registry: MonitorRegistry!
-    private var systemDelivery: SystemDelivery!
     private var bannerDelivery: BannerDelivery!
-    private var responder: SystemNotificationResponder!
 
     /// Everything is built here rather than in `applicationDidFinishLaunching`, because
     /// the settings scene may be asked for its content before that runs — and a delegate
@@ -29,11 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        UNUserNotificationCenter.current().delegate = responder
-
         Task {
             await registerEventDefaults()
-            await systemDelivery.prepare()
             await registry.start()
             await settleAfterStartupSweep()
         }
@@ -43,12 +37,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preferences = NotificationPreferencesStore(keyPrefix: "HardwareSentry")
         appearance = BannerAppearanceStore(keyPrefix: "HardwareSentry.Appearance")
 
-        // Prefer the system's own notification service; draw banners when it will not
-        // have us, which is the case for an application without a stable signing
-        // identity, and for anyone who has said no.
-        systemDelivery = SystemDelivery(scheduler: LiveSystemNotificationCenter())
+        // This application draws its own notifications and does not hand them to macOS.
+        //
+        // Deliberate, and the reason the notification package exists at all. Handing a
+        // notification to the system means giving up everything the appearance settings
+        // control — corner, size, how long it stays, what it is drawn on — because macOS
+        // then decides all of it. It would also make the application's own notifications
+        // depend on a permission the person has to grant, and stop working if they ever
+        // said no. `SystemDelivery` stays in the package for hosts that want the opposite;
+        // this one does not.
         bannerDelivery = BannerDelivery(appearance: appearance.appearance)
-        let delivery = FallbackDelivery(preferred: systemDelivery, fallback: bannerDelivery)
+        let delivery = bannerDelivery!
 
         dispatcher = NotificationDispatcher(
             pipeline: [
@@ -62,8 +61,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // not the same situation as news arriving one at a time.
             phase: .launching
         )
-
-        responder = SystemNotificationResponder(delivery: systemDelivery)
 
         registry = MonitorRegistry(dispatcher: dispatcher, preferences: preferences)
         eventSettings = EventSettingsModel(preferences: preferences, registry: registry)
@@ -118,8 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Raises a notification on demand, so someone can see for themselves that they are
-    /// working — and which way they are being delivered, since an application the system
-    /// will not have falls back to drawing its own.
+    /// working, and what the appearance settings currently look like on a real one.
     func sendTestNotification() {
         Task {
             await dispatcher.fire(
@@ -127,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     name: "TestNotification",
                     category: "HardwareSentry",
                     title: "HardwareSentry",
-                    body: "Notifications are working.\nDelivery: system → checking",
+                    body: "Notifications are working.",
                     icon: .symbol("checkmark.circle")
                 )
             )
