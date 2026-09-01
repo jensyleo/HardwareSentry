@@ -93,6 +93,37 @@ struct ThunderboltMonitorTests {
         ])
     }
 
+    @Test("the optional details a monitor declares show up in the message")
+    func declaredFieldsAppearInBody() async {
+        let events = await run([.attached(ThunderboltDevice(
+            name: "CalDigit Dock", baseClass: 0x06, vendorID: 0x0FD9, deviceID: 0x1234
+        ))], expecting: 1)
+
+        let body = events.first?.body ?? ""
+        #expect(body.contains("CalDigit Dock"))
+        #expect(body.contains("Type:\tBridge / Dock"))
+        #expect(body.contains("VID:PID:\t0FD9:1234"))
+        #expect(body.contains("Vendor:\tCalDigit"))
+    }
+
+    @Test("a detail the monitor cannot fill in is left out, not shown blank")
+    func unknownDetailsAreOmitted() async {
+        // An unrecognised vendor still shows its hex ID; it just has no name to give.
+        let events = await run([.attached(ThunderboltDevice(
+            name: "Mystery Box", baseClass: 0xFF, vendorID: 0xABCD, deviceID: 0x0001
+        ))], expecting: 1)
+
+        let body = events.first?.body ?? ""
+        #expect(body.contains("VID:PID:\tABCD:0001"))
+        #expect(!body.contains("Type:"))
+        #expect(!body.contains("Vendor:"))
+    }
+
+    @Test("every optional detail it can add is declared for preferences to find")
+    func fieldsAreDeclared() {
+        #expect(Set(ThunderboltMonitor.fields.map(\.name)) == ["Type", "VIDPID", "Vendor"])
+    }
+
     @Test("stopping twice is harmless")
     func stoppingTwiceIsHarmless() async {
         let monitor = ThunderboltMonitor(

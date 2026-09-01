@@ -91,7 +91,28 @@ private final class RegistryWatcher: @unchecked Sendable {
 
     private static func read(_ service: io_service_t) -> ThunderboltDevice? {
         guard let name = name(service) else { return nil }
-        return ThunderboltDevice(name: name, baseClass: baseClass(service))
+        return ThunderboltDevice(
+            name: name,
+            baseClass: baseClass(service),
+            vendorID: identifier(service, "vendor-id"),
+            deviceID: identifier(service, "device-id")
+        )
+    }
+
+    /// "vendor-id"/"device-id" come back as two little-endian bytes on some devices and as
+    /// a plain number on others — the same two shapes "class-code" arrives in.
+    private static func identifier(_ service: io_service_t, _ key: String) -> UInt16? {
+        guard let value = IORegistryEntryCreateCFProperty(
+            service, key as CFString, kCFAllocatorDefault, 0
+        )?.takeRetainedValue() else { return nil }
+
+        if CFGetTypeID(value) == CFDataGetTypeID(), let data = value as? Data, data.count >= 2 {
+            return UInt16(data[0]) | (UInt16(data[1]) << 8)
+        }
+        if CFGetTypeID(value) == CFNumberGetTypeID(), let number = value as? NSNumber {
+            return UInt16(truncatingIfNeeded: number.intValue)
+        }
+        return nil
     }
 
     private static func name(_ service: io_service_t) -> String? {

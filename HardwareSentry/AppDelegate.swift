@@ -97,14 +97,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Asks each monitor what it can raise, and what those should be for someone who has
     /// never touched the settings. No central table to keep in step.
     private func registerEventDefaults() async {
-        for (category, events) in await registry.describeEvents() {
-            preferences.registerDefaults([category: true])
+        for module in await registry.describe() {
+            preferences.registerDefaults([module.category: true])
 
-            let overrides = events
+            let overrides = module.events
                 .filter { !$0.enabledByDefault }
                 .reduce(into: [String: Bool]()) { $0[$1.name] = false }
             if !overrides.isEmpty {
-                preferences.registerDefaults(overrides, in: category)
+                preferences.registerDefaults(overrides, in: module.category)
+            }
+
+            // Fields are registered whichever way they default: unlike events, a field
+            // that defaults to off is common enough that leaving it unregistered would
+            // mean "never chosen" reads as wanted, which is the opposite of declared.
+            let fields = module.fields.reduce(into: [String: Bool]()) { $0[$1.name] = $1.shownByDefault }
+            if !fields.isEmpty {
+                preferences.registerFieldDefaults(fields, in: module.category)
             }
         }
     }

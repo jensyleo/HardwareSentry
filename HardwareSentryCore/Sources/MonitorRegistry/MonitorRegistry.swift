@@ -40,72 +40,78 @@ public actor MonitorRegistry {
         monitors = [
             USBMonitor(
                 source: IOKitUSBDeviceSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences)
             ),
             ThermalMonitor(
                 source: SystemThermalStateSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category, preferences: preferences)
             ),
             GamepadMonitor(
                 source: GameControllerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category, preferences: preferences)
             ),
             ThunderboltMonitor(
                 source: IOKitThunderboltDeviceSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category, preferences: preferences)
             ),
             CameraMonitor(
                 source: AVFoundationCameraSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences)
             ),
             DisplayMonitor(
                 source: CoreGraphicsDisplaySource(),
-                context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category, preferences: preferences)
             ),
             PrinterMonitor(
                 source: CUPSPrinterSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category, preferences: preferences)
             ),
             BluetoothMonitor(
                 source: IOBluetoothSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences)
             ),
             AudioMonitor(
                 source: CoreAudioSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences)
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences)
             ),
             PowerMonitor(
                 source: IOPSPowerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences)
             ),
             NetworkMonitor(
                 source: SystemNetworkSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category)
+                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences)
             )
             // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
     }
 
-    /// What every assembled monitor can raise, for a preferences screen to list.
-    public func describeEvents() -> [(category: NotificationCategory, events: [MonitorEventDescription])] {
+    /// What every assembled monitor can raise and can optionally say, for a preferences
+    /// screen to list. Built from each monitor's own declarations, so a monitor gaining an
+    /// event or a field gains a row without this list being touched.
+    public func describe() -> [MonitorDescription] {
         [
-            (USBMonitor.category, USBMonitor.events),
-            (ThermalMonitor.category, ThermalMonitor.events),
-            (GamepadMonitor.category, GamepadMonitor.events),
-            (ThunderboltMonitor.category, ThunderboltMonitor.events),
-            (CameraMonitor.category, CameraMonitor.events),
-            (DisplayMonitor.category, DisplayMonitor.events),
-            (PrinterMonitor.category, PrinterMonitor.events),
-            (BluetoothMonitor.category, BluetoothMonitor.events),
-            (AudioMonitor.category, AudioMonitor.events),
-            (VolumeMonitor.category, VolumeMonitor.events),
-            (PowerMonitor.category, PowerMonitor.events),
-            (NetworkMonitor.category, NetworkMonitor.events)
+            Self.describing(USBMonitor.self),
+            Self.describing(ThermalMonitor.self),
+            Self.describing(GamepadMonitor.self),
+            Self.describing(ThunderboltMonitor.self),
+            Self.describing(CameraMonitor.self),
+            Self.describing(DisplayMonitor.self),
+            Self.describing(PrinterMonitor.self),
+            Self.describing(BluetoothMonitor.self),
+            Self.describing(AudioMonitor.self),
+            Self.describing(VolumeMonitor.self),
+            Self.describing(PowerMonitor.self),
+            Self.describing(NetworkMonitor.self)
         ]
+    }
+
+    private static func describing<M: Monitor>(_ monitor: M.Type) -> MonitorDescription {
+        MonitorDescription(category: M.category, events: M.events, fields: M.fields)
     }
 
     public func start() async {

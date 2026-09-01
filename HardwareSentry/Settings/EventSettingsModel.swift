@@ -17,13 +17,7 @@ import SignalCore
 @MainActor
 @Observable
 final class EventSettingsModel {
-    struct Module: Identifiable {
-        let category: NotificationCategory
-        let events: [MonitorEventDescription]
-        var id: String { category.rawValue }
-    }
-
-    private(set) var modules: [Module] = []
+    private(set) var modules: [MonitorDescription] = []
 
     @ObservationIgnored private let preferences: NotificationPreferencesStore
     @ObservationIgnored private let registry: MonitorRegistry
@@ -38,9 +32,7 @@ final class EventSettingsModel {
     }
 
     func load() async {
-        modules = await registry.describeEvents().map {
-            Module(category: $0.category, events: $0.events)
-        }
+        modules = await registry.describe()
     }
 
     // MARK: - Reading and writing
@@ -68,13 +60,26 @@ final class EventSettingsModel {
         revision += 1
     }
 
-    /// Puts every module and event back to what its monitor declared, by forgetting the
-    /// choices rather than by writing today's defaults over them.
+    func isShown(_ field: MonitorFieldDescription, in category: NotificationCategory) -> Bool {
+        _ = revision
+        return preferences.isFieldEnabled(field.name, in: category)
+    }
+
+    func setShown(_ shown: Bool, for field: MonitorFieldDescription, in category: NotificationCategory) {
+        preferences.setFieldEnabled(shown, for: field.name, in: category)
+        revision += 1
+    }
+
+    /// Puts every module, event and field back to what its monitor declared, by forgetting
+    /// the choices rather than by writing today's defaults over them.
     func resetAll() {
         for module in modules {
             preferences.reset(module.category)
             for event in module.events {
                 preferences.reset(event.name, in: module.category)
+            }
+            for field in module.fields {
+                preferences.resetField(field.name, in: module.category)
             }
         }
         revision += 1

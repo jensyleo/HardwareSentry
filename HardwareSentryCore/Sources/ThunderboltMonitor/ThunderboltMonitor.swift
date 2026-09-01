@@ -14,6 +14,12 @@ public actor ThunderboltMonitor: Monitor {
         .init(name: ThunderboltEvent.egpuDisconnected.rawValue, title: "External GPU disconnected", enabledByDefault: false)
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: ThunderboltField.type.rawValue, title: "Device type"),
+        .init(name: ThunderboltField.identifier.rawValue, title: "Vendor/device ID (VID:PID)"),
+        .init(name: ThunderboltField.vendor.rawValue, title: "Vendor name")
+    ]
+
     private let source: any ThunderboltDeviceSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -51,7 +57,12 @@ public actor ThunderboltMonitor: Monitor {
                 ThunderboltEvent.connected.rawValue,
                 subject: device.name,
                 title: "Thunderbolt Connection",
-                body: device.name,
+                body: await context.body([
+                    .always(device.name),
+                    .field(ThunderboltField.type.rawValue, "Type", device.typeLabel),
+                    .field(ThunderboltField.identifier.rawValue, "VID:PID", device.identifierLabel),
+                    .field(ThunderboltField.vendor.rawValue, "Vendor", device.vendorName)
+                ]),
                 icon: .symbol("bolt.horizontal.fill")
             )
             if device.isDisplayController {

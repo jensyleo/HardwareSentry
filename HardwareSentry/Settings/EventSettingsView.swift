@@ -18,6 +18,20 @@ struct EventSettingsView: View {
                         Toggle(event.title, isOn: binding(for: event, in: module.category))
                             .disabled(!model.isEnabled(module.category))
                     }
+
+                    // Not events: extra lines inside a notification that is arriving
+                    // anyway. Kept in the same section as the events they belong to, but
+                    // marked so the difference is visible rather than implied.
+                    if !module.fields.isEmpty {
+                        LabeledContent("Include in the message") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(module.fields, id: \.name) { field in
+                                    Toggle(field.title, isOn: binding(for: field, in: module.category))
+                                }
+                            }
+                        }
+                        .disabled(!model.isEnabled(module.category))
+                    }
                 } header: {
                     Toggle(module.category.rawValue, isOn: binding(for: module.category))
                         .font(.headline)
@@ -52,6 +66,13 @@ struct EventSettingsView: View {
         Binding(
             get: { model.isEnabled(event, in: category) },
             set: { model.setEnabled($0, for: event, in: category) }
+        )
+    }
+
+    private func binding(for field: MonitorFieldDescription, in category: NotificationCategory) -> Binding<Bool> {
+        Binding(
+            get: { model.isShown(field, in: category) },
+            set: { model.setShown($0, for: field, in: category) }
         )
     }
 }
