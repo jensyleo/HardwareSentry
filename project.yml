@@ -1,0 +1,40 @@
+name: HardwareSentry
+options:
+  bundleIdPrefix: com.jensyleo
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+
+packages:
+  HardwareSentryCore:
+    path: HardwareSentryCore
+
+targets:
+  HardwareSentry:
+    type: application
+    platform: macOS
+    sources:
+      - path: HardwareSentry
+    info:
+      path: HardwareSentry/Info.plist
+    dependencies:
+      - package: HardwareSentryCore
+        product: MonitorRegistry
+      - package: HardwareSentryCore
+        product: SentryContract
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jensyleo.hardwaresentry
+        PRODUCT_NAME: HardwareSentry
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        # Signed to run locally rather than left to the linker: the system's notification
+        # service refuses a linker-signed application outright, which would leave the app
+        # able to draw its own banners but never to use the real thing.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""

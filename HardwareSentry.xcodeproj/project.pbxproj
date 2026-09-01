@@ -1,0 +1,356 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */ = {isa = PBXBuildFile; productRef = 142F87B528848BC07D8EF1FE /* SentryContract */; };
+		C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */; };
+		C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */; };
+		F76A1D28924864D7762D5C35 /* MonitorRegistry in Frameworks */ = {isa = PBXBuildFile; productRef = 04A73023C9FE09C7DEB77BBC /* MonitorRegistry */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		8435F26A20F9C35BB3AD1448 /* HardwareSentry.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HardwareSentry.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9760C652282756CC6EBD17A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareSentryApp.swift; sourceTree = "<group>"; };
+		B366AD86D8C8CBF87C30F9CF /* HardwareSentryCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HardwareSentryCore; path = HardwareSentryCore; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DE716577623EC0A1AD2718A6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F76A1D28924864D7762D5C35 /* MonitorRegistry in Frameworks */,
+				33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1C36E58E29D2229DAA63B534 /* HardwareSentry */ = {
+			isa = PBXGroup;
+			children = (
+				755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */,
+				AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */,
+				9760C652282756CC6EBD17A6 /* Info.plist */,
+			);
+			path = HardwareSentry;
+			sourceTree = "<group>";
+		};
+		5D482932DD2F32FF4493014D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8435F26A20F9C35BB3AD1448 /* HardwareSentry.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D0D94EBE7C1A254C6A9CAADB /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				B366AD86D8C8CBF87C30F9CF /* HardwareSentryCore */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		F221ACDF5DE12DF4C1946FC8 = {
+			isa = PBXGroup;
+			children = (
+				1C36E58E29D2229DAA63B534 /* HardwareSentry */,
+				D0D94EBE7C1A254C6A9CAADB /* Packages */,
+				5D482932DD2F32FF4493014D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		36D4C72C6871356DA314D061 /* HardwareSentry */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C015CC1128825A9B7EE7146E /* Build configuration list for PBXNativeTarget "HardwareSentry" */;
+			buildPhases = (
+				FEDE5280DD46D083BBADB59B /* Sources */,
+				DE716577623EC0A1AD2718A6 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HardwareSentry;
+			packageProductDependencies = (
+				04A73023C9FE09C7DEB77BBC /* MonitorRegistry */,
+				142F87B528848BC07D8EF1FE /* SentryContract */,
+			);
+			productName = HardwareSentry;
+			productReference = 8435F26A20F9C35BB3AD1448 /* HardwareSentry.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A943B920A6D43ED36E5E5D60 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					36D4C72C6871356DA314D061 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 714B07FA869714D5AAE38B66 /* Build configuration list for PBXProject "HardwareSentry" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F221ACDF5DE12DF4C1946FC8;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7B809DD482BDB7687964C267 /* XCLocalSwiftPackageReference "HardwareSentryCore" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5D482932DD2F32FF4493014D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				36D4C72C6871356DA314D061 /* HardwareSentry */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		FEDE5280DD46D083BBADB59B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */,
+				C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		E353FD4971AF32AD7AF0CDF9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F4DF193FFBB093CBADD897A5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HardwareSentry/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
+				PRODUCT_NAME = HardwareSentry;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		F72E811D5CF7E9DB0AF29B8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		FAC4684248471F1EDD410102 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HardwareSentry/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
+				PRODUCT_NAME = HardwareSentry;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		714B07FA869714D5AAE38B66 /* Build configuration list for PBXProject "HardwareSentry" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F72E811D5CF7E9DB0AF29B8B /* Debug */,
+				E353FD4971AF32AD7AF0CDF9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C015CC1128825A9B7EE7146E /* Build configuration list for PBXNativeTarget "HardwareSentry" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F4DF193FFBB093CBADD897A5 /* Debug */,
+				FAC4684248471F1EDD410102 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7B809DD482BDB7687964C267 /* XCLocalSwiftPackageReference "HardwareSentryCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = HardwareSentryCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		04A73023C9FE09C7DEB77BBC /* MonitorRegistry */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MonitorRegistry;
+		};
+		142F87B528848BC07D8EF1FE /* SentryContract */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SentryContract;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A943B920A6D43ED36E5E5D60 /* Project object */;
+}
