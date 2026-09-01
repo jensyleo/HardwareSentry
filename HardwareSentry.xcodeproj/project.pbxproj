@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1945E63340C5FA7F3A28C418 /* EventIconPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */; };
 		206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */; };
 		33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */ = {isa = PBXBuildFile; productRef = 142F87B528848BC07D8EF1FE /* SentryContract */; };
 		6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3BB57E267D9097497B67D5 /* SettingsView.swift */; };
@@ -19,6 +20,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventIconPicker.swift; sourceTree = "<group>"; };
 		0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsView.swift; sourceTree = "<group>"; };
 		19F12EAA9A55261D9EE07357 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		6D3BB57E267D9097497B67D5 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -58,6 +60,7 @@
 		3DFF1199ACCAFC0EEAC825CA /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */,
 				6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */,
 				0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */,
 				19F12EAA9A55261D9EE07357 /* HistoryView.swift */,
@@ -158,6 +161,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */,
+				1945E63340C5FA7F3A28C418 /* EventIconPicker.swift in Sources */,
 				8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */,
 				94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */,
 				C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */,

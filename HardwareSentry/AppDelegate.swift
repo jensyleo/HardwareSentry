@@ -13,9 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var appearance: BannerAppearanceStore!
     private(set) var eventSettings: EventSettingsModel!
     private(set) var history: NotificationHistoryStore!
+    private(set) var iconOverrides: IconOverrideStore!
     private var dispatcher: NotificationDispatcher!
     private var registry: MonitorRegistry!
     private var bannerDelivery: BannerDelivery!
+    private var iconOverrideMiddleware: IconOverrideMiddleware!
 
     /// Everything is built here rather than in `applicationDidFinishLaunching`, because
     /// the settings scene may be asked for its content before that runs — and a delegate
@@ -37,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func assemble() {
         preferences = NotificationPreferencesStore(keyPrefix: "HardwareSentry")
         appearance = BannerAppearanceStore(keyPrefix: "HardwareSentry.Appearance")
+        iconOverrides = IconOverrideStore(keyPrefix: "HardwareSentry.IconOverride")
+        iconOverrideMiddleware = IconOverrideMiddleware(overrides: iconOverrides.overrides)
 
         // This application draws its own notifications and does not hand them to macOS.
         //
@@ -57,6 +61,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 EventEnabledFilter(preferences: preferences),
                 DuplicateSuppressionMiddleware(),
                 FlapDetectionMiddleware(),
+                // After the filters: there is no point resolving an icon, let alone
+                // reading a file from disk, for an event that is about to be dropped.
+                // Before the history hook, so what is remembered carries the icon that
+                // was actually shown.
+                iconOverrideMiddleware!,
                 // Last on purpose: what gets remembered is what a person was actually
                 // shown, not everything the monitors raised and the filters then dropped.
                 HistoryHookMiddleware { [history] event, context in
@@ -72,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         registry = MonitorRegistry(dispatcher: dispatcher, preferences: preferences)
         eventSettings = EventSettingsModel(preferences: preferences, registry: registry)
         trackAppearanceChanges()
+        trackIconOverrideChanges()
 
     }
 
@@ -94,6 +104,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.bannerDelivery.appearance = self.appearance.appearance
                 self.trackAppearanceChanges()
+            }
+        }
+    }
+
+    /// The same re-arming trick as `trackAppearanceChanges`, for the icon choices: the
+    /// middleware runs inside an actor and cannot observe a main-actor store, so the
+    /// change is pushed to it instead.
+    private func trackIconOverrideChanges() {
+        withObservationTracking {
+            _ = iconOverrides.revision
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                let overrides = self.iconOverrides.overrides
+                await self.iconOverrideMiddleware.update(overrides)
+                self.trackIconOverrideChanges()
             }
         }
     }

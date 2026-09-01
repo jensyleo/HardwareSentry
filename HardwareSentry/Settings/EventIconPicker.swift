@@ -1,0 +1,156 @@
+import AppKit
+import SignalCore
+import SwiftUI
+
+/// Lets someone put their own icon on one kind of notification.
+///
+/// A menu rather than a separate screen: the choice belongs next to the event it applies
+/// to, and an icon is small enough to show as the control itself — what you are picking is
+/// visible in the thing you pick it with.
+struct EventIconPicker: View {
+    let event: String
+    let category: NotificationCategory
+    @Bindable var store: IconOverrideStore
+
+    @State private var isAskingForSymbol = false
+    @State private var typedSymbol = ""
+
+    private var current: IconOverride? { store.override(for: event, in: category) }
+
+    var body: some View {
+        Menu {
+            Button {
+                store.setOverride(nil, for: event, in: category)
+            } label: {
+                Label("Use the Default", systemImage: current == nil ? "checkmark" : "arrow.uturn.backward")
+            }
+
+            Divider()
+
+            ForEach(Self.suggestions, id: \.self) { symbol in
+                Button {
+                    store.setOverride(.symbol(symbol), for: event, in: category)
+                } label: {
+                    Label(Self.title(for: symbol), systemImage: symbol)
+                }
+            }
+
+            Divider()
+
+            Button("Another Symbol…") {
+                typedSymbol = if case .symbol(let name) = current { name } else { "" }
+                isAskingForSymbol = true
+            }
+            Button("Choose an Image…", action: chooseFile)
+        } label: {
+            preview
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(helpText)
+        .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
+            symbolEntry
+        }
+    }
+
+    // MARK: - The control itself
+
+    @ViewBuilder
+    private var preview: some View {
+        switch current {
+        case .symbol(let name):
+            // A name that names nothing would otherwise render as a blank control, which
+            // reads as a broken picker rather than as a typo.
+            Image(systemName: NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : "questionmark.square.dashed")
+        case .file(let path):
+            if let image = NSImage(contentsOfFile: path) {
+                Image(nsImage: image).resizable().frame(width: 16, height: 16)
+            } else {
+                // The file moved. Said here rather than only when the notification fires,
+                // so it can be fixed before anyone misses an icon.
+                Image(systemName: "exclamationmark.triangle")
+            }
+        case nil:
+            Image(systemName: "photo.badge.plus").foregroundStyle(.secondary)
+        }
+    }
+
+    private var helpText: String {
+        switch current {
+        case .symbol(let name): return "Icon: \(name)"
+        case .file(let path):
+            return NSImage(contentsOfFile: path) == nil
+                ? "This image is missing — the default icon will be used instead"
+                : "Icon: \((path as NSString).lastPathComponent)"
+        case nil: return "Choose an icon for this notification"
+        }
+    }
+
+    // MARK: - Choosing
+
+    private var symbolEntry: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SF Symbol name").font(.headline)
+            HStack {
+                TextField("bolt.fill", text: $typedSymbol)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+                    .onSubmit(commitTypedSymbol)
+                if !typedSymbol.isEmpty {
+                    Image(systemName: NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil
+                          ? typedSymbol : "questionmark.square.dashed")
+                }
+            }
+            Text("Any symbol name from Apple's SF Symbols application.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Cancel") { isAskingForSymbol = false }
+                Button("Use It", action: commitTypedSymbol)
+                    .keyboardShortcut(.defaultAction)
+                    // A name that resolves to nothing would be a setting that silently
+                    // does nothing, so it cannot be committed in the first place.
+                    .disabled(NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) == nil)
+            }
+        }
+        .padding()
+    }
+
+    private func commitTypedSymbol() {
+        guard NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil else { return }
+        store.setOverride(.symbol(typedSymbol), for: event, in: category)
+        isAskingForSymbol = false
+    }
+
+    private func chooseFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.prompt = "Use as Icon"
+        panel.message = "Choose an image for this notification."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        store.setOverride(.file(url.path), for: event, in: category)
+    }
+
+    // MARK: - Suggestions
+
+    /// A short list rather than the whole of SF Symbols. A menu of five thousand entries
+    /// is not a chooser, it is a haystack; anyone who knows the name they want can type it.
+    private static let suggestions = [
+        "bell.fill", "bolt.fill", "exclamationmark.triangle.fill", "checkmark.circle.fill",
+        "xmark.octagon.fill", "star.fill", "flag.fill", "heart.fill",
+        "eye.fill", "lock.fill", "wifi", "cable.connector"
+    ]
+
+    /// The symbol's own name, tidied into something readable — no separate table to keep
+    /// in step with the list above.
+    private static func title(for symbol: String) -> String {
+        symbol
+            .replacingOccurrences(of: ".fill", with: "")
+            .split(separator: ".")
+            .map(\.capitalized)
+            .joined(separator: " ")
+    }
+}

@@ -9,14 +9,19 @@ import SwiftUI
 /// notification package without that package knowing about hardware.
 struct EventSettingsView: View {
     @Bindable var model: EventSettingsModel
+    @Bindable var iconOverrides: IconOverrideStore
 
     var body: some View {
         Form {
             ForEach(model.modules) { module in
                 Section {
                     ForEach(module.events, id: \.name) { event in
-                        Toggle(event.title, isOn: binding(for: event, in: module.category))
-                            .disabled(!model.isEnabled(module.category))
+                        HStack {
+                            Toggle(event.title, isOn: binding(for: event, in: module.category))
+                            Spacer()
+                            EventIconPicker(event: event.name, category: module.category, store: iconOverrides)
+                        }
+                        .disabled(!model.isEnabled(module.category))
                     }
 
                     // Not events: extra lines inside a notification that is arriving
@@ -41,6 +46,12 @@ struct EventSettingsView: View {
 
             Section {
                 HStack {
+                    // Separate from "Restore Defaults" on purpose: someone who has spent
+                    // time picking icons should not lose them by switching a notification
+                    // back on, and someone tidying up their icons should not have their
+                    // notification choices reset underneath them.
+                    Button("Restore Default Icons") { iconOverrides.resetAll() }
+                        .disabled(iconOverrides.overrides.isEmpty)
                     Spacer()
                     Button("Restore Defaults") { model.resetAll() }
                 }

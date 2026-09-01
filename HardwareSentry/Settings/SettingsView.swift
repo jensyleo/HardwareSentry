@@ -10,10 +10,11 @@ struct SettingsView: View {
     let appearance: BannerAppearanceStore
     let events: EventSettingsModel
     let history: NotificationHistoryStore
+    let iconOverrides: IconOverrideStore
 
     var body: some View {
         TabView {
-            EventSettingsView(model: events)
+            EventSettingsView(model: events, iconOverrides: iconOverrides)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
             BannerAppearanceView(store: appearance)
