@@ -4,6 +4,7 @@ import CameraMonitor
 import DisplayMonitor
 import Foundation
 import GamepadMonitor
+import PowerMonitor
 import PrinterMonitor
 import SentryContract
 import SignalCore
@@ -75,6 +76,10 @@ public actor MonitorRegistry {
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category)
+            ),
+            PowerMonitor(
+                source: IOPSPowerSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category)
             )
             // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
@@ -92,7 +97,8 @@ public actor MonitorRegistry {
             (PrinterMonitor.category, PrinterMonitor.events),
             (BluetoothMonitor.category, BluetoothMonitor.events),
             (AudioMonitor.category, AudioMonitor.events),
-            (VolumeMonitor.category, VolumeMonitor.events)
+            (VolumeMonitor.category, VolumeMonitor.events),
+            (PowerMonitor.category, PowerMonitor.events)
         ]
     }
 
