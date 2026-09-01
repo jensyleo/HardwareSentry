@@ -15,6 +15,8 @@ public enum NetworkEvent: String, NotificationEventKey {
     case linkUp = "NetworkLinkUp"
     case linkDown = "NetworkLinkDown"
     case primaryInterfaceChanged = "PrimaryInterfaceChanged"
+    case dhcpRenewed = "NetworkDHCPRenewed"
+    case hostnameChanged = "NetworkHostnameChanged"
 
     public static let category: NotificationCategory = "Network"
 }

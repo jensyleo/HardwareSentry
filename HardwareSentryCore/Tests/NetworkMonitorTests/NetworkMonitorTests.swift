@@ -73,22 +73,42 @@ struct NetworkMonitorTests {
 
     @Test("the first link snapshot is a silent baseline")
     func linkBaselineIsSilent() async {
-        let events = await run([.linkSnapshot(["en0": true])])
+        let events = await run([.linkSnapshot(["en0": LinkState(isActive: true, kind: .wired)])])
         #expect(events.isEmpty)
     }
 
     @Test("a link coming up and going down fires distinct events, per interface")
     func linkUpAndDown() async {
         let events = await run([
-            .linkSnapshot(["en0": false]),
-            .linkSnapshot(["en0": true]),
-            .linkSnapshot(["en0": false])
+            .linkSnapshot(["en0": LinkState(isActive: false, kind: .wired)]),
+            .linkSnapshot(["en0": LinkState(isActive: true, kind: .wired)]),
+            .linkSnapshot(["en0": LinkState(isActive: false, kind: .wired)])
         ])
 
         #expect(events.count == 2)
         #expect(events[0].name == "NetworkLinkUp")
         #expect(events[0].subject == "en0")
         #expect(events[1].name == "NetworkLinkDown")
+    }
+
+    @Test("a Wi-Fi link uses the Wi-Fi icon, a wired one the Ethernet icon")
+    func linkIconMatchesTheInterfaceKind() async {
+        let events = await run([
+            .linkSnapshot([
+                "en0": LinkState(isActive: false, kind: .wired),
+                "en1": LinkState(isActive: false, kind: .wifi)
+            ]),
+            .linkSnapshot([
+                "en0": LinkState(isActive: true, kind: .wired),
+                "en1": LinkState(isActive: true, kind: .wifi)
+            ])
+        ])
+
+        #expect(events.count == 2)
+        let wired = events.first { $0.subject == "en0" }
+        let wifi = events.first { $0.subject == "en1" }
+        #expect(wired?.title == "Wired Link Up")
+        #expect(wifi?.title == "Wi-Fi Link Up")
     }
 
     @Test("the first primary interface reading is a silent baseline")
@@ -124,7 +144,9 @@ struct NetworkMonitorTests {
             "AirportDisconnected": true,
             "NetworkLinkUp": true,
             "NetworkLinkDown": true,
-            "PrimaryInterfaceChanged": false
+            "PrimaryInterfaceChanged": false,
+            "NetworkDHCPRenewed": false,
+            "NetworkHostnameChanged": false
         ])
     }
 
@@ -347,5 +369,99 @@ struct NetworkLinkKeyTests {
     func shortKeysAreRejected() {
         #expect(SystemNetworkSource.interfaceName(fromLinkKey: "State:/Network/Global/IPv4") == nil)
         #expect(SystemNetworkSource.interfaceName(fromLinkKey: "") == nil)
+    }
+}
+
+@Suite("NetworkInterfaceKind")
+struct NetworkInterfaceKindTests {
+    @Test("Wi-Fi and Ethernet are told apart by the type SCNetworkInterface reports")
+    func classifiesTheCommonCases() {
+        #expect(NetworkInterfaceKind.classify(scInterfaceType: "IEEE80211") == .wifi)
+        #expect(NetworkInterfaceKind.classify(scInterfaceType: "Ethernet") == .wired)
+        #expect(NetworkInterfaceKind.classify(scInterfaceType: "FireWire") == .wired)
+    }
+
+    @Test("an interface type nobody named specifically still gets an icon")
+    func unfamiliarTypesFallBackToOther() {
+        #expect(NetworkInterfaceKind.classify(scInterfaceType: "Bluetooth") == .other)
+        #expect(NetworkInterfaceKind.classify(scInterfaceType: "PPP") == .other)
+        #expect(NetworkInterfaceKind.classify(scInterfaceType: "") == .other)
+    }
+
+    @Test("only Wi-Fi looks like Wi-Fi; everything else reuses the wired icon")
+    func iconsFollowTheKind() {
+        #expect(NetworkInterfaceKind.wifi.icon(active: true) == "Network-Wifi-4")
+        #expect(NetworkInterfaceKind.wifi.icon(active: false) == "Network-Wifi-Off")
+        #expect(NetworkInterfaceKind.wired.icon(active: true) == "Network-Ethernet-On")
+        #expect(NetworkInterfaceKind.other.icon(active: true) == "Network-Ethernet-On")
+    }
+}
+
+
+@Suite("SystemNetworkSource DHCP key parsing")
+struct NetworkDHCPKeyTests {
+    @Test("the DHCP key uses the same shape as the link key")
+    func nameIsTheFourthComponent() {
+        #expect(SystemNetworkSource.interfaceName(fromDHCPKey: "State:/Network/Interface/en0/DHCP") == "en0")
+    }
+}
+
+@Suite("NetworkMonitor DHCP and hostname")
+struct NetworkMonitorDHCPHostnameTests {
+    private func run(_ script: [NetworkSourceEvent]) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.isEmpty { try? await Task.sleep(for: .milliseconds(1)) }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("an interface already holding a lease at launch is not a renewal")
+    func firstLeaseSightingIsSilent() async {
+        // DHCP finished normally at some point before this was watching — not a renewal
+        // of anything, regardless of whether the startup sweep is announcing devices.
+        let events = await run([.dhcpLeaseSnapshot(["en0": Date(timeIntervalSince1970: 1000)])])
+        #expect(events.isEmpty)
+    }
+
+    @Test("a later, different lease start on a known interface is a renewal")
+    func laterLeaseIsARenewal() async {
+        let events = await run([
+            .dhcpLeaseSnapshot(["en0": Date(timeIntervalSince1970: 1000)]),
+            .dhcpLeaseSnapshot(["en0": Date(timeIntervalSince1970: 2000)])
+        ])
+        #expect(events.count == 1)
+        #expect(events.first?.name == "NetworkDHCPRenewed")
+        #expect(events.first?.subject == "en0")
+    }
+
+    @Test("the same lease start seen again is not announced twice")
+    func unchangedLeaseIsSilent() async {
+        let events = await run([
+            .dhcpLeaseSnapshot(["en0": Date(timeIntervalSince1970: 1000)]),
+            .dhcpLeaseSnapshot(["en0": Date(timeIntervalSince1970: 1000)])
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("the computer name already set at launch is not a change")
+    func firstNameSightingIsSilent() async {
+        let events = await run([.computerNameSnapshot("Jensy's Mac")])
+        #expect(events.isEmpty)
+    }
+
+    @Test("the computer name changing says what it changed from and to")
+    func nameChangeIsAnnounced() async {
+        let events = await run([.computerNameSnapshot("Jensy's Mac"), .computerNameSnapshot("Office Mac")])
+        #expect(events.count == 1)
+        #expect(events.first?.name == "NetworkHostnameChanged")
+        #expect(events.first?.body == "Jensy's Mac → Office Mac")
     }
 }

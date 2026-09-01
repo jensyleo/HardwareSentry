@@ -25,6 +25,12 @@ public struct SystemNetworkSource: NetworkSource {
         return String(parts[3])
     }
 
+    /// "State:/Network/Interface/en0/DHCP" → "en0". Same shape and same off-by-one
+    /// mistake to avoid as `interfaceName(fromLinkKey:)`.
+    static func interfaceName(fromDHCPKey key: String) -> String? {
+        interfaceName(fromLinkKey: key)
+    }
+
     public func changes() -> AsyncStream<NetworkSourceEvent> {
         AsyncStream { continuation in
             let watcher = Watcher(continuation: continuation)
@@ -35,6 +41,28 @@ public struct SystemNetworkSource: NetworkSource {
 }
 
 private let linkKeyPattern = "State:/Network/Interface/[^/]+/Link"
+private let dhcpKeyPattern = "State:/Network/Interface/[^/]+/DHCP"
+private let computerNameKey = "Setup:/System"
+
+extension SystemNetworkSource {
+    /// Every interface `SCNetworkInterfaceCopyAll` lists, by BSD name, classified into
+    /// what it actually is.
+    ///
+    /// Untested, for the same reason the rest of this file is: it needs the real
+    /// interfaces of a real Mac. The classification itself — turning the type string this
+    /// reads into a `NetworkInterfaceKind` — is what `NetworkInterfaceKind.classify` does,
+    /// and that half is tested without any of this.
+    static func realInterfaceKinds() -> [String: NetworkInterfaceKind] {
+        guard let interfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] else { return [:] }
+        var kinds: [String: NetworkInterfaceKind] = [:]
+        for interface in interfaces {
+            guard let name = SCNetworkInterfaceGetBSDName(interface) as String? else { continue }
+            let type = (SCNetworkInterfaceGetInterfaceType(interface) as String?) ?? ""
+            kinds[name] = NetworkInterfaceKind.classify(scInterfaceType: type)
+        }
+        return kinds
+    }
+}
 private let globalIPv4Key = "State:/Network/Global/IPv4"
 
 private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
@@ -51,6 +79,17 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
         startReachability()
         startDynamicStore()
         startWiFi()
+        announceAlreadyJoinedWiFi()
+    }
+
+    /// `ssidDidChange` only fires for a network joined while this is listening, so without
+    /// this the network already joined when the application launched — which is most
+    /// networks, most of the time — is never mentioned at all.
+    private func announceAlreadyJoinedWiFi() {
+        for interface in CWWiFiClient.shared().interfaces() ?? [] {
+            guard let ssid = interface.ssid() else { continue }
+            continuation.yield(.wifiConnected(ssid: ssid, detail: WiFiDetail(interface: interface)))
+        }
     }
 
     func stop() {
@@ -86,7 +125,11 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
         }, &scContext) else { return }
         dynamicStore = store
 
-        SCDynamicStoreSetNotificationKeys(store, [globalIPv4Key as CFString] as CFArray, [linkKeyPattern as CFString] as CFArray)
+        SCDynamicStoreSetNotificationKeys(
+            store,
+            [globalIPv4Key as CFString, computerNameKey as CFString] as CFArray,
+            [linkKeyPattern as CFString, dhcpKeyPattern as CFString] as CFArray
+        )
         guard let source = SCDynamicStoreCreateRunLoopSource(kCFAllocatorDefault, store, 0) else { return }
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
@@ -97,18 +140,41 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
     private func emitDynamicStoreSnapshots() {
         guard let dynamicStore else { return }
 
-        var links: [String: Bool] = [:]
+        // The same set System Settings › Network shows — real, user-facing interfaces —
+        // rather than everything `SCDynamicStore` happens to have a Link key for, which
+        // includes housekeeping interfaces (AirDrop's `awdl0`, `llw0`, loopback) nobody
+        // would recognise in a notification.
+        let kinds = SystemNetworkSource.realInterfaceKinds()
+
+        var links: [String: LinkState] = [:]
         if let keys = SCDynamicStoreCopyKeyList(dynamicStore, linkKeyPattern as CFString) as? [String] {
             for key in keys {
-                guard let interfaceName = SystemNetworkSource.interfaceName(fromLinkKey: key) else { continue }
+                guard let interfaceName = SystemNetworkSource.interfaceName(fromLinkKey: key),
+                      let kind = kinds[interfaceName]
+                else { continue }
                 let active = (SCDynamicStoreCopyValue(dynamicStore, key as CFString) as? [String: AnyObject])?[kSCPropNetLinkActive as String] as? Bool
-                links[interfaceName] = active ?? false
+                links[interfaceName] = LinkState(isActive: active ?? false, kind: kind)
             }
         }
         continuation.yield(.linkSnapshot(links))
 
         let global = SCDynamicStoreCopyValue(dynamicStore, globalIPv4Key as CFString) as? [String: AnyObject]
         continuation.yield(.primaryInterfaceSnapshot(global?[kSCDynamicStorePropNetPrimaryInterface as String] as? String))
+
+        var leases: [String: Date] = [:]
+        if let keys = SCDynamicStoreCopyKeyList(dynamicStore, dhcpKeyPattern as CFString) as? [String] {
+            for key in keys {
+                guard let interfaceName = SystemNetworkSource.interfaceName(fromDHCPKey: key),
+                      let lease = SCDynamicStoreCopyValue(dynamicStore, key as CFString) as? [String: AnyObject],
+                      let start = lease["LeaseStartTime"] as? Date
+                else { continue }
+                leases[interfaceName] = start
+            }
+        }
+        continuation.yield(.dhcpLeaseSnapshot(leases))
+
+        let system = SCDynamicStoreCopyValue(dynamicStore, computerNameKey as CFString) as? [String: AnyObject]
+        continuation.yield(.computerNameSnapshot(system?[kSCPropSystemComputerName as String] as? String))
     }
 
 

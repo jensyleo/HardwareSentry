@@ -14,7 +14,9 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module)),
         .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module)),
         .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module)),
-        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module))
+        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module)),
+        .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = NetworkField.allCases.map {
@@ -25,11 +27,14 @@ public actor NetworkMonitor: Monitor {
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
 
-    private var knownLinks: [String: Bool] = [:]
+    private var knownLinks: [String: LinkState] = [:]
     private var hasLinkBaseline = false
     private var lastKnownPrimaryInterface: String?
     private var hasPrimaryBaseline = false
     private var lastKnownReachable: Bool?
+    private var knownLeaseStarts: [String: Date] = [:]
+    private var hasLeaseBaseline = false
+    private var lastKnownComputerName: String?
 
     public init(source: any NetworkSource, context: MonitorContext) {
         self.source = source
@@ -80,6 +85,10 @@ public actor NetworkMonitor: Monitor {
             await handleLinkSnapshot(links)
         case .primaryInterfaceSnapshot(let name):
             await handlePrimaryInterface(name)
+        case .dhcpLeaseSnapshot(let leases):
+            await handleDHCPLeaseSnapshot(leases)
+        case .computerNameSnapshot(let name):
+            await handleComputerName(name)
         }
     }
 
@@ -107,7 +116,7 @@ public actor NetworkMonitor: Monitor {
         )
     }
 
-    private func handleLinkSnapshot(_ links: [String: Bool]) async {
+    private func handleLinkSnapshot(_ links: [String: LinkState]) async {
         if !hasLinkBaseline {
             hasLinkBaseline = true
             // Falls through with nothing "known" when the startup sweep is meant to
@@ -119,15 +128,53 @@ public actor NetworkMonitor: Monitor {
             }
         }
 
-        for (interfaceName, isActive) in links {
-            let wasActive = knownLinks[interfaceName] ?? false
-            if isActive, !wasActive {
-                await context.notify(NetworkEvent.linkUp.rawValue, subject: interfaceName, title: "Network Link Up", body: "Interface:\t\(interfaceName)", icon: .asset("Network-Ethernet-On", in: .module))
-            } else if !isActive, wasActive {
-                await context.notify(NetworkEvent.linkDown.rawValue, subject: interfaceName, title: "Network Link Down", body: "Interface:\t\(interfaceName)", icon: .asset("Network-Ethernet-Off", in: .module))
+        for (interfaceName, state) in links {
+            let was = knownLinks[interfaceName]
+            if state.isActive, was?.isActive != true {
+                await context.notify(
+                    NetworkEvent.linkUp.rawValue, subject: interfaceName,
+                    title: "\(state.kind.label) Link Up", body: "Interface:\t\(interfaceName)",
+                    icon: .asset(state.kind.icon(active: true), in: .module)
+                )
+            } else if !state.isActive, was?.isActive == true {
+                await context.notify(
+                    NetworkEvent.linkDown.rawValue, subject: interfaceName,
+                    title: "\(state.kind.label) Link Down", body: "Interface:\t\(interfaceName)",
+                    icon: .asset(state.kind.icon(active: false), in: .module)
+                )
             }
         }
         knownLinks = links
+    }
+
+    /// Always a silent baseline, regardless of `announcesWhatIsAlreadyThere`: an interface
+    /// already holding a lease when the application launches is DHCP having finished
+    /// normally, at some point before anyone was watching — not a renewal of anything, and
+    /// not news the way an already-connected device is.
+    private func handleDHCPLeaseSnapshot(_ leases: [String: Date]) async {
+        for (interfaceName, start) in leases {
+            guard let previousStart = knownLeaseStarts[interfaceName], previousStart != start else { continue }
+            await context.notify(
+                NetworkEvent.dhcpRenewed.rawValue, subject: interfaceName,
+                title: "DHCP Lease Renewed", body: "Interface:\t\(interfaceName)",
+                icon: .asset("Network-Generic-On", in: .module)
+            )
+        }
+        knownLeaseStarts = leases
+    }
+
+    /// Also always a silent baseline: the name the machine already had is not a change,
+    /// however this application first learns of it.
+    private func handleComputerName(_ name: String?) async {
+        guard let name else { return }
+        defer { lastKnownComputerName = name }
+        guard let previous = lastKnownComputerName, previous != name else { return }
+
+        await context.notify(
+            NetworkEvent.hostnameChanged.rawValue, subject: "ComputerName",
+            title: "Computer Name Changed", body: "\(previous) → \(name)",
+            icon: .asset("Network-Generic-On", in: .module)
+        )
     }
 
     private func handlePrimaryInterface(_ name: String?) async {
