@@ -1,3 +1,4 @@
+import BluetoothMonitor
 import CameraMonitor
 import DisplayMonitor
 import Foundation
@@ -60,6 +61,10 @@ public actor MonitorRegistry {
             PrinterMonitor(
                 source: CUPSPrinterSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category)
+            ),
+            BluetoothMonitor(
+                source: IOBluetoothSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category)
             )
             // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
@@ -74,7 +79,8 @@ public actor MonitorRegistry {
             (ThunderboltMonitor.category, ThunderboltMonitor.events),
             (CameraMonitor.category, CameraMonitor.events),
             (DisplayMonitor.category, DisplayMonitor.events),
-            (PrinterMonitor.category, PrinterMonitor.events)
+            (PrinterMonitor.category, PrinterMonitor.events),
+            (BluetoothMonitor.category, BluetoothMonitor.events)
         ]
     }
 

@@ -17,6 +17,8 @@ targets:
       - path: HardwareSentry
     info:
       path: HardwareSentry/Info.plist
+      properties:
+        NSBluetoothAlwaysUsageDescription: "HardwareSentry watches for Bluetooth devices connecting and disconnecting, and for the Bluetooth radio's own state, so it can notify you about them."
     dependencies:
       - package: HardwareSentryCore
         product: MonitorRegistry

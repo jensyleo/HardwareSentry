@@ -18,5 +18,7 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>HardwareSentry watches for Bluetooth devices connecting and disconnecting, and for the Bluetooth radio's own state, so it can notify you about them.</string>
 </dict>
 </plist>

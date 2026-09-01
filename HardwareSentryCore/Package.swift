@@ -70,11 +70,16 @@ let package = Package(
             dependencies: ["SentryContract", "CCUPS"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .target(
+            name: "BluetoothMonitor",
+            dependencies: ["SentryContract"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
 
         // The only place that knows the whole list.
         .target(
             name: "MonitorRegistry",
-            dependencies: ["SentryContract", "USBMonitor", "ThermalMonitor", "GamepadMonitor", "ThunderboltMonitor", "ScannerMonitor", "CameraMonitor", "DisplayMonitor", "PrinterMonitor"],
+            dependencies: ["SentryContract", "USBMonitor", "ThermalMonitor", "GamepadMonitor", "ThunderboltMonitor", "ScannerMonitor", "CameraMonitor", "DisplayMonitor", "PrinterMonitor", "BluetoothMonitor"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
@@ -121,6 +126,11 @@ let package = Package(
         .testTarget(
             name: "PrinterMonitorTests",
             dependencies: ["PrinterMonitor"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "BluetoothMonitorTests",
+            dependencies: ["BluetoothMonitor"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
