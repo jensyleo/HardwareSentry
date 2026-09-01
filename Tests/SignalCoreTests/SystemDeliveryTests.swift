@@ -50,6 +50,7 @@ struct SystemDeliveryTests {
     func authorizedPresents() async {
         let scheduler = FakeScheduler(status: .authorized)
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
 
         let outcome = await delivery.present(makeEvent(), context: makeContext())
 
@@ -61,6 +62,7 @@ struct SystemDeliveryTests {
     func deniedFails() async {
         let scheduler = FakeScheduler(status: .denied)
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
 
         let outcome = await delivery.present(makeEvent(), context: makeContext())
 
@@ -72,6 +74,7 @@ struct SystemDeliveryTests {
     func authorizationResolvedOnce() async {
         let scheduler = FakeScheduler(status: .notDetermined, grantsAuthorization: true)
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
 
         for _ in 0..<3 {
             _ = await delivery.present(makeEvent(), context: makeContext())
@@ -85,16 +88,44 @@ struct SystemDeliveryTests {
     func refusedPermissionFails() async {
         let scheduler = FakeScheduler(status: .notDetermined, grantsAuthorization: false)
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
 
         let outcome = await delivery.present(makeEvent(), context: makeContext())
 
         #expect(!outcome.didPresent)
     }
 
+    // The permission dialog can sit unanswered for as long as the person ignores it. A
+    // startup sweep waiting behind it would arrive far too late, so this channel declines
+    // instead and lets whatever is standing in take the notification.
+    @Test("an unsettled permission question declines rather than waits")
+    func unsettledAuthorizationDeclines() async {
+        let scheduler = FakeScheduler(status: .notDetermined, grantsAuthorization: true)
+        let delivery = SystemDelivery(scheduler: scheduler)
+
+        let outcome = await delivery.present(makeEvent(), context: makeContext())
+
+        #expect(!outcome.didPresent)
+        #expect(await scheduler.scheduled.isEmpty)
+    }
+
+    @Test("once the question is settled the system takes over")
+    func systemTakesOverOnceSettled() async {
+        let scheduler = FakeScheduler(status: .notDetermined, grantsAuthorization: true)
+        let delivery = SystemDelivery(scheduler: scheduler)
+
+        _ = await delivery.present(makeEvent(), context: makeContext())
+        await delivery.prepare()
+        let outcome = await delivery.present(makeEvent(), context: makeContext())
+
+        #expect(outcome == .presented)
+    }
+
     @Test("a system that rejects the request reports failure rather than throwing")
     func schedulingFailureIsReported() async {
         let scheduler = FakeScheduler(failure: SchedulingFailure())
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
 
         let outcome = await delivery.present(makeEvent(), context: makeContext())
 
@@ -107,6 +138,7 @@ struct SystemDeliveryTests {
     func identifierCombinesCategoryAndSubject() async {
         let scheduler = FakeScheduler()
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
 
         await delivery.present(makeEvent(subject: "Cruzer", category: "USB"), context: makeContext())
         await delivery.present(makeEvent(subject: "Cruzer", category: "Bluetooth"), context: makeContext())
@@ -119,6 +151,7 @@ struct SystemDeliveryTests {
     func lowPriorityIsPassive() async {
         let scheduler = FakeScheduler()
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
 
         var quiet = makeEvent()
         quiet.priority = .low
@@ -133,6 +166,7 @@ struct SystemDeliveryTests {
     func responseReachesHandler() async {
         let scheduler = FakeScheduler()
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
         let recorder = InteractionRecorder()
 
         var event = makeEvent(subject: "Cruzer", category: "USB")
@@ -148,6 +182,7 @@ struct SystemDeliveryTests {
     func handlersAreOneShot() async {
         let scheduler = FakeScheduler()
         let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
         let recorder = InteractionRecorder()
 
         var event = makeEvent(subject: "Cruzer", category: "USB")
@@ -164,6 +199,7 @@ struct SystemDeliveryTests {
     @Test("a response for something unknown is ignored")
     func unknownResponseIgnored() async {
         let delivery = SystemDelivery(scheduler: FakeScheduler())
+        await delivery.prepare()
         await delivery.handleResponse(identifier: "nothing|here", interaction: .clicked)
         #expect(await delivery.trackedHandlerCount == 0)
     }
@@ -171,6 +207,7 @@ struct SystemDeliveryTests {
     @Test("handlers for notifications nobody answers stay bounded")
     func handlerTableStaysBounded() async {
         let delivery = SystemDelivery(scheduler: FakeScheduler(), handlerLimit: 3)
+        await delivery.prepare()
 
         for index in 0..<10 {
             var event = makeEvent(subject: "device-\(index)")
@@ -184,6 +221,7 @@ struct SystemDeliveryTests {
     @Test("events with no handler leave nothing behind")
     func eventsWithoutHandlersTrackNothing() async {
         let delivery = SystemDelivery(scheduler: FakeScheduler())
+        await delivery.prepare()
 
         await delivery.present(makeEvent(), context: makeContext())
 

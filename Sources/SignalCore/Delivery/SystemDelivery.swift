@@ -13,6 +13,7 @@ import Foundation
 public actor SystemDelivery: NotificationDelivering {
     private let scheduler: any SystemNotificationScheduling
     private var authorization: SystemAuthorizationStatus?
+    private var resolving: Task<SystemAuthorizationStatus, Never>?
     private var handlers: [String: NotificationInteractionHandler] = [:]
     private var handlerOrder: [String] = []
     private let handlerLimit: Int
@@ -22,15 +23,28 @@ public actor SystemDelivery: NotificationDelivering {
         self.handlerLimit = handlerLimit
     }
 
-    /// Whether the system will currently accept notifications, asking the user once if
-    /// they have not been asked before.
-    public func canPresent() async -> Bool {
-        await resolveAuthorization() != .denied
+    /// Settles whether the system will accept notifications, asking the user if they
+    /// have not been asked before.
+    ///
+    /// Worth calling at startup: until this has finished, every notification goes to
+    /// whatever channel is standing in, since presenting cannot wait on it.
+    @discardableResult
+    public func prepare() async -> Bool {
+        await settleAuthorization() != .denied
     }
 
     @discardableResult
     public func present(_ event: NotificationEvent, context: DispatchContext) async -> DeliveryOutcome {
-        guard await resolveAuthorization() != .denied else {
+        // Never wait on the permission question here. It can sit unanswered for as long
+        // as the person ignores the dialog, and a startup sweep behind it would arrive
+        // minutes late or not at all. Until the answer is in, this channel declines and
+        // whatever is standing in gets the notification.
+        guard let authorization else {
+            beginSettlingAuthorization()
+            return .failed(reason: "system authorization has not been settled yet")
+        }
+
+        guard authorization != .denied else {
             return .failed(reason: "system notifications are not authorized")
         }
 
@@ -71,15 +85,39 @@ public actor SystemDelivery: NotificationDelivering {
         "\(event.category.rawValue)|\(event.subject)"
     }
 
-    private func resolveAuthorization() async -> SystemAuthorizationStatus {
+    private func settleAuthorization() async -> SystemAuthorizationStatus {
         if let authorization { return authorization }
 
-        var status = await scheduler.authorizationStatus()
-        if status == .notDetermined {
-            status = await scheduler.requestAuthorization() ? .authorized : .denied
+        let task: Task<SystemAuthorizationStatus, Never>
+        if let resolving {
+            task = resolving
+        } else {
+            task = Task { [scheduler] in
+                var status = await scheduler.authorizationStatus()
+                if status == .notDetermined {
+                    status = await scheduler.requestAuthorization() ? .authorized : .denied
+                }
+                return status
+            }
+            resolving = task
         }
-        authorization = status
+
+        // Whoever gets the answer records it, not only whoever started asking: an actor
+        // lets others in at every await, so the one that started the work is not
+        // necessarily the first one back.
+        let status = await task.value
+        if authorization == nil {
+            authorization = status
+            resolving = nil
+        }
         return status
+    }
+
+    /// Starts settling the question without waiting for the answer, so that one
+    /// notification arriving early does not hold up everything behind it.
+    private func beginSettlingAuthorization() {
+        guard authorization == nil, resolving == nil else { return }
+        Task { await settleAuthorization() }
     }
 
     /// Keeps the handler table bounded: notifications the user never answers would
