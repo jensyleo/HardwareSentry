@@ -124,3 +124,109 @@ struct GamepadMonitorTests {
         await monitor.stop()
     }
 }
+
+/// Lets a test say which optional lines this person has asked to see.
+private struct ChosenFields: NotificationPreferences {
+    let allowed: Set<String>
+
+    func isFieldEnabled(_ name: String, in category: NotificationCategory) async -> Bool {
+        allowed.contains(name)
+    }
+}
+
+@Suite("GamepadMonitor optional fields")
+struct GamepadMonitorFieldTests {
+    private static let fullDetail = GamepadDetail(
+        productCategory: "DualSense",
+        playerIndex: 1,
+        batteryPercent: 74,
+        batteryState: "Charging",
+        hasAdaptiveTriggers: true,
+        hasTouchpad: true,
+        hasMotionSensors: true,
+        hapticLocations: "Handles, Triggers",
+        isAttachedToDevice: false,
+        lightColor: "R100% G0% B0%",
+        hasElitePaddles: false
+    )
+
+    private func body(
+        _ change: GamepadDeviceChange,
+        allowing allowed: Set<String>
+    ) async -> String? {
+        let delivery = CollectingDelivery()
+        let monitor = GamepadMonitor(
+            source: ScriptedGamepadSource(script: [change]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: GamepadMonitor.category,
+                preferences: ChosenFields(allowed: allowed)
+            )
+        )
+        await monitor.start()
+        for _ in 0..<100 where await delivery.events.isEmpty { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events.first?.body
+    }
+
+    @Test("with everything switched on, the details read in the declared order")
+    func fullDetailReadsInOrder() async {
+        let body = await body(
+            .init(kind: .controller, connected: true, name: "DualSense", detail: Self.fullDetail),
+            allowing: Set(GamepadField.allCases.map(\.rawValue))
+        )
+
+        #expect(body == """
+        DualSense
+        Category:\tDualSense
+        Player:\t1
+        Battery:\t74%
+        Charging:\tCharging
+        Attached:\tNo
+        Adaptive Triggers:\tYes
+        Touchpad:\tYes
+        Motion:\tYes
+        Haptics:\tHandles, Triggers
+        Light:\tR100% G0% B0%
+        """)
+    }
+
+    @Test("a field nobody asked for costs nothing and says nothing")
+    func unwantedFieldsAreLeftOut() async {
+        let body = await body(
+            .init(kind: .controller, connected: true, name: "DualSense", detail: Self.fullDetail),
+            allowing: [GamepadField.battery.rawValue]
+        )
+
+        #expect(body == "DualSense\nBattery:\t74%")
+    }
+
+    @Test("a capability the controller does not have is not reported as absent")
+    func absentCapabilitiesAreSilent() async {
+        // Telling someone their Xbox pad has no touchpad is noise, not news, so the
+        // capability lines are present-only rather than Yes/No.
+        let plain = GamepadDetail(productCategory: "Xbox One", hasTouchpad: false)
+        let body = await body(
+            .init(kind: .controller, connected: true, name: "Xbox Wireless Controller", detail: plain),
+            allowing: Set(GamepadField.allCases.map(\.rawValue))
+        )
+
+        #expect(body == "Xbox Wireless Controller\nCategory:\tXbox One")
+    }
+
+    @Test("a disconnect carries no details, so it cannot quote a stale battery level")
+    func disconnectHasNoDetail() async {
+        let body = await body(
+            .init(kind: .controller, connected: false, name: "DualSense"),
+            allowing: Set(GamepadField.allCases.map(\.rawValue))
+        )
+
+        #expect(body == "DualSense")
+    }
+
+    @Test("player zero is a real player, unlike an unset index")
+    func playerZeroIsReported() async {
+        #expect(GamepadDetail(playerIndex: 0).playerNote == "0")
+        #expect(GamepadDetail().playerNote == nil)
+    }
+}

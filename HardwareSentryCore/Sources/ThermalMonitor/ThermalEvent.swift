@@ -33,3 +33,8 @@ public enum ThermalEvent: String, NotificationEventKey {
         }
     }
 }
+
+/// The optional details this monitor can add.
+public enum ThermalField: String, CaseIterable {
+    case lowPowerMode = "LowPowerMode"
+}

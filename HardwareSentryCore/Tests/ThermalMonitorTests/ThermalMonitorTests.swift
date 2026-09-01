@@ -132,3 +132,64 @@ struct ThermalMonitorTests {
         await monitor.stop()
     }
 }
+
+/// A source that also reports Low Power Mode, without needing the Mac to be in it.
+private struct LowPowerThermalSource: ThermalStateSource {
+    let lowPower: Bool
+    let script: [ThermalState]
+
+    func currentState() -> ThermalState { .nominal }
+    func isLowPowerModeEnabled() -> Bool { lowPower }
+    func stateChanges() -> AsyncStream<ThermalState> {
+        AsyncStream { c in
+            for state in script { c.yield(state) }
+            c.finish()
+        }
+    }
+    func darkWakeEmergencies() -> AsyncStream<Void> { AsyncStream { $0.finish() } }
+}
+
+private struct ChosenFields: NotificationPreferences {
+    let allowed: Set<String>
+    func isFieldEnabled(_ name: String, in category: NotificationCategory) async -> Bool {
+        allowed.contains(name)
+    }
+}
+
+@Suite("ThermalMonitor Low Power Mode note")
+struct ThermalLowPowerFieldTests {
+    private func body(lowPower: Bool, allowing allowed: Set<String>) async -> String? {
+        let delivery = CollectingDelivery()
+        let monitor = ThermalMonitor(
+            source: LowPowerThermalSource(lowPower: lowPower, script: [.serious]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: ThermalMonitor.category,
+                preferences: ChosenFields(allowed: allowed)
+            )
+        )
+        await monitor.start()
+        for _ in 0..<100 where await delivery.events.isEmpty { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events.first?.body
+    }
+
+    @Test("when asked for, the note appears alongside the state change")
+    func noteAppearsWhenBothAreTrue() async {
+        let body = await body(lowPower: true, allowing: [ThermalField.lowPowerMode.rawValue])
+        #expect(body?.contains("Low Power Mode is also currently on") == true)
+    }
+
+    @Test("Low Power Mode off means no line at all, not a line saying it is off")
+    func noNoteWhenLowPowerIsOff() async {
+        let body = await body(lowPower: false, allowing: [ThermalField.lowPowerMode.rawValue])
+        #expect(body?.contains("Low Power Mode") == false)
+    }
+
+    @Test("the note is off by default, so nobody is told about it unasked")
+    func offByDefault() async {
+        #expect(ThermalMonitor.fields.first(where: { $0.name == ThermalField.lowPowerMode.rawValue })?.shownByDefault == false)
+        let body = await body(lowPower: true, allowing: [])
+        #expect(body?.contains("Low Power Mode") == false)
+    }
+}

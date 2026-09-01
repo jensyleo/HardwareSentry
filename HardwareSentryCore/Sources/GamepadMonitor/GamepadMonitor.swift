@@ -24,6 +24,24 @@ public actor GamepadMonitor: Monitor {
         .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected")
     ]
 
+    // Only what the framework will answer about a controller that is actually here. The
+    // capability lines (touchpad, adaptive triggers, motion, paddles) are off by default:
+    // they never change for a given controller, so after the first connect they are the
+    // same sentence every time.
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: GamepadField.category.rawValue, title: "Product category", shownByDefault: true),
+        .init(name: GamepadField.player.rawValue, title: "Player index", shownByDefault: true),
+        .init(name: GamepadField.battery.rawValue, title: "Battery level", shownByDefault: true),
+        .init(name: GamepadField.batteryState.rawValue, title: "Charging state", shownByDefault: true),
+        .init(name: GamepadField.attached.rawValue, title: "Attached to this Mac", shownByDefault: false),
+        .init(name: GamepadField.adaptiveTriggers.rawValue, title: "Has adaptive triggers", shownByDefault: false),
+        .init(name: GamepadField.touchpad.rawValue, title: "Has a touchpad", shownByDefault: false),
+        .init(name: GamepadField.motion.rawValue, title: "Has motion sensors", shownByDefault: false),
+        .init(name: GamepadField.haptics.rawValue, title: "Haptic locations", shownByDefault: false),
+        .init(name: GamepadField.elitePaddles.rawValue, title: "Has rear paddles", shownByDefault: false),
+        .init(name: GamepadField.lightColor.rawValue, title: "Light colour", shownByDefault: false)
+    ]
+
     private let source: any GamepadSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -51,17 +69,31 @@ public actor GamepadMonitor: Monitor {
 
     private static func report(_ change: GamepadDeviceChange, through context: MonitorContext) async {
         let event = GamepadEvent.forChange(change)
-        let (title, body) = describe(change)
+        let (title, headline) = describe(change)
+        let detail = change.detail
         await context.notify(
             event.rawValue,
             subject: change.name ?? String(describing: change.kind),
             title: title,
-            body: body,
+            body: await context.body([
+                .always(headline),
+                .field(GamepadField.category.rawValue, "Category", detail?.productCategory),
+                .field(GamepadField.player.rawValue, "Player", detail?.playerNote),
+                .field(GamepadField.battery.rawValue, "Battery", detail?.batteryNote),
+                .field(GamepadField.batteryState.rawValue, "Charging", detail?.batteryState),
+                .field(GamepadField.attached.rawValue, "Attached", detail?.attachedNote),
+                .field(GamepadField.adaptiveTriggers.rawValue, "Adaptive Triggers", detail?.adaptiveTriggersNote),
+                .field(GamepadField.touchpad.rawValue, "Touchpad", detail?.touchpadNote),
+                .field(GamepadField.motion.rawValue, "Motion", detail?.motionNote),
+                .field(GamepadField.haptics.rawValue, "Haptics", detail?.hapticLocations),
+                .field(GamepadField.elitePaddles.rawValue, "Rear Paddles", detail?.elitePaddlesNote),
+                .field(GamepadField.lightColor.rawValue, "Light", detail?.lightColor)
+            ]),
             icon: .asset("GamepadMonitor-Icon", in: .module)
         )
     }
 
-    private static func describe(_ change: GamepadDeviceChange) -> (title: String, body: String) {
+    private static func describe(_ change: GamepadDeviceChange) -> (title: String, headline: String) {
         switch change.kind {
         case .controller:
             let name = change.name ?? "Game Controller"

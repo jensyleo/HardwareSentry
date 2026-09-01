@@ -14,6 +14,10 @@ public actor ThermalMonitor: Monitor {
         .init(name: ThermalEvent.darkWakeEmergency.rawValue, title: "Overheated during a maintenance wake", enabledByDefault: true)
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: ThermalField.lowPowerMode.rawValue, title: "Note if Low Power Mode is also on", shownByDefault: false)
+    ]
+
     private let source: any ThermalStateSource
     private let context: MonitorContext
     private var lastState: ThermalState?
@@ -55,11 +59,19 @@ public actor ThermalMonitor: Monitor {
         lastState = state
         guard let previous else { return } // first sighting — baseline only, no notification
 
+        let lowPowerNote = source.isLowPowerModeEnabled() ? "(Low Power Mode is also currently on)" : nil
+
         await context.notify(
             ThermalEvent.forState(state).rawValue,
             subject: "State",
             title: "Thermal State Changed",
-            body: Self.describeTransition(from: previous, to: state),
+            body: await context.body([
+                .always(Self.describeTransition(from: previous, to: state)),
+                // Correlation only, never cause: Low Power Mode can be switched on by
+                // hand or by a low battery, with nothing to do with heat. Worth noting
+                // together, worth not implying one caused the other.
+                .field(ThermalField.lowPowerMode.rawValue, lowPowerNote)
+            ]),
             // The icon says the severity at a glance, before the text is read.
             icon: .asset("Thermal-\(state.label)", in: .module)
         )

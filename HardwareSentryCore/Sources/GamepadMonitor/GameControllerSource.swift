@@ -26,7 +26,15 @@ public final class GameControllerSource: GamepadSource, @unchecked Sendable {
 
             func observe(_ name: Notification.Name, kind: GamepadDeviceKind, connected: Bool, name nameOf: @escaping @Sendable (Notification) -> String?) {
                 box.tokens.append(center.addObserver(forName: name, object: nil, queue: nil) { note in
-                    continuation.yield(GamepadDeviceChange(kind: kind, connected: connected, name: nameOf(note)))
+                    // Details only on the way in. A controller that has just disconnected
+                    // still answers these properties, but with values frozen at whatever
+                    // they were — a stale battery percentage read as current is worse than
+                    // no battery line, so the disconnect notification simply doesn't carry one.
+                    let detail = (connected ? note.object as? GCController : nil)
+                        .map(GamepadDetail.init(controller:))
+                    continuation.yield(
+                        GamepadDeviceChange(kind: kind, connected: connected, name: nameOf(note), detail: detail)
+                    )
                 })
             }
 

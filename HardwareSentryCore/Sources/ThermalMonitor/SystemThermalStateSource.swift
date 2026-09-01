@@ -14,6 +14,10 @@ public struct SystemThermalStateSource: ThermalStateSource {
         ThermalState(processInfo: ProcessInfo.processInfo.thermalState)
     }
 
+    public func isLowPowerModeEnabled() -> Bool {
+        ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+
     public func stateChanges() -> AsyncStream<ThermalState> {
         AsyncStream { continuation in
             let box = ObserverBox()
