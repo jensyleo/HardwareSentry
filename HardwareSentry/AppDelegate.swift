@@ -137,11 +137,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Nothing tells us when the opening sweep is finished, so this waits for things to
-    /// go quiet. A cruder rule than it deserves — see D1 in the deferred notes, which
-    /// weighs this against having each monitor say when it is done.
+    /// Nothing tells us when the opening sweep is finished, so this waits for it to go
+    /// quiet rather than guessing at a duration: how long the sweep takes depends on how
+    /// much hardware is attached, and a fixed wait is wrong on both a busy machine and an
+    /// idle one.
     private func settleAfterStartupSweep() async {
-        try? await Task.sleep(for: .seconds(5))
-        await dispatcher.setPhase(.steady)
+        await dispatcher.settleToSteady()
     }
 }
