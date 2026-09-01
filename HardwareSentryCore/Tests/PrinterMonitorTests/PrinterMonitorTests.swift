@@ -1,3 +1,4 @@
+import CCUPS
 import Foundation
 import SignalCore
 import SentryContract
@@ -133,6 +134,57 @@ struct PrinterMonitorTests {
             "PrinterDefaultChanged": false,
             "PrinterRejectingJobs": false
         ])
+    }
+
+    @Test("the details a printer can report show up when it connects")
+    func connectCarriesDeclaredDetails() async {
+        let events = await run([
+            .snapshot([]),
+            .snapshot([PrinterSnapshot(
+                name: "HP LaserJet", isDefault: false, stateReasons: "none", isRejectingJobs: false,
+                location: "Office", makeAndModel: "HP LaserJet Pro M404",
+                connection: "Network", isShared: true, capabilities: "Color, Duplex"
+            )])
+        ])
+
+        let body = events.first?.body ?? ""
+        #expect(body.hasPrefix("HP LaserJet"))
+        #expect(body.contains("Location:\tOffice"))
+        #expect(body.contains("Model:\tHP LaserJet Pro M404"))
+        #expect(body.contains("Connection:\tNetwork"))
+        #expect(body.contains("Shared:\tYes"))
+        #expect(body.contains("Capabilities:\tColor, Duplex"))
+    }
+
+    @Test("a printer that reports none of the extra detail says only its name")
+    func missingDetailsAreOmitted() async {
+        let events = await run([
+            .snapshot([]),
+            .snapshot([printer("Bare Printer")])
+        ])
+
+        // "Shared" still has something to say — no is an answer — but the rest do not.
+        let body = events.first?.body ?? ""
+        #expect(body.hasPrefix("Bare Printer"))
+        #expect(!body.contains("Location:"))
+        #expect(!body.contains("Model:"))
+        #expect(!body.contains("Capabilities:"))
+    }
+
+    @Test("a device URI's scheme is turned into how the printer is reached")
+    func connectionKindFromURI() {
+        #expect(CUPSPrinterSource.connectionKind(fromDeviceURI: "usb://HP/LaserJet") == "USB")
+        #expect(CUPSPrinterSource.connectionKind(fromDeviceURI: "dnssd://Printer._ipp._tcp") == "Network")
+        #expect(CUPSPrinterSource.connectionKind(fromDeviceURI: "ipps://printer.local") == "Network")
+        // Something unrecognised is still shown, rather than swallowed.
+        #expect(CUPSPrinterSource.connectionKind(fromDeviceURI: "weird://thing") == "WEIRD")
+    }
+
+    @Test("only capabilities a person would recognise are named")
+    func capabilitiesAreNamed() {
+        let colorAndDuplex = CUPS_PRINTER_COLOR.rawValue | CUPS_PRINTER_DUPLEX.rawValue
+        #expect(CUPSPrinterSource.capabilities(colorAndDuplex) == "Color, Duplex")
+        #expect(CUPSPrinterSource.capabilities(0) == nil)
     }
 
     @Test("stopping twice is harmless")

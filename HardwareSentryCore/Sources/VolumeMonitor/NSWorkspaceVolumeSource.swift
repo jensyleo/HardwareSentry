@@ -39,7 +39,11 @@ private final class Watcher: @unchecked Sendable {
 
         tokens.append(center.addObserver(forName: NSWorkspace.didMountNotification, object: nil, queue: nil) { [weak self] note in
             guard let path = note.userInfo?["NSDevicePath"] as? String else { return }
-            self?.continuation.yield(.mounted(path: path, name: (path as NSString).lastPathComponent))
+            self?.continuation.yield(.mounted(
+                path: path,
+                name: (path as NSString).lastPathComponent,
+                detail: Self.detail(of: path)
+            ))
         })
         tokens.append(center.addObserver(forName: NSWorkspace.willUnmountNotification, object: nil, queue: nil) { [weak self] note in
             guard let path = note.userInfo?["NSDevicePath"] as? String else { return }
@@ -63,6 +67,26 @@ private final class Watcher: @unchecked Sendable {
         tokens.forEach(center.removeObserver)
         pollTask?.cancel()
         continuation.finish()
+    }
+
+    /// Read at mount time, while there is still a filesystem there to ask. Plain `statfs`
+    /// rather than `NSFileManager`, for the same reason the free-space poll uses
+    /// `getmntinfo`: it never touches the file access macOS gates behind a prompt.
+    private static func detail(of path: String) -> VolumeDetail {
+        var info = statfs()
+        guard statfs(path, &info) == 0 else { return VolumeDetail() }
+
+        let type = withUnsafeBytes(of: info.f_fstypename) { raw -> String? in
+            let value = String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
+            return value.isEmpty ? nil : value
+        }
+        let total = UInt64(info.f_blocks) * UInt64(info.f_bsize)
+
+        return VolumeDetail(
+            fileSystemType: type,
+            totalBytes: total > 0 ? total : nil,
+            isReadOnly: info.f_flags & UInt32(MNT_RDONLY) != 0
+        )
     }
 
     /// Plain `getmntinfo()` — same POSIX call HG4MAC's own low-space poll uses, not

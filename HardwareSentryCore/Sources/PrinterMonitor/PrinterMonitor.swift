@@ -16,6 +16,14 @@ public actor PrinterMonitor: Monitor {
         .init(name: PrinterEvent.rejectingJobs.rawValue, title: "Rejecting/accepting jobs", enabledByDefault: false)
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: PrinterField.location.rawValue, title: "Location", shownByDefault: false),
+        .init(name: PrinterField.model.rawValue, title: "Make and model", shownByDefault: false),
+        .init(name: PrinterField.connection.rawValue, title: "How it is connected", shownByDefault: false),
+        .init(name: PrinterField.shared.rawValue, title: "Shared with other Macs", shownByDefault: false),
+        .init(name: PrinterField.capabilities.rawValue, title: "Capabilities", shownByDefault: false)
+    ]
+
     private let source: any PrinterSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -66,7 +74,20 @@ public actor PrinterMonitor: Monitor {
         let knownNames = Set(known.keys)
 
         for name in currentNames.subtracting(knownNames) {
-            await context.notify(PrinterEvent.connected.rawValue, subject: name, title: "Printer Connected", body: name)
+            let printer = current[name]!
+            await context.notify(
+                PrinterEvent.connected.rawValue,
+                subject: name,
+                title: "Printer Connected",
+                body: await context.body([
+                    .always(name),
+                    .field(PrinterField.location.rawValue, "Location", printer.location),
+                    .field(PrinterField.model.rawValue, "Model", printer.makeAndModel),
+                    .field(PrinterField.connection.rawValue, "Connection", printer.connection),
+                    .field(PrinterField.shared.rawValue, "Shared", printer.isShared ? "Yes" : "No"),
+                    .field(PrinterField.capabilities.rawValue, "Capabilities", printer.capabilities)
+                ])
+            )
         }
         for name in knownNames.subtracting(currentNames) {
             await context.notify(PrinterEvent.disconnected.rawValue, subject: name, title: "Printer Disconnected", body: name)

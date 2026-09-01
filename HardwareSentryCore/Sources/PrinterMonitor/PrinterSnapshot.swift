@@ -8,13 +8,44 @@ public struct PrinterSnapshot: Sendable, Equatable {
     /// Raw IPP `printer-state-reasons`, e.g. `"none"` or `"media-empty-warning,toner-low-warning"`.
     public let stateReasons: String
     public let isRejectingJobs: Bool
+    public let location: String?
+    public let makeAndModel: String?
+    /// Derived from the device URI's scheme: how the printer is actually reached.
+    public let connection: String?
+    public let isShared: Bool
+    /// The capabilities worth naming, already in words — e.g. "Color, Duplex, Scanner (MFP)".
+    public let capabilities: String?
 
-    public init(name: String, isDefault: Bool, stateReasons: String, isRejectingJobs: Bool) {
+    public init(
+        name: String,
+        isDefault: Bool,
+        stateReasons: String,
+        isRejectingJobs: Bool,
+        location: String? = nil,
+        makeAndModel: String? = nil,
+        connection: String? = nil,
+        isShared: Bool = false,
+        capabilities: String? = nil
+    ) {
         self.name = name
         self.isDefault = isDefault
         self.stateReasons = stateReasons
         self.isRejectingJobs = isRejectingJobs
+        self.location = location
+        self.makeAndModel = makeAndModel
+        self.connection = connection
+        self.isShared = isShared
+        self.capabilities = capabilities
     }
+}
+
+/// The optional details this monitor can add to a connect notification.
+public enum PrinterField: String, CaseIterable {
+    case location = "Location"
+    case model = "Model"
+    case connection = "Connection"
+    case shared = "Shared"
+    case capabilities = "Capabilities"
 }
 
 public enum PrinterSourceEvent: Sendable, Equatable {

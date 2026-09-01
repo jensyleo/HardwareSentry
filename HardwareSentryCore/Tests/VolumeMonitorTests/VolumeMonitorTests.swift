@@ -26,7 +26,11 @@ actor CollectingDelivery: NotificationDelivering {
 
 @Suite("VolumeMonitor")
 struct VolumeMonitorTests {
-    private func run(_ script: [VolumeSourceEvent]) async -> [NotificationEvent] {
+    /// Waits for the monitor's own task to actually finish, rather than assuming a fixed
+    /// number of yields is enough. It was not: the first `ByteCountFormatter` call of the
+    /// process is slow enough to still be running when the yields ran out, so the one test
+    /// that formatted a size saw no notification at all.
+    private func run(_ script: [VolumeSourceEvent], expecting: Int = 1) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = VolumeMonitor(
@@ -35,7 +39,9 @@ struct VolumeMonitorTests {
         )
 
         await monitor.start()
-        for _ in 0..<100 { await Task.yield() }
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
         await monitor.stop()
         return await delivery.events
     }
@@ -62,7 +68,7 @@ struct VolumeMonitorTests {
 
     @Test("a surprise removal (unmounted with no prior willUnmount) also fires unsafe eject")
     func surpriseRemovalAlsoFiresUnsafeEject() async {
-        let events = await run([.unmounted(path: "/Volumes/SDCard", name: "SDCard")])
+        let events = await run([.unmounted(path: "/Volumes/SDCard", name: "SDCard")], expecting: 2)
 
         #expect(events.count == 2)
         #expect(events[0].name == "VolumeUnsafeEject")
@@ -87,7 +93,7 @@ struct VolumeMonitorTests {
             .freeSpaceSnapshot(["/Volumes/Backup": 4.0]),
             .freeSpaceSnapshot(["/Volumes/Backup": 20.0]),
             .freeSpaceSnapshot(["/Volumes/Backup": 4.0])
-        ])
+        ], expecting: 2)
 
         #expect(events.count == 2)
     }
@@ -109,7 +115,7 @@ struct VolumeMonitorTests {
             .freeSpaceSnapshot(["/Volumes/Backup": 4.0]),
             .freeSpaceSnapshot([:]), // unmounted between polls
             .freeSpaceSnapshot(["/Volumes/Backup": 4.0])
-        ])
+        ], expecting: 2)
 
         #expect(events.count == 2)
         #expect(events.allSatisfy { $0.name == "VolumeLowSpace" })
@@ -125,6 +131,37 @@ struct VolumeMonitorTests {
             "VolumeUnsafeEject": false,
             "VolumeLowSpace": false
         ])
+    }
+
+    @Test("the details a volume can report show up when it mounts")
+    func mountCarriesDeclaredDetails() async {
+        let events = await run([.mounted(
+            path: "/Volumes/Backup",
+            name: "Backup",
+            detail: VolumeDetail(fileSystemType: "apfs", totalBytes: 2_000_000_000_000, isReadOnly: false)
+        )])
+
+        let body = events.first?.body ?? ""
+        #expect(body.hasPrefix("Backup"))
+        #expect(body.contains("Path:\t/Volumes/Backup"))
+        #expect(body.contains("Format:\tapfs"))
+        #expect(body.contains("Size:\t"))
+        // Writable is the normal case; saying so every time would be noise.
+        #expect(!body.contains("Read-only"))
+    }
+
+    @Test("a read-only volume says so, and one with nothing to report says only its name")
+    func readOnlyIsCalledOutAndBlanksOmitted() async {
+        let readOnly = await run([.mounted(
+            path: "/Volumes/Installer", name: "Installer",
+            detail: VolumeDetail(fileSystemType: "hfs", isReadOnly: true)
+        )])
+        #expect(readOnly.first?.body.contains("Read-only") == true)
+        #expect(readOnly.first?.body.contains("Size:") == false)
+
+        let bare = await run([.mounted(path: "/Volumes/X", name: "X")])
+        #expect(bare.first?.body.hasPrefix("X") == true)
+        #expect(bare.first?.body.contains("Format:") == false)
     }
 
     @Test("stopping twice is harmless")

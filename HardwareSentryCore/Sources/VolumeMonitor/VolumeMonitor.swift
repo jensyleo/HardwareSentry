@@ -20,6 +20,13 @@ public actor VolumeMonitor: Monitor {
         .init(name: VolumeEvent.lowSpace.rawValue, title: "Free space low", enabledByDefault: false)
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: VolumeField.path.rawValue, title: "Mount path", shownByDefault: false),
+        .init(name: VolumeField.fileSystem.rawValue, title: "File system", shownByDefault: false),
+        .init(name: VolumeField.size.rawValue, title: "Size", shownByDefault: false),
+        .init(name: VolumeField.readOnly.rawValue, title: "Read-only", shownByDefault: false)
+    ]
+
     private let source: any VolumeSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -52,8 +59,21 @@ public actor VolumeMonitor: Monitor {
 
     private func handle(_ event: VolumeSourceEvent) async {
         switch event {
-        case .mounted(let path, let name):
-            await context.notify(VolumeEvent.mounted.rawValue, subject: path, title: "Volume Mounted", body: name)
+        case .mounted(let path, let name, let detail):
+            await context.notify(
+                VolumeEvent.mounted.rawValue,
+                subject: path,
+                title: "Volume Mounted",
+                body: await context.body([
+                    .always(name),
+                    .field(VolumeField.path.rawValue, "Path", path),
+                    .field(VolumeField.fileSystem.rawValue, "Format", detail.fileSystemType),
+                    .field(VolumeField.size.rawValue, "Size", detail.sizeLabel),
+                    // Only worth saying when it is true; most volumes are writable and
+                    // saying so every time is noise.
+                    .field(VolumeField.readOnly.rawValue, detail.isReadOnly ? "Read-only" : nil)
+                ])
+            )
 
         case .willUnmount(let path, _):
             pathsExpectingUnmount.insert(path)

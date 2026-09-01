@@ -47,13 +47,48 @@ public struct CUPSPrinterSource: PrinterSource {
             let printerType = cupsGetOption("printer-type", dest.num_options, dest.options)
                 .flatMap { UInt32(String(cString: $0)) } ?? 0
 
+            func option(_ key: String) -> String? {
+                guard let raw = cupsGetOption(key, dest.num_options, dest.options) else { return nil }
+                let value = String(cString: raw)
+                return value.isEmpty ? nil : value
+            }
+
             result.append(PrinterSnapshot(
                 name: String(cString: namePtr),
                 isDefault: dest.is_default != 0,
                 stateReasons: reasons,
-                isRejectingJobs: (printerType & CUPS_PRINTER_REJECTING.rawValue) != 0
+                isRejectingJobs: (printerType & CUPS_PRINTER_REJECTING.rawValue) != 0,
+                location: option("printer-location"),
+                makeAndModel: option("printer-make-and-model"),
+                connection: option("device-uri").flatMap(Self.connectionKind(fromDeviceURI:)),
+                isShared: option("printer-is-shared") == "true",
+                capabilities: Self.capabilities(printerType)
             ))
         }
         return result
+    }
+
+    /// A device URI's scheme says how the printer is reached — the same three-way split
+    /// this monitor's own documentation uses to explain what it can see.
+    static func connectionKind(fromDeviceURI uri: String) -> String? {
+        guard let scheme = uri.split(separator: ":").first?.lowercased() else { return nil }
+        switch scheme {
+        case "usb": return "USB"
+        case "bluetooth": return "Bluetooth"
+        case "dnssd", "ipp", "ipps", "socket", "lpd", "http", "https": return "Network"
+        default: return scheme.uppercased()
+        }
+    }
+
+    /// Only the bits someone would recognise. `CUPS_PRINTER_COMMANDS` and friends describe
+    /// how CUPS talks to the queue, which is not what "what can this printer do" means.
+    static func capabilities(_ printerType: UInt32) -> String? {
+        var named: [String] = []
+        if printerType & CUPS_PRINTER_COLOR.rawValue != 0 { named.append("Color") }
+        if printerType & CUPS_PRINTER_DUPLEX.rawValue != 0 { named.append("Duplex") }
+        if printerType & CUPS_PRINTER_STAPLE.rawValue != 0 { named.append("Staple") }
+        if printerType & CUPS_PRINTER_FAX.rawValue != 0 { named.append("Fax") }
+        if printerType & CUPS_PRINTER_MFP.rawValue != 0 { named.append("Scanner (MFP)") }
+        return named.isEmpty ? nil : named.joined(separator: ", ")
     }
 }

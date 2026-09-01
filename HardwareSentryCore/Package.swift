@@ -144,8 +144,10 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
+            // CCUPS as well, so the capability test can name the real bits rather than
+            // hardcoding numbers that would not follow the header if it ever changed.
             name: "PrinterMonitorTests",
-            dependencies: ["PrinterMonitor"],
+            dependencies: ["PrinterMonitor", "CCUPS"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
