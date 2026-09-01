@@ -61,10 +61,20 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
+        // Genuine C bridge (not a constant-casting fix like the others) — CUPS is a real C
+        // library with no Swift overlay, so PrinterMonitor needs a system-library target
+        // that imports its headers and links libcups. See CCUPS/shim.h.
+        .systemLibrary(name: "CCUPS"),
+        .target(
+            name: "PrinterMonitor",
+            dependencies: ["SentryContract", "CCUPS"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+
         // The only place that knows the whole list.
         .target(
             name: "MonitorRegistry",
-            dependencies: ["SentryContract", "USBMonitor", "ThermalMonitor", "GamepadMonitor", "ThunderboltMonitor", "ScannerMonitor", "CameraMonitor", "DisplayMonitor"],
+            dependencies: ["SentryContract", "USBMonitor", "ThermalMonitor", "GamepadMonitor", "ThunderboltMonitor", "ScannerMonitor", "CameraMonitor", "DisplayMonitor", "PrinterMonitor"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
@@ -106,6 +116,11 @@ let package = Package(
         .testTarget(
             name: "DisplayMonitorTests",
             dependencies: ["DisplayMonitor"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "PrinterMonitorTests",
+            dependencies: ["PrinterMonitor"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]

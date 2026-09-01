@@ -1,0 +1,5 @@
+module CCUPS [system] {
+    header "shim.h"
+    link "cups"
+    export *
+}
