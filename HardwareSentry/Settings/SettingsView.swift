@@ -18,10 +18,10 @@ struct SettingsView: View {
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
         }
-        // A fixed height would cut off the appearance tab, which is taller than the
-        // notifications one and grows again with every setting added. Fixed in width so
-        // the preview is always shown at a believable size, free to grow in height.
-        .frame(width: 560)
-        .frame(minHeight: 480, idealHeight: 680)
+        // Every dimension is a minimum and a preference, never a fixed value: a fixed one
+        // makes the settings window refuse to resize, and the appearance tab is already
+        // taller than fits — it grows again with each setting added. Better to open at a
+        // sensible size and let it be dragged than to pin it at one that will be wrong.
+        .frame(minWidth: 560, idealWidth: 560, minHeight: 460, idealHeight: 720)
     }
 }
