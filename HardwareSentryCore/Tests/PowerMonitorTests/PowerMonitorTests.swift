@@ -59,7 +59,8 @@ struct PowerMonitorTests {
 
         #expect(events.count == 1)
         #expect(events.first?.name == "PowerChange")
-        #expect(events.first?.body == "Source:\tBattery Power → AC Power")
+        #expect(events.first?.body.hasPrefix("Source:\tBattery Power → AC Power") == true)
+        #expect(events.first?.body.contains("Charge:\t82%") == true)
     }
 
     @Test("reaching 100% on AC after the baseline announces fully charged exactly once")
@@ -144,6 +145,16 @@ struct PowerMonitorTests {
             "PowerScreensWake": false,
             "PowerLowPowerMode": false
         ])
+    }
+
+    @Test("a Mac with no battery is not told a charge level it does not have")
+    func noBatteryMeansNoChargeLine() async {
+        let events = await run([
+            .snapshot(snapshot(.ac, percent: nil)),
+            .snapshot(snapshot(.unknown, percent: nil))
+        ])
+
+        #expect(events.first?.body.contains("Charge:") == false)
     }
 
     @Test("stopping twice is harmless")

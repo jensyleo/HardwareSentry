@@ -17,6 +17,13 @@ public actor DisplayMonitor: Monitor {
         .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false)
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: DisplayField.resolution.rawValue, title: "Resolution"),
+        .init(name: DisplayField.refreshRate.rawValue, title: "Refresh rate"),
+        .init(name: DisplayField.rotation.rawValue, title: "Rotation"),
+        .init(name: DisplayField.role.rawValue, title: "Role (Main/Extended/Mirrored)")
+    ]
+
     private let source: any DisplaySource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -76,7 +83,13 @@ public actor DisplayMonitor: Monitor {
                 DisplayEvent.connected.rawValue,
                 subject: id,
                 title: "Display Connected",
-                body: display.name
+                body: await context.body([
+                    .always(display.name),
+                    .field(DisplayField.resolution.rawValue, "Resolution", Self.resolutionDetail(display)),
+                    .field(DisplayField.refreshRate.rawValue, "Refresh rate", Self.refreshDetail(display)),
+                    .field(DisplayField.rotation.rawValue, "Rotation", Self.rotationDetail(display)),
+                    .field(DisplayField.role.rawValue, "Role", Self.label(for: display.role))
+                ])
             )
         }
         for id in knownIDs.subtracting(currentIDs) {
@@ -121,6 +134,25 @@ public actor DisplayMonitor: Monitor {
         known = current
     }
 
+    /// Each of these is nil when the display had nothing to report — a mode that could not
+    /// be read comes back as zero, and "0×0" is noise, not information.
+    static func resolutionDetail(_ display: DisplaySnapshot) -> String? {
+        guard display.width > 0, display.height > 0 else { return nil }
+        return "\(display.width)×\(display.height)"
+    }
+
+    static func refreshDetail(_ display: DisplaySnapshot) -> String? {
+        guard display.refreshHz > 0 else { return nil }
+        return "\(Int(display.refreshHz.rounded())) Hz"
+    }
+
+    /// Only worth a line when the display is actually turned; nobody needs telling that a
+    /// monitor is the right way up.
+    static func rotationDetail(_ display: DisplaySnapshot) -> String? {
+        guard display.rotation.rounded() != 0 else { return nil }
+        return "\(Int(display.rotation.rounded()))°"
+    }
+
     static func describeModeChange(from previous: DisplaySnapshot, to latest: DisplaySnapshot) -> String {
         var lines: [String] = []
         if previous.width != latest.width || previous.height != latest.height {
@@ -135,7 +167,7 @@ public actor DisplayMonitor: Monitor {
         return lines.joined(separator: "\n")
     }
 
-    private static func label(for role: DisplayRole) -> String {
+    static func label(for role: DisplayRole) -> String {
         switch role {
         case .main: return "Main display"
         case .mirrored: return "Mirrored"

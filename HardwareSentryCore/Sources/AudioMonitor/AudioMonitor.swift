@@ -18,6 +18,10 @@ public actor AudioMonitor: Monitor {
         .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI device removed")
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: AudioField.transport.rawValue, title: "How it is connected")
+    ]
+
     private let source: any AudioSource
     private let context: MonitorContext
     /// Same reasoning as `CameraMonitor`'s: a call starting/ending can briefly cycle
@@ -106,7 +110,15 @@ public actor AudioMonitor: Monitor {
             let device = current[id]!
             guard !device.transport.isCoveredByAnotherMonitor else { continue }
             reportedConnectedIDs.insert(id)
-            await context.notify(AudioEvent.connected.rawValue, subject: id, title: "Audio Device Connected", body: device.name)
+            await context.notify(
+                AudioEvent.connected.rawValue,
+                subject: id,
+                title: "Audio Device Connected",
+                body: await context.body([
+                    .always(device.name),
+                    .field(AudioField.transport.rawValue, "Connection", device.transport.label)
+                ])
+            )
         }
         for id in knownIDs.subtracting(currentIDs) {
             guard reportedConnectedIDs.remove(id) != nil else { continue }

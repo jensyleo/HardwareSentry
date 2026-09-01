@@ -18,3 +18,8 @@ public enum PowerEvent: String, NotificationEventKey {
 
     public static let category: NotificationCategory = "Power"
 }
+
+/// The optional details this monitor can add.
+public enum PowerField: String, CaseIterable {
+    case chargeLevel = "ChargeLevel"
+}

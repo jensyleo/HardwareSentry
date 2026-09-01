@@ -10,3 +10,8 @@ public enum USBEvent: String, NotificationEventKey {
 
     public static let category: NotificationCategory = "USB"
 }
+
+/// The optional details this monitor can add.
+public enum USBField: String, CaseIterable {
+    case vendor = "Vendor"
+}

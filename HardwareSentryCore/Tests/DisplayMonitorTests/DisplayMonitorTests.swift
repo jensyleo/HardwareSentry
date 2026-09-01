@@ -63,7 +63,23 @@ struct DisplayMonitorTests {
         #expect(events.count == 1)
         #expect(events.first?.name == "DisplayConnected")
         #expect(events.first?.subject == "2")
-        #expect(events.first?.body == "LG UltraFine")
+        // The name leads; the declared details follow it.
+        #expect(events.first?.body.hasPrefix("LG UltraFine") == true)
+    }
+
+    @Test("the details a display can report show up when it connects")
+    func connectCarriesDeclaredDetails() async {
+        let events = await run([
+            .snapshot([]),
+            .snapshot([display(id: "1", name: "Studio Display", width: 5120, height: 2880, hz: 60, role: .main)])
+        ])
+
+        let body = events.first?.body ?? ""
+        #expect(body.contains("Resolution:\t5120×2880"))
+        #expect(body.contains("Refresh rate:\t60 Hz"))
+        #expect(body.contains("Role:\tMain display"))
+        // A display the right way up has nothing to say about rotation.
+        #expect(!body.contains("Rotation:"))
     }
 
     @Test("a display disappearing keeps its last known name")

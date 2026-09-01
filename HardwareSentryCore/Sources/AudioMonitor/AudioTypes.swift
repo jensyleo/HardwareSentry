@@ -20,6 +20,23 @@ public enum AudioTransport: Sendable, Equatable {
 
     /// USB/Bluetooth Monitor already announce these devices connecting/disconnecting.
     public var isCoveredByAnotherMonitor: Bool { self == .usb || self == .bluetooth }
+
+    public var label: String {
+        switch self {
+        case .usb: return "USB"
+        case .bluetooth: return "Bluetooth"
+        case .builtIn: return "Built-in"
+        case .hdmi: return "HDMI"
+        case .displayPort: return "DisplayPort"
+        case .thunderbolt: return "Thunderbolt"
+        case .aggregate: return "Aggregate"
+        case .airPlay: return "AirPlay"
+        case .pci: return "PCI"
+        case .fireWire: return "FireWire"
+        case .virtual: return "Virtual"
+        case .other: return "Other"
+        }
+    }
 }
 
 public struct AudioDeviceSnapshot: Sendable, Equatable {

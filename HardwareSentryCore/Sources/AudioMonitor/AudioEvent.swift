@@ -19,3 +19,8 @@ public enum AudioEvent: String, NotificationEventKey {
 
     public static let category: NotificationCategory = "Audio"
 }
+
+/// The optional details this monitor can add.
+public enum AudioField: String, CaseIterable {
+    case transport = "Transport"
+}

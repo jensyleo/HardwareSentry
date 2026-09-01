@@ -15,3 +15,11 @@ public enum DisplayEvent: String, NotificationEventKey {
 
     public static let category: NotificationCategory = "Display"
 }
+
+/// The optional details this monitor can add to a connect notification.
+public enum DisplayField: String, CaseIterable {
+    case resolution = "Resolution"
+    case refreshRate = "RefreshRate"
+    case rotation = "Rotation"
+    case role = "Role"
+}

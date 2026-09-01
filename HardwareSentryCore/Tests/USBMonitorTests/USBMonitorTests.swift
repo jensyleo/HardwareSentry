@@ -86,17 +86,18 @@ struct USBMonitorTests {
     }
 
     @Test("the vendor is mentioned when it adds something")
-    func vendorIsMentioned() {
-        let described = USBMonitor.describe(USBDevice(name: "Cruzer", vendorName: "SanDisk"))
+    func vendorIsMentioned() async {
+        let events = await run([.attached(USBDevice(name: "Cruzer", vendorName: "SanDisk"))])
 
-        #expect(described == "Cruzer\nSanDisk")
+        #expect(events.first?.body == "Cruzer\nSanDisk")
     }
 
     @Test("a vendor that only repeats the name is left out")
     func redundantVendorOmitted() {
-        #expect(USBMonitor.describe(USBDevice(name: "SanDisk", vendorName: "SanDisk")) == "SanDisk")
-        #expect(USBMonitor.describe(USBDevice(name: "Cruzer", vendorName: "")) == "Cruzer")
-        #expect(USBMonitor.describe(USBDevice(name: "Cruzer", vendorName: nil)) == "Cruzer")
+        #expect(USBMonitor.vendorDetail(USBDevice(name: "SanDisk", vendorName: "SanDisk")) == nil)
+        #expect(USBMonitor.vendorDetail(USBDevice(name: "Cruzer", vendorName: "")) == nil)
+        #expect(USBMonitor.vendorDetail(USBDevice(name: "Cruzer", vendorName: nil)) == nil)
+        #expect(USBMonitor.vendorDetail(USBDevice(name: "Cruzer", vendorName: "SanDisk")) == "SanDisk")
     }
 
     @Test("every event it can raise is declared for preferences to find")

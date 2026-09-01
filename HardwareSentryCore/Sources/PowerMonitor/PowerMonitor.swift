@@ -19,6 +19,10 @@ public actor PowerMonitor: Monitor {
         .init(name: PowerEvent.lowPowerModeChanged.rawValue, title: "Low Power Mode toggled", enabledByDefault: false)
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: PowerField.chargeLevel.rawValue, title: "Charge level")
+    ]
+
     private let source: any PowerSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -103,14 +107,20 @@ public actor PowerMonitor: Monitor {
                 PowerEvent.lowBatteryWarning.rawValue,
                 subject: "Battery",
                 title: "Battery Low!",
-                body: "Battery Low, Please plug the computer in now"
+                body: await context.body([
+                    .always("Battery Low, Please plug the computer in now"),
+                    .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
+                ])
             )
         } else if changedKind {
             await context.notify(
                 PowerEvent.sourceChanged.rawValue,
                 subject: "Source",
                 title: "On \(Self.localizedName(for: snapshot.kind))",
-                body: "Source:\t\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))"
+                body: await context.body([
+                    .always("Source:\t\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))"),
+                    .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
+                ])
             )
         }
     }
@@ -126,6 +136,11 @@ public actor PowerMonitor: Monitor {
             title: enabled ? "Low Power Mode Enabled" : "Low Power Mode Disabled",
             body: ""
         )
+    }
+
+    /// Nil on a Mac with no battery at all, where a charge level would be a fiction.
+    static func chargeDetail(_ snapshot: PowerSnapshot) -> String? {
+        snapshot.percentage.map { "\($0)%" }
     }
 
     private static func localizedName(for kind: PowerSourceKind) -> String {

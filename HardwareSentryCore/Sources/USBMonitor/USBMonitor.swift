@@ -11,6 +11,10 @@ public actor USBMonitor: Monitor {
         .init(name: USBEvent.disconnected.rawValue, title: "Device disconnected")
     ]
 
+    public static let fields: [MonitorFieldDescription] = [
+        .init(name: USBField.vendor.rawValue, title: "Vendor")
+    ]
+
     private let source: any USBDeviceSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -43,7 +47,10 @@ public actor USBMonitor: Monitor {
                 USBEvent.connected.rawValue,
                 subject: device.name,
                 title: device.isHub ? "USB Hub Connected" : "USB Device Connected",
-                body: describe(device),
+                body: await context.body([
+                    .always(device.name),
+                    .field(USBField.vendor.rawValue, vendorDetail(device))
+                ]),
                 icon: .symbol(device.isHub ? "cable.connector" : "externaldrive.connected.to.line.below")
             )
         case .detached(let device):
@@ -51,7 +58,10 @@ public actor USBMonitor: Monitor {
                 USBEvent.disconnected.rawValue,
                 subject: device.name,
                 title: device.isHub ? "USB Hub Disconnected" : "USB Device Disconnected",
-                body: describe(device),
+                body: await context.body([
+                    .always(device.name),
+                    .field(USBField.vendor.rawValue, vendorDetail(device))
+                ]),
                 icon: .symbol("externaldrive.badge.xmark")
             )
         }
@@ -62,10 +72,13 @@ public actor USBMonitor: Monitor {
     /// are never the same twice for the same physical thing — which would leave a device
     /// flapping in and out looking like an endless parade of different devices, and never
     /// be recognised as one that is misbehaving.
-    static func describe(_ device: USBDevice) -> String {
+    /// Nil when the vendor adds nothing — absent, empty, or just the device's own name
+    /// again. A line that repeats what is already on the one above it is worse than no
+    /// line at all.
+    static func vendorDetail(_ device: USBDevice) -> String? {
         guard let vendor = device.vendorName, !vendor.isEmpty, vendor != device.name else {
-            return device.name
+            return nil
         }
-        return "\(device.name)\n\(vendor)"
+        return vendor
     }
 }
