@@ -1,6 +1,7 @@
 import Foundation
 import SentryContract
 import SignalCore
+import ThermalMonitor
 import USBMonitor
 
 /// Puts the monitors together and runs them.
@@ -30,6 +31,10 @@ public actor MonitorRegistry {
             USBMonitor(
                 source: IOKitUSBDeviceSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category)
+            ),
+            ThermalMonitor(
+                source: SystemThermalStateSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category)
             )
         ]
     }
@@ -37,7 +42,8 @@ public actor MonitorRegistry {
     /// What every assembled monitor can raise, for a preferences screen to list.
     public func describeEvents() -> [(category: NotificationCategory, events: [MonitorEventDescription])] {
         [
-            (USBMonitor.category, USBMonitor.events)
+            (USBMonitor.category, USBMonitor.events),
+            (ThermalMonitor.category, ThermalMonitor.events)
         ]
     }
 
