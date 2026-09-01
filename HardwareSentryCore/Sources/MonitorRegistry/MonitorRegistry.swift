@@ -1,3 +1,4 @@
+import CameraMonitor
 import Foundation
 import GamepadMonitor
 import SentryContract
@@ -45,7 +46,12 @@ public actor MonitorRegistry {
             ThunderboltMonitor(
                 source: IOKitThunderboltDeviceSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category)
+            ),
+            CameraMonitor(
+                source: AVFoundationCameraSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category)
             )
+            // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
     }
 
@@ -55,7 +61,8 @@ public actor MonitorRegistry {
             (USBMonitor.category, USBMonitor.events),
             (ThermalMonitor.category, ThermalMonitor.events),
             (GamepadMonitor.category, GamepadMonitor.events),
-            (ThunderboltMonitor.category, ThunderboltMonitor.events)
+            (ThunderboltMonitor.category, ThunderboltMonitor.events),
+            (CameraMonitor.category, CameraMonitor.events)
         ]
     }
 
