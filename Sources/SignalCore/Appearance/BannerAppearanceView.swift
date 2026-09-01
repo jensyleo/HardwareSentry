@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Lets a person set how banners look, with a live example of the result.
@@ -72,6 +73,21 @@ public struct BannerAppearanceView: View {
                 )
 
                 Toggle("Slide in and out", isOn: $store.appearance.isAnimated)
+
+                Picker("Sound", selection: $store.appearance.sound) {
+                    ForEach(BannerSound.allCases, id: \.self) { sound in
+                        Text(sound.label).tag(sound)
+                    }
+                }
+                // Played on choosing, because picking a sound from a list of names without
+                // hearing it is guessing.
+                .onChange(of: store.appearance.sound) { _, chosen in
+                    if let name = chosen.systemName { NSSound(named: name)?.play() }
+                }
+
+                Text("Silent while the application is starting up, so everything already plugged in is announced without a burst of chimes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {

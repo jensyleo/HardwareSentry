@@ -132,3 +132,41 @@ struct BannerAppearanceStoreTests {
         #expect(reopened.appearance == .standard)
     }
 }
+
+@Suite("BannerSound")
+struct BannerSoundTests {
+    @Test("silence is the default, so the application does not start making noise unasked")
+    func silentByDefault() {
+        #expect(BannerAppearance.standard.sound == .none)
+    }
+
+    @Test("only a real choice has a system sound to ask for")
+    func onlyChosenSoundsResolve() {
+        #expect(BannerSound.none.systemName == nil)
+        #expect(BannerSound.glass.systemName == "Glass")
+        #expect(BannerSound.none.label == "None")
+    }
+
+    @Test("every sound but silence names a file macOS actually ships")
+    func everySoundExists() {
+        // A name that resolves to nothing would be a silent setting pretending to be a
+        // sound, which is worse than not offering it.
+        for sound in BannerSound.allCases where sound != .none {
+            let path = "/System/Library/Sounds/\(sound.rawValue).aiff"
+            #expect(FileManager.default.fileExists(atPath: path), "missing \(sound.rawValue)")
+        }
+    }
+
+    @Test("a chosen sound comes back next launch")
+    @MainActor
+    func soundSurvivesRelaunch() {
+        let id = UUID().uuidString
+        let defaults = UserDefaults(suiteName: "BannerSoundTests.\(id)")!
+        let store = BannerAppearanceStore(defaults: defaults, keyPrefix: "Test.\(id)")
+
+        store.appearance.sound = .submarine
+        let reopened = BannerAppearanceStore(defaults: defaults, keyPrefix: "Test.\(id)")
+
+        #expect(reopened.appearance.sound == .submarine)
+    }
+}

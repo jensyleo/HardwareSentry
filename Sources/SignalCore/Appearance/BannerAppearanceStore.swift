@@ -47,7 +47,7 @@ public final class BannerAppearanceStore {
     }
 
     private enum Key: String, CaseIterable {
-        case corner, width, margin, spacing, visibleLifetime, opacity, textScale, material, isAnimated
+        case corner, width, margin, spacing, visibleLifetime, opacity, textScale, material, isAnimated, sound
     }
 
     private func key(_ key: Key) -> String { "\(keyPrefix).\(key.rawValue)" }
@@ -62,6 +62,7 @@ public final class BannerAppearanceStore {
         defaults.set(appearance.textScale.rawValue, forKey: key(.textScale))
         defaults.set(appearance.material.rawValue, forKey: key(.material))
         defaults.set(appearance.isAnimated, forKey: key(.isAnimated))
+        defaults.set(appearance.sound.rawValue, forKey: key(.sound))
     }
 
     /// Anything missing or unrecognised falls back to the standard value for that field
@@ -82,7 +83,8 @@ public final class BannerAppearanceStore {
             opacity: number(.opacity, standard.opacity),
             textScale: (defaults.string(forKey: key(.textScale)).flatMap(BannerTextScale.init(rawValue:))) ?? standard.textScale,
             material: (defaults.string(forKey: key(.material)).flatMap(BannerMaterial.init(rawValue:))) ?? standard.material,
-            isAnimated: defaults.object(forKey: key(.isAnimated)) as? Bool ?? standard.isAnimated
+            isAnimated: defaults.object(forKey: key(.isAnimated)) as? Bool ?? standard.isAnimated,
+            sound: (defaults.string(forKey: key(.sound)).flatMap(BannerSound.init(rawValue:))) ?? standard.sound
         )
     }
 }

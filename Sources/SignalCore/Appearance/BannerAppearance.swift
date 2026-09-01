@@ -64,6 +64,24 @@ public enum BannerMaterial: String, Sendable, Equatable, CaseIterable {
     }
 }
 
+/// What a banner sounds like, if anything.
+///
+/// The macOS system sounds rather than anything shipped here: they are what a person
+/// already recognises as their computer speaking, and they follow the sound settings and
+/// output device without this package doing anything about it.
+public enum BannerSound: String, Sendable, Equatable, CaseIterable {
+    case none
+    case basso = "Basso", blow = "Blow", bottle = "Bottle", frog = "Frog"
+    case funk = "Funk", glass = "Glass", hero = "Hero", morse = "Morse"
+    case ping = "Ping", pop = "Pop", purr = "Purr", sosumi = "Sosumi"
+    case submarine = "Submarine", tink = "Tink"
+
+    public var label: String { self == .none ? "None" : rawValue }
+
+    /// The name to ask the system for, or nil when silence was chosen.
+    public var systemName: String? { self == .none ? nil : rawValue }
+}
+
 /// How banners look and where they appear.
 ///
 /// Everything here is a presentation choice, deliberately separate from which
@@ -80,6 +98,7 @@ public struct BannerAppearance: Sendable, Equatable {
     public var textScale: BannerTextScale
     public var material: BannerMaterial
     public var isAnimated: Bool
+    public var sound: BannerSound
 
     // Clamped on the way in as well as at construction, so the invariant holds however
     // the value was arrived at — loaded from a store, or set field by field by an editor.
@@ -108,7 +127,8 @@ public struct BannerAppearance: Sendable, Equatable {
         opacity: Double = 1,
         textScale: BannerTextScale = .medium,
         material: BannerMaterial = .popover,
-        isAnimated: Bool = true
+        isAnimated: Bool = true,
+        sound: BannerSound = .none
     ) {
         self.corner = corner
         self.width = width.clamped(to: Self.widthRange)
@@ -119,6 +139,7 @@ public struct BannerAppearance: Sendable, Equatable {
         self.textScale = textScale
         self.material = material
         self.isAnimated = isAnimated
+        self.sound = sound
     }
 }
 

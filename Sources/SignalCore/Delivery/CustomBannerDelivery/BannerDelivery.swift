@@ -33,6 +33,14 @@ public final class BannerDelivery: NotificationDelivering {
     }
 
     private let visibleFrame: @MainActor () -> NSRect?
+    /// When a sound was last played, so a handful of banners arriving together do not
+    /// arrive as a burst of chimes.
+    private var lastSoundAt: Date?
+
+    /// Two banners closer together than this share one sound. Long enough to collapse the
+    /// "several devices woke up at once" case, short enough that separate events an
+    /// unhurried person causes each still make a noise.
+    private static let soundInterval: TimeInterval = 1
 
     public init(
         appearance: BannerAppearance = .standard,
@@ -90,6 +98,7 @@ public final class BannerDelivery: NotificationDelivering {
         events[admission.id] = event
         controllers[admission.id] = controller
         apply(admission.change, in: frame, newlyAdmitted: admission.id, controller: controller)
+        playSound(for: context)
 
         return .presented
     }
@@ -130,6 +139,23 @@ public final class BannerDelivery: NotificationDelivering {
             spacing: appearance.spacing,
             visibleLifetime: appearance.visibleLifetime
         )
+    }
+
+    /// Makes a noise, if one was asked for and this is a moment for it.
+    ///
+    /// Silent during the opening sweep on purpose: everything already plugged in is
+    /// announced at launch, and a dozen chimes in two seconds is not a notification, it is
+    /// an alarm. The phase is already tracked for exactly this kind of distinction.
+    private func playSound(for context: DispatchContext) {
+        guard context.phase != .launching,
+              let name = appearance.sound.systemName
+        else { return }
+
+        let now = Date()
+        if let lastSoundAt, now.timeIntervalSince(lastSoundAt) < Self.soundInterval { return }
+        lastSoundAt = now
+
+        NSSound(named: name)?.play()
     }
 
     /// Turns the policy's answer into windows appearing, moving and going away.
