@@ -85,6 +85,29 @@ public final class NotificationPreferencesStore: NotificationPreferences, @unche
         defaults.register(defaults: registration)
     }
 
+    /// Declares defaults for events known only by name.
+    ///
+    /// A monitor describes its events for a preferences screen without handing over its
+    /// enum, so the assembly that registers those defaults has names and a category
+    /// rather than a type. Same storage, same keys.
+    public func registerDefaults(_ values: [String: Bool], in category: NotificationCategory) {
+        var registration: [String: Any] = [:]
+        for (name, enabled) in values {
+            registration[key(for: name, in: category)] = enabled
+        }
+        defaults.register(defaults: registration)
+    }
+
+    /// Reads and writes an event known only by name, for a preferences screen built from
+    /// what a monitor declares rather than from its enum.
+    public func isEnabled(_ name: String, in category: NotificationCategory) -> Bool {
+        wanted(at: key(for: name, in: category))
+    }
+
+    public func setEnabled(_ enabled: Bool, for name: String, in category: NotificationCategory) {
+        defaults.set(enabled, forKey: key(for: name, in: category))
+    }
+
     public func registerDefaults(_ values: [NotificationCategory: Bool]) {
         var registration: [String: Any] = [:]
         for (category, enabled) in values {

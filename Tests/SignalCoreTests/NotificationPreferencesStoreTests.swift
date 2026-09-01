@@ -159,3 +159,35 @@ struct NotificationPreferencesStoreTests {
         #expect(allowed.isDeliver)
     }
 }
+
+@Suite("NotificationPreferencesStore, by name")
+struct NotificationPreferencesStoreByNameTests {
+    private func makeStore() -> (NotificationPreferencesStore, UserDefaults, String) {
+        let suite = "SignalCoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        return (NotificationPreferencesStore(defaults: defaults, keyPrefix: suite), defaults, suite)
+    }
+
+    // A monitor describes its events for a preferences screen without handing over its
+    // enum, so both ways in have to reach the same stored value.
+    @Test("the by-name and typed views share storage")
+    func byNameAndTypedShareStorage() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        store.setEnabled(false, for: "lowPowerMode", in: "Power")
+
+        #expect(!store.isEnabled(PowerEvent.lowPowerMode))
+    }
+
+    @Test("defaults can be declared for events known only by name")
+    func defaultsByName() {
+        let (store, defaults, suite) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        store.registerDefaults(["adapterChanged": false], in: "Power")
+
+        #expect(!store.isEnabled("adapterChanged", in: "Power"))
+        #expect(store.isEnabled("lowPowerMode", in: "Power"))
+    }
+}
