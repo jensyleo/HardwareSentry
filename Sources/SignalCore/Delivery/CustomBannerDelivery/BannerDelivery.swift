@@ -15,18 +15,38 @@ public final class BannerDelivery: NotificationDelivering {
     private var events: [BannerID: NotificationEvent] = [:]
     private var expiryTask: Task<Void, Never>?
 
-    private let margin: CGFloat
-    private let spacing: CGFloat
+    /// How banners should look and where they belong.
+    ///
+    /// Setting this rearranges what is already on screen, so a person changing the corner
+    /// in a settings window sees it take effect rather than wondering whether it worked.
+    /// Banners already up keep the size and material they were built with — rebuilding a
+    /// notification underneath someone mid-read would be worse than a few seconds of the
+    /// old look — so a change of width or material shows on the next banner to arrive.
+    public var appearance: BannerAppearance {
+        didSet {
+            guard appearance != oldValue else { return }
+            if appearance.visibleLifetime != oldValue.visibleLifetime {
+                stack?.visibleLifetime = appearance.visibleLifetime
+            }
+            relayout()
+        }
+    }
+
     private let visibleFrame: @MainActor () -> NSRect?
 
     public init(
-        margin: CGFloat = 12,
-        spacing: CGFloat = 8,
+        appearance: BannerAppearance = .standard,
         visibleFrame: @escaping @MainActor () -> NSRect? = { NSScreen.main?.visibleFrame }
     ) {
-        self.margin = margin
-        self.spacing = spacing
+        self.appearance = appearance
         self.visibleFrame = visibleFrame
+    }
+
+    /// Puts every banner currently on screen back where the current appearance says it
+    /// belongs, and re-times the next expiry.
+    private func relayout() {
+        guard let frame = visibleFrame(), stack != nil else { return }
+        apply(StackChange(), in: frame)
     }
 
     @discardableResult
@@ -42,6 +62,7 @@ public final class BannerDelivery: NotificationDelivering {
         // policy can say whether there is room for it.
         let controller = BannerWindowController(
             content: content,
+            appearance: appearance,
             onActivate: { [weak self] in
                 guard let id = placedID else { return }
                 self?.finish(id, with: .clicked)
@@ -105,8 +126,9 @@ public final class BannerDelivery: NotificationDelivering {
 
     private func makeStack(for frame: NSRect) -> BannerStack {
         BannerStack(
-            availableHeight: frame.height - margin * 2,
-            spacing: spacing
+            availableHeight: frame.height - appearance.margin * 2,
+            spacing: appearance.spacing,
+            visibleLifetime: appearance.visibleLifetime
         )
     }
 
@@ -124,12 +146,26 @@ public final class BannerDelivery: NotificationDelivering {
 
         guard let stack else { return }
 
-        let offscreenX = frame.maxX + 4
-        var top = frame.maxY - margin
+        let corner = appearance.corner
+        let margin = appearance.margin
+
+        // Banners walk away from their corner: downward from a top one, upward from a
+        // bottom one, so the newest is always the one nearest the corner it came from.
+        var edge = corner.isTop ? frame.maxY - margin : frame.minY + margin
 
         for slot in stack.visible {
-            guard let controller = controllers[slot.id] else { continue }
-            let origin = NSPoint(x: frame.maxX - BannerView.width - margin, y: top - slot.height)
+            guard let controller = controllers[slot.id] ?? newController else { continue }
+
+            // Placed by the width the banner was actually built at, which is only the
+            // current setting for banners raised since it last changed.
+            let width = (slot.id == newlyAdmitted ? newController?.width : controllers[slot.id]?.width) ?? appearance.width
+            let x = corner.isLeading ? frame.minX + margin : frame.maxX - width - margin
+            let y = corner.isTop ? edge - slot.height : edge
+            let origin = NSPoint(x: x, y: y)
+
+            // It slides in from whichever edge is nearer, so the movement always reads as
+            // coming from outside rather than across the screen.
+            let offscreenX = corner.isLeading ? frame.minX - width - 4 : frame.maxX + 4
 
             if slot.id == newlyAdmitted, let newController {
                 newController.present(at: origin, enteringFrom: offscreenX)
@@ -139,7 +175,7 @@ public final class BannerDelivery: NotificationDelivering {
                 controller.move(to: origin)
             }
 
-            top -= slot.height + spacing
+            edge += (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
         }
 
         scheduleNextExpiry()

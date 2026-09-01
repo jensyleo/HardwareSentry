@@ -4,18 +4,30 @@ import SwiftUI
 /// The surface a banner draws on, matching the frosted look the system uses for its own
 /// notifications so that a banner shown this way does not read as foreign.
 struct BannerBackground: NSViewRepresentable {
+    let material: BannerMaterial
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .popover
         view.blendingMode = .behindWindow
         view.state = .active
         view.wantsLayer = true
         view.layer?.cornerRadius = 12
         view.layer?.masksToBounds = true
+        view.material = Self.material(for: material)
         return view
     }
 
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = Self.material(for: material)
+    }
+
+    private static func material(for material: BannerMaterial) -> NSVisualEffectView.Material {
+        switch material {
+        case .popover: return .popover
+        case .hud: return .hudWindow
+        case .windowBackground: return .windowBackground
+        }
+    }
 }
 
 /// One banner.
@@ -23,22 +35,29 @@ struct BannerBackground: NSViewRepresentable {
 /// The close control stays out of the way until the pointer arrives, so that a banner
 /// reads as a notification rather than as a window with furniture.
 struct BannerView: View {
-    static let width: CGFloat = 300
+    /// The sizes the banner's two pieces of text are drawn at before the person's chosen
+    /// scale is applied — matching what `.headline` and `.subheadline` resolve to on
+    /// macOS, so that leaving the scale alone leaves the banner looking as it always did.
+    private static let titleSize: CGFloat = 13
+    private static let lineSize: CGFloat = 11
 
     let content: BannerContent
+    let appearance: BannerAppearance
     let onActivate: () -> Void
     let onDismiss: () -> Void
 
     @State private var isHovering = false
 
+    private var iconSide: CGFloat { 36 * appearance.textScale.factor }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             icon
-                .frame(width: 36, height: 36)
+                .frame(width: iconSide, height: iconSide)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(content.title)
-                    .font(.headline)
+                    .font(.system(size: Self.titleSize * appearance.textScale.factor, weight: .semibold))
                     .fixedSize(horizontal: false, vertical: true)
 
                 ForEach(Array(content.lines.enumerated()), id: \.offset) { _, line in
@@ -49,8 +68,8 @@ struct BannerView: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .frame(width: Self.width, alignment: .leading)
-        .background(BannerBackground())
+        .frame(width: appearance.width, alignment: .leading)
+        .background(BannerBackground(material: appearance.material))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(alignment: .topTrailing) { closeButton }
         .contentShape(Rectangle())
@@ -95,7 +114,7 @@ struct BannerView: View {
     private func body(for line: BannerContent.Line) -> some View {
         (Text(line.leading).foregroundStyle(.secondary)
             + Text(line.emphasised ?? "").foregroundStyle(Color.accentColor).bold())
-            .font(.subheadline)
+            .font(.system(size: Self.lineSize * appearance.textScale.factor))
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }

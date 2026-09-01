@@ -73,7 +73,9 @@ public struct BannerStack: Sendable {
 
     private let availableHeight: CGFloat
     private let spacing: CGFloat
-    private let visibleLifetime: TimeInterval
+    /// How long a banner stays up. A `var` because a person can change it in a settings
+    /// window while banners are already on screen.
+    public var visibleLifetime: TimeInterval
     private let minimumReadableTime: TimeInterval
     private let queueLimitWhileLaunching: Int
     private let queueLimitWhenSteady: Int

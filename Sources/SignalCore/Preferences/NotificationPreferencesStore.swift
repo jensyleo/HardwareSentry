@@ -68,6 +68,20 @@ public final class NotificationPreferencesStore: NotificationPreferences, @unche
         defaults.removeObject(forKey: key(for: event.rawValue, in: E.category))
     }
 
+    /// Forgets a choice about an event known only by name.
+    ///
+    /// Removing the key rather than writing the default over it: the default belongs to
+    /// the monitor that declared it, and a monitor that changes its mind in a later
+    /// version should reach someone who never chose otherwise.
+    public func reset(_ name: String, in category: NotificationCategory) {
+        defaults.removeObject(forKey: key(for: name, in: category))
+    }
+
+    /// Forgets whether a whole module was wanted.
+    public func reset(_ category: NotificationCategory) {
+        defaults.removeObject(forKey: key(for: category))
+    }
+
     // MARK: - Defaults
 
     /// Declares what an event should be when the user has never said. Registering does
