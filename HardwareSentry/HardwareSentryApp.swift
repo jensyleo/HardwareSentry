@@ -17,10 +17,21 @@ struct HardwareSentryApp: App {
 
             Divider()
 
+            SettingsLink {
+                Text("Settings…")
+            }
+            .keyboardShortcut(",")
+
+            Divider()
+
             Button("Quit HardwareSentry") {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")
+        }
+
+        Settings {
+            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings)
         }
     }
 }

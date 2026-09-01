@@ -11,19 +11,44 @@ import UserNotifications
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var preferences: NotificationPreferencesStore!
+    private(set) var appearance: BannerAppearanceStore!
+    private(set) var eventSettings: EventSettingsModel!
     private var dispatcher: NotificationDispatcher!
     private var registry: MonitorRegistry!
     private var systemDelivery: SystemDelivery!
+    private var bannerDelivery: BannerDelivery!
     private var responder: SystemNotificationResponder!
 
+    /// Everything is built here rather than in `applicationDidFinishLaunching`, because
+    /// the settings scene may be asked for its content before that runs — and a delegate
+    /// is not observable, so a scene that found these missing would have no way to learn
+    /// they had since arrived.
+    override init() {
+        super.init()
+        assemble()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = responder
+
+        Task {
+            await registerEventDefaults()
+            await systemDelivery.prepare()
+            await registry.start()
+            await settleAfterStartupSweep()
+        }
+    }
+
+    private func assemble() {
         preferences = NotificationPreferencesStore(keyPrefix: "HardwareSentry")
+        appearance = BannerAppearanceStore(keyPrefix: "HardwareSentry.Appearance")
 
         // Prefer the system's own notification service; draw banners when it will not
         // have us, which is the case for an application without a stable signing
         // identity, and for anyone who has said no.
         systemDelivery = SystemDelivery(scheduler: LiveSystemNotificationCenter())
-        let delivery = FallbackDelivery(preferred: systemDelivery, fallback: BannerDelivery())
+        bannerDelivery = BannerDelivery(appearance: appearance.appearance)
+        let delivery = FallbackDelivery(preferred: systemDelivery, fallback: bannerDelivery)
 
         dispatcher = NotificationDispatcher(
             pipeline: [
@@ -39,21 +64,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         responder = SystemNotificationResponder(delivery: systemDelivery)
-        UNUserNotificationCenter.current().delegate = responder
 
         registry = MonitorRegistry(dispatcher: dispatcher, preferences: preferences)
+        eventSettings = EventSettingsModel(preferences: preferences, registry: registry)
+        trackAppearanceChanges()
 
-        Task {
-            await registerEventDefaults()
-            await systemDelivery.prepare()
-            await registry.start()
-            await settleAfterStartupSweep()
-        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         let registry = self.registry
         Task { await registry?.stop() }
+    }
+
+    /// Hands appearance changes to the banners as they are made, so a person adjusting
+    /// the settings sees the result rather than being told to relaunch.
+    ///
+    /// `withObservationTracking` fires once and then forgets, so this re-arms itself each
+    /// time — the standard way to follow an observable object from outside SwiftUI, which
+    /// does this re-arming on your behalf as part of rendering.
+    private func trackAppearanceChanges() {
+        withObservationTracking {
+            _ = appearance.appearance
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.bannerDelivery.appearance = self.appearance.appearance
+                self.trackAppearanceChanges()
+            }
+        }
     }
 
     /// Asks each monitor what it can raise, and what those should be for someone who has

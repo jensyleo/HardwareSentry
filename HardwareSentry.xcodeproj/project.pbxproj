@@ -8,12 +8,18 @@
 
 /* Begin PBXBuildFile section */
 		33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */ = {isa = PBXBuildFile; productRef = 142F87B528848BC07D8EF1FE /* SentryContract */; };
+		6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3BB57E267D9097497B67D5 /* SettingsView.swift */; };
+		8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */; };
+		94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */; };
 		C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */; };
 		C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */; };
 		F76A1D28924864D7762D5C35 /* MonitorRegistry in Frameworks */ = {isa = PBXBuildFile; productRef = 04A73023C9FE09C7DEB77BBC /* MonitorRegistry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsView.swift; sourceTree = "<group>"; };
+		6D3BB57E267D9097497B67D5 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsModel.swift; sourceTree = "<group>"; };
 		755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		8435F26A20F9C35BB3AD1448 /* HardwareSentry.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HardwareSentry.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9760C652282756CC6EBD17A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -40,8 +46,19 @@
 				755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */,
 				AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */,
 				9760C652282756CC6EBD17A6 /* Info.plist */,
+				3DFF1199ACCAFC0EEAC825CA /* Settings */,
 			);
 			path = HardwareSentry;
+			sourceTree = "<group>";
+		};
+		3DFF1199ACCAFC0EEAC825CA /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */,
+				0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */,
+				6D3BB57E267D9097497B67D5 /* SettingsView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		5D482932DD2F32FF4493014D /* Products */ = {
@@ -135,7 +152,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */,
+				8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */,
+				94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */,
 				C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */,
+				6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
