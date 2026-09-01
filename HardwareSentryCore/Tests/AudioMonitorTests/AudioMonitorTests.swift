@@ -35,7 +35,14 @@ struct AudioMonitorTests {
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = AudioMonitor(
             source: ScriptedAudioSource(script: script),
-            context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category),
+            context: MonitorContext(
+                dispatcher: dispatcher,
+                category: AudioMonitor.category,
+                // These exercise what happens when something *changes*, so the startup
+                // sweep is switched off: with it on, the first snapshot is announced and
+                // every count below would be measuring the sweep as well as the change.
+                announcesWhatIsAlreadyThere: false
+            ),
             micStopDebounce: debounce
         )
 

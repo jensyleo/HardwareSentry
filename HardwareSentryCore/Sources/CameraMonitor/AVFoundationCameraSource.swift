@@ -54,6 +54,11 @@ private final class Watcher: NSObject, @unchecked Sendable {
             self?.reportConnection(note, connected: false)
         }
 
+        // `wasConnectedNotification` only fires for a camera that appears while this is
+        // listening, so the cameras already attached at launch — the built-in one, above
+        // all — would otherwise never be mentioned at all.
+        announceAlreadyConnected()
+
         registerRunningStateListeners()
         refreshRunningState()
 
@@ -105,6 +110,22 @@ private final class Watcher: NSObject, @unchecked Sendable {
     }
 
     // MARK: Connect/disconnect
+
+    private func announceAlreadyConnected() {
+        let session = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera, .deskViewCamera],
+            mediaType: .video,
+            position: .unspecified
+        )
+        for device in session.devices {
+            guard !AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(device.transportType) else { continue }
+            continuation.yield(.connected(
+                uid: device.uniqueID,
+                name: device.localizedName,
+                detail: CameraDetail(device: device)
+            ))
+        }
+    }
 
     private func reportConnection(_ note: Notification, connected: Bool) {
         guard let device = note.object as? AVCaptureDevice, device.hasMediaType(.video) else { return }

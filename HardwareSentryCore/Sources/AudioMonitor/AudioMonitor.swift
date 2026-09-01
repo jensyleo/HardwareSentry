@@ -99,8 +99,14 @@ public actor AudioMonitor: Monitor {
 
         if !hasDeviceBaseline {
             hasDeviceBaseline = true
-            knownDevices = current
-            return
+            // Falls through with nothing "known" when the startup sweep is meant to
+            // speak: every item then reads as newly arrived, which is exactly what
+            // "here is what is plugged in" means. The dispatcher's `.launching` phase is
+            // what keeps that burst from being mistaken for a dozen separate events.
+            guard context.announcesWhatIsAlreadyThere else {
+                knownDevices = current
+                return
+            }
         }
 
         let currentIDs = Set(current.keys)

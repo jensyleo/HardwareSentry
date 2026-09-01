@@ -35,6 +35,34 @@ private final class Watcher: @unchecked Sendable {
         self.freeSpacePollInterval = freeSpacePollInterval
     }
 
+    /// The volume's own name, which is what somebody calls it.
+    ///
+    /// The last path component is right for "/Volumes/Backup" but not for the startup
+    /// disk, whose path is "/" — that has no last component worth showing, and a
+    /// notification reading just "/" says nothing about which disk it means.
+    private static func displayName(of url: URL) -> String {
+        if let name = try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName, !name.isEmpty {
+            return name
+        }
+        let path = url.path
+        let last = (path as NSString).lastPathComponent
+        return last == "/" ? path : last
+    }
+
+    private func announceAlreadyMounted() {
+        for url in FileManager.default.mountedVolumeURLs(
+            includingResourceValuesForKeys: nil,
+            options: [.skipHiddenVolumes]
+        ) ?? [] {
+            let path = url.path
+            continuation.yield(.mounted(
+                path: path,
+                name: Self.displayName(of: url),
+                detail: Self.detail(of: path)
+            ))
+        }
+    }
+
     func start() {
         let center = NSWorkspace.shared.notificationCenter
 
@@ -54,6 +82,12 @@ private final class Watcher: @unchecked Sendable {
             guard let path = note.userInfo?["NSDevicePath"] as? String else { return }
             self?.continuation.yield(.unmounted(path: path, name: (path as NSString).lastPathComponent))
         })
+
+        // `didMountNotification` only ever fires for a volume that mounts while this is
+        // listening, so without this sweep the volumes that were already mounted when the
+        // application launched are invisible to it — which is most of them, most of the
+        // time.
+        announceAlreadyMounted()
 
         pollTask = Task { [freeSpacePollInterval] in
             while !Task.isCancelled {

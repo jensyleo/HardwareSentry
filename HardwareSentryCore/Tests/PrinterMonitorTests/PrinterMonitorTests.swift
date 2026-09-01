@@ -38,7 +38,14 @@ struct PrinterMonitorTests {
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = PrinterMonitor(
             source: ScriptedPrinterSource(script: script),
-            context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category)
+            context: MonitorContext(
+                dispatcher: dispatcher,
+                category: PrinterMonitor.category,
+                // These exercise what happens when something *changes*, so the startup
+                // sweep is switched off: with it on, the first snapshot is announced and
+                // every count below would be measuring the sweep as well as the change.
+                announcesWhatIsAlreadyThere: false
+            )
         )
 
         await monitor.start()

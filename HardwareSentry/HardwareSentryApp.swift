@@ -22,7 +22,7 @@ struct HardwareSentryApp: App {
 
             Divider()
 
-            SettingsButton(delegate: delegate)
+            SettingsButton()
 
             Divider()
 
@@ -31,7 +31,7 @@ struct HardwareSentryApp: App {
             }
             .keyboardShortcut("q")
         } label: {
-            MenuBarIcon()
+            MenuBarIcon(delegate: delegate)
         }
 
         // A plain window rather than the `Settings` scene: that one sizes itself to the
@@ -51,10 +51,7 @@ struct HardwareSentryApp: App {
 /// second part, a menu-bar-only application puts the window up behind whatever the person
 /// was already looking at.
 ///
-/// Also lends the delegate its ability to open the window, since only a scene can, and the
-/// delegate is what hears about the application being launched a second time.
 private struct SettingsButton: View {
-    let delegate: AppDelegate
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -63,9 +60,6 @@ private struct SettingsButton: View {
             NSApplication.shared.activate()
         }
         .keyboardShortcut(",")
-        .onAppear {
-            delegate.openSettingsWindow = { openWindow(id: HardwareSentryApp.settingsWindowID) }
-        }
     }
 }
 
@@ -74,6 +68,16 @@ private struct SettingsButton: View {
 /// Not a template image — the artwork is colourful, and flattening it to a monochrome
 /// silhouette would make it one more indistinguishable grey glyph among a dozen.
 private struct MenuBarIcon: View {
+    let delegate: AppDelegate
+    /// Lends the delegate the ability to open the settings window, since only a scene can
+    /// and the delegate is what hears about a second launch.
+    ///
+    /// Wired from the menu bar label rather than from the Settings menu item: the label is
+    /// built the moment the application launches, whereas the menu's contents are not
+    /// built until somebody opens the menu — so wiring it there meant a second launch did
+    /// nothing at all unless the menu happened to have been opened first.
+    @Environment(\.openWindow) private var openWindow
+
     /// The menu bar sizes itself to whatever it is handed, so the image has to be resized
     /// rather than merely displayed small: a SwiftUI `.frame` on the view leaves the
     /// underlying `NSImage` at its full 1024pt and the status item grows to match, which
@@ -89,10 +93,15 @@ private struct MenuBarIcon: View {
     }()
 
     var body: some View {
-        if let image = Self.image {
-            Image(nsImage: image)
-        } else {
-            Image(systemName: "dot.radiowaves.left.and.right")
+        Group {
+            if let image = Self.image {
+                Image(nsImage: image)
+            } else {
+                Image(systemName: "dot.radiowaves.left.and.right")
+            }
+        }
+        .onAppear {
+            delegate.openSettingsWindow = { openWindow(id: HardwareSentryApp.settingsWindowID) }
         }
     }
 }

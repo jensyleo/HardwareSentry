@@ -31,7 +31,14 @@ struct NetworkMonitorTests {
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = NetworkMonitor(
             source: ScriptedNetworkSource(script: script),
-            context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category)
+            context: MonitorContext(
+                dispatcher: dispatcher,
+                category: NetworkMonitor.category,
+                // These exercise what happens when something *changes*, so the startup
+                // sweep is switched off: with it on, the first snapshot is announced and
+                // every count below would be measuring the sweep as well as the change.
+                announcesWhatIsAlreadyThere: false
+            )
         )
 
         await monitor.start()
@@ -314,5 +321,31 @@ struct NetworkMonitorFieldTests {
         )
 
         #expect(bodies.first == "General Internet connectivity was lost")
+    }
+}
+
+@Suite("SystemNetworkSource key parsing")
+struct NetworkLinkKeyTests {
+    @Test("the interface name is read out of the SCDynamicStore key")
+    func nameIsTheFourthComponent() {
+        // "State:" is a component of its own once split on "/", so the name is the fourth
+        // piece. Taking the third returned the literal word "Interface" for every
+        // interface on the machine, which meant they all shared one name — a second link
+        // coming up then looked like the first one changing.
+        #expect(SystemNetworkSource.interfaceName(fromLinkKey: "State:/Network/Interface/en0/Link") == "en0")
+        #expect(SystemNetworkSource.interfaceName(fromLinkKey: "State:/Network/Interface/utun3/Link") == "utun3")
+    }
+
+    @Test("two interfaces do not come back with the same name")
+    func namesAreDistinct() {
+        let a = SystemNetworkSource.interfaceName(fromLinkKey: "State:/Network/Interface/en0/Link")
+        let b = SystemNetworkSource.interfaceName(fromLinkKey: "State:/Network/Interface/en1/Link")
+        #expect(a != b)
+    }
+
+    @Test("a key that is not a link key yields nothing rather than a wrong name")
+    func shortKeysAreRejected() {
+        #expect(SystemNetworkSource.interfaceName(fromLinkKey: "State:/Network/Global/IPv4") == nil)
+        #expect(SystemNetworkSource.interfaceName(fromLinkKey: "") == nil)
     }
 }

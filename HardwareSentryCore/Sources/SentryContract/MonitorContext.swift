@@ -10,14 +10,27 @@ public struct MonitorContext: Sendable {
     private let category: NotificationCategory
     private let preferences: any NotificationPreferences
 
+    /// Whether a monitor should announce what it finds already there when it starts.
+    ///
+    /// The alternative — reading the current state silently and only speaking up when
+    /// something changes — is quieter, but it means launching the application tells you
+    /// nothing at all about the machine you are sitting at. The startup sweep is the one
+    /// moment where "here is everything that is plugged in" is genuinely the news, which is
+    /// why the dispatcher tracks a `.launching` phase separately in the first place: it is
+    /// what lets that burst be treated as a burst — no sounds, no flap detection — rather
+    /// than mistaken for a dozen things happening at once.
+    public let announcesWhatIsAlreadyThere: Bool
+
     public init(
         dispatcher: NotificationDispatcher,
         category: NotificationCategory,
-        preferences: any NotificationPreferences = AlwaysWanted()
+        preferences: any NotificationPreferences = AlwaysWanted(),
+        announcesWhatIsAlreadyThere: Bool = true
     ) {
         self.dispatcher = dispatcher
         self.category = category
         self.preferences = preferences
+        self.announcesWhatIsAlreadyThere = announcesWhatIsAlreadyThere
     }
 
     /// Builds a body from lines, leaving out the optional ones nobody asked for.

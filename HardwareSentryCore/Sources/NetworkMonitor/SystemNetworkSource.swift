@@ -12,6 +12,19 @@ import SystemConfiguration
 public struct SystemNetworkSource: NetworkSource {
     public init() {}
 
+    /// "State:/Network/Interface/en0/Link" → "en0".
+    ///
+    /// The leading "State:" is a component of its own once the string is split on "/", so
+    /// the interface name is the fourth piece, not the third. Taking the third gave the
+    /// literal word "Interface" for every interface on the machine — which read as
+    /// "Interface: Interface" in the message and, worse, made every interface share one
+    /// name, so a second link coming up looked like the first one changing.
+    static func interfaceName(fromLinkKey key: String) -> String? {
+        let parts = key.split(separator: "/")
+        guard parts.count >= 5 else { return nil }
+        return String(parts[3])
+    }
+
     public func changes() -> AsyncStream<NetworkSourceEvent> {
         AsyncStream { continuation in
             let watcher = Watcher(continuation: continuation)
@@ -87,7 +100,7 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
         var links: [String: Bool] = [:]
         if let keys = SCDynamicStoreCopyKeyList(dynamicStore, linkKeyPattern as CFString) as? [String] {
             for key in keys {
-                guard let interfaceName = Self.interfaceName(fromLinkKey: key) else { continue }
+                guard let interfaceName = SystemNetworkSource.interfaceName(fromLinkKey: key) else { continue }
                 let active = (SCDynamicStoreCopyValue(dynamicStore, key as CFString) as? [String: AnyObject])?[kSCPropNetLinkActive as String] as? Bool
                 links[interfaceName] = active ?? false
             }
@@ -98,12 +111,6 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
         continuation.yield(.primaryInterfaceSnapshot(global?[kSCDynamicStorePropNetPrimaryInterface as String] as? String))
     }
 
-    /// "State:/Network/Interface/en0/Link" → "en0".
-    private static func interfaceName(fromLinkKey key: String) -> String? {
-        let parts = key.split(separator: "/")
-        guard parts.count >= 4 else { return nil }
-        return String(parts[2])
-    }
 
     // MARK: Wi-Fi (CoreWLAN)
 

@@ -38,7 +38,14 @@ struct DisplayMonitorTests {
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = DisplayMonitor(
             source: ScriptedDisplaySource(script: script),
-            context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category)
+            context: MonitorContext(
+                dispatcher: dispatcher,
+                category: DisplayMonitor.category,
+                // These exercise what happens when something *changes*, so the startup
+                // sweep is switched off: with it on, the first snapshot is announced and
+                // every count below would be measuring the sweep as well as the change.
+                announcesWhatIsAlreadyThere: false
+            )
         )
 
         await monitor.start()
@@ -177,5 +184,58 @@ struct DisplayMonitorTests {
         await monitor.start()
         await monitor.stop()
         await monitor.stop()
+    }
+}
+
+@Suite("DisplayMonitor startup sweep")
+struct DisplayMonitorStartupTests {
+    private func run(_ script: [DisplaySourceEvent], announcing: Bool, expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = DisplayMonitor(
+            source: ScriptedDisplaySource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: DisplayMonitor.category,
+                announcesWhatIsAlreadyThere: announcing
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    private static let attached = [
+        display(id: "1", name: "Built-in Display", width: 1470, height: 956),
+        display(id: "2", name: "Studio Display", width: 2560, height: 1440, role: .extended)
+    ]
+
+    @Test("what is already plugged in is announced when the application starts")
+    func existingDisplaysAreAnnounced() async {
+        // Launching and being told nothing at all about the machine you are sitting at is
+        // the thing this exists to fix.
+        let events = await run([.snapshot(Self.attached)], announcing: true, expecting: 2)
+
+        #expect(events.count == 2)
+        #expect(events.allSatisfy { $0.name == DisplayEvent.connected.rawValue })
+        #expect(Set(events.map(\.subject)) == ["1", "2"])
+    }
+
+    @Test("the sweep is a baseline too, so nothing is announced twice")
+    func sweepDoesNotRepeatOnTheNextSnapshot() async {
+        let events = await run(
+            [.snapshot(Self.attached), .snapshot(Self.attached)],
+            announcing: true,
+            expecting: 2
+        )
+        #expect(events.count == 2)
+    }
+
+    @Test("switched off, the first snapshot is remembered in silence as before")
+    func silentBaselineStillAvailable() async {
+        let events = await run([.snapshot(Self.attached)], announcing: false, expecting: 0)
+        #expect(events.isEmpty)
     }
 }

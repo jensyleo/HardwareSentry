@@ -65,9 +65,17 @@ public actor PrinterMonitor: Monitor {
 
         if !hasBaseline {
             hasBaseline = true
-            known = current
+            // Remembered either way: which printer is the default is a fact about the
+            // machine, not an event, and announcing "the default changed" at launch when
+            // it has not changed would be a lie.
             lastKnownDefault = printers.first(where: \.isDefault)?.name
-            return
+            // Falls through with nothing "known" when the startup sweep is meant to
+            // speak: every item then reads as newly arrived, which is exactly what
+            // "here is what is plugged in" means.
+            guard context.announcesWhatIsAlreadyThere else {
+                known = current
+                return
+            }
         }
 
         let currentNames = Set(current.keys)

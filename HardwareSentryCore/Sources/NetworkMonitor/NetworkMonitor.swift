@@ -110,8 +110,13 @@ public actor NetworkMonitor: Monitor {
     private func handleLinkSnapshot(_ links: [String: Bool]) async {
         if !hasLinkBaseline {
             hasLinkBaseline = true
-            knownLinks = links
-            return
+            // Falls through with nothing "known" when the startup sweep is meant to
+            // speak: every item then reads as newly arrived, which is exactly what
+            // "here is what is plugged in" means.
+            guard context.announcesWhatIsAlreadyThere else {
+                knownLinks = links
+                return
+            }
         }
 
         for (interfaceName, isActive) in links {
