@@ -80,11 +80,16 @@ let package = Package(
             dependencies: ["SentryContract"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .target(
+            name: "VolumeMonitor",
+            dependencies: ["SentryContract"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
 
         // The only place that knows the whole list.
         .target(
             name: "MonitorRegistry",
-            dependencies: ["SentryContract", "USBMonitor", "ThermalMonitor", "GamepadMonitor", "ThunderboltMonitor", "ScannerMonitor", "CameraMonitor", "DisplayMonitor", "PrinterMonitor", "BluetoothMonitor", "AudioMonitor"],
+            dependencies: ["SentryContract", "USBMonitor", "ThermalMonitor", "GamepadMonitor", "ThunderboltMonitor", "ScannerMonitor", "CameraMonitor", "DisplayMonitor", "PrinterMonitor", "BluetoothMonitor", "AudioMonitor", "VolumeMonitor"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
@@ -141,6 +146,11 @@ let package = Package(
         .testTarget(
             name: "AudioMonitorTests",
             dependencies: ["AudioMonitor"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "VolumeMonitorTests",
+            dependencies: ["VolumeMonitor"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]

@@ -10,6 +10,7 @@ import SignalCore
 import ThermalMonitor
 import ThunderboltMonitor
 import USBMonitor
+import VolumeMonitor
 
 /// Puts the monitors together and runs them.
 ///
@@ -70,6 +71,10 @@ public actor MonitorRegistry {
             AudioMonitor(
                 source: CoreAudioSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category)
+            ),
+            VolumeMonitor(
+                source: NSWorkspaceVolumeSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category)
             )
             // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
@@ -86,7 +91,8 @@ public actor MonitorRegistry {
             (DisplayMonitor.category, DisplayMonitor.events),
             (PrinterMonitor.category, PrinterMonitor.events),
             (BluetoothMonitor.category, BluetoothMonitor.events),
-            (AudioMonitor.category, AudioMonitor.events)
+            (AudioMonitor.category, AudioMonitor.events),
+            (VolumeMonitor.category, VolumeMonitor.events)
         ]
     }
 
