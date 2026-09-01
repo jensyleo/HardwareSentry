@@ -3,6 +3,7 @@ import GamepadMonitor
 import SentryContract
 import SignalCore
 import ThermalMonitor
+import ThunderboltMonitor
 import USBMonitor
 
 /// Puts the monitors together and runs them.
@@ -40,6 +41,10 @@ public actor MonitorRegistry {
             GamepadMonitor(
                 source: GameControllerSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category)
+            ),
+            ThunderboltMonitor(
+                source: IOKitThunderboltDeviceSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category)
             )
         ]
     }
@@ -49,7 +54,8 @@ public actor MonitorRegistry {
         [
             (USBMonitor.category, USBMonitor.events),
             (ThermalMonitor.category, ThermalMonitor.events),
-            (GamepadMonitor.category, GamepadMonitor.events)
+            (GamepadMonitor.category, GamepadMonitor.events),
+            (ThunderboltMonitor.category, ThunderboltMonitor.events)
         ]
     }
 
