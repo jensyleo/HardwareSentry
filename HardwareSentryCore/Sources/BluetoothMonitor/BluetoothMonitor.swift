@@ -18,6 +18,10 @@ public actor BluetoothMonitor: Monitor {
         .init(name: BluetoothEvent.unpaired.rawValue, title: "Device unpaired", enabledByDefault: false)
     ]
 
+    public static let fields: [MonitorFieldDescription] = BluetoothField.allCases.map {
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+    }
+
     private let source: any BluetoothSource
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
@@ -52,11 +56,23 @@ public actor BluetoothMonitor: Monitor {
 
     private func handle(_ event: BluetoothSourceEvent) async {
         switch event {
-        case .classicConnected(let name, let kind):
+        case .classicConnected(let name, let kind, let detail):
             if let kind { lastKindByName[name] = kind }
             await context.notify(
                 BluetoothEvent.connected.rawValue, subject: name,
-                title: "Bluetooth Connection", body: name,
+                title: "Bluetooth Connection",
+                body: await context.body([
+                    .always(name),
+                    .field(BluetoothField.kind.rawValue, "Type", detail?.kindNote),
+                    .field(BluetoothField.address.rawValue, "Address", detail?.address),
+                    .field(BluetoothField.paired.rawValue, "Paired", detail?.pairedNote),
+                    .field(BluetoothField.signal.rawValue, "Signal", detail?.rssiNote),
+                    .field(BluetoothField.linkType.rawValue, "Link", detail?.linkType),
+                    .field(BluetoothField.initiator.rawValue, "Connected by", detail?.initiatorNote),
+                    .field(BluetoothField.services.rawValue, "Profiles", detail?.services),
+                    .field(BluetoothField.favorite.rawValue, "Favourite", detail?.favoriteNote),
+                    .field(BluetoothField.lastSeen.rawValue, "Last used", detail?.lastSeen.map(Self.describe(lastSeen:)))
+                ]),
                 icon: .asset(kind?.iconBaseName ?? "Bluetooth-On", in: .module)
             )
 
@@ -116,4 +132,13 @@ public actor BluetoothMonitor: Monitor {
 
         lastKnownPaired = current
     }
+
+    /// Relative rather than absolute: "3 days ago" is what someone actually wants from
+    /// this line, and a full timestamp for something that happened minutes ago is noise.
+    private static func describe(lastSeen: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: lastSeen, relativeTo: Date())
+    }
+
 }

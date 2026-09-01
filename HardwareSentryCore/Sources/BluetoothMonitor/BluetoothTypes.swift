@@ -77,7 +77,9 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
 
 /// What the system told this monitor just happened.
 public enum BluetoothSourceEvent: Sendable, Equatable {
-    case classicConnected(name: String, kind: BluetoothDeviceKind?)
+    /// `detail` is what the device answered about itself at the moment it connected.
+    /// Nil from a source that does not read it — the connection is still worth reporting.
+    case classicConnected(name: String, kind: BluetoothDeviceKind?, detail: BluetoothDetail? = nil)
     case classicDisconnected(name: String)
     /// The radio's own on/off power state. The first value seen is a baseline reading
     /// (taken once at start), not a real transition — the monitor treats it the same way

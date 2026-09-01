@@ -77,7 +77,8 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, @unchecked Send
             kind: BluetoothDeviceKind.from(
                 major: UInt32(device.deviceClassMajor),
                 minor: UInt32(device.deviceClassMinor)
-            )
+            ),
+            detail: BluetoothDetail(device: device)
         ))
     }
 
