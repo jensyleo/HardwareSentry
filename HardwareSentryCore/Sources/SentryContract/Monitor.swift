@@ -20,6 +20,14 @@ public protocol Monitor: Sendable {
     /// their defaults can be registered at startup.
     static var events: [MonitorEventDescription] { get }
 
+    /// Whether this monitor runs for someone who has never touched the settings.
+    ///
+    /// Almost all of them should: a monitor that watches quietly costs little and is the
+    /// reason the application was installed. The exception is one whose mere running has
+    /// a cost of its own — asking for a system permission, say — which should wait to be
+    /// asked for.
+    static var enabledByDefault: Bool { get }
+
     /// Optional details this monitor can put in the body of its notifications.
     ///
     /// Declared for the same reason as `events`, and answering a different question: an
@@ -72,6 +80,9 @@ public extension Monitor {
 
     /// Most monitors say the same thing every time.
     static var fields: [MonitorFieldDescription] { [] }
+
+    /// Watching is what this application is for.
+    static var enabledByDefault: Bool { true }
 }
 
 /// Everything a preferences screen needs to know about one monitor, without running it.
@@ -79,16 +90,19 @@ public struct MonitorDescription: Sendable, Identifiable {
     public let category: NotificationCategory
     public let events: [MonitorEventDescription]
     public let fields: [MonitorFieldDescription]
+    public let enabledByDefault: Bool
 
     public var id: String { category.rawValue }
 
     public init(
         category: NotificationCategory,
         events: [MonitorEventDescription],
-        fields: [MonitorFieldDescription]
+        fields: [MonitorFieldDescription],
+        enabledByDefault: Bool = true
     ) {
         self.category = category
         self.events = events
         self.fields = fields
+        self.enabledByDefault = enabledByDefault
     }
 }

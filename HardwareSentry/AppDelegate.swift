@@ -95,7 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// never touched the settings. No central table to keep in step.
     private func registerEventDefaults() async {
         for module in await registry.describe() {
-            preferences.registerDefaults([module.category: true])
+            preferences.registerDefaults([module.category: module.enabledByDefault])
 
             let overrides = module.events
                 .filter { !$0.enabledByDefault }

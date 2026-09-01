@@ -48,6 +48,10 @@ final class EventSettingsModel {
     func setEnabled(_ enabled: Bool, for category: NotificationCategory) {
         preferences.setEnabled(enabled, for: category)
         revision += 1
+        // A module switched off stops watching, not just stops talking — so the registry
+        // has to hear about it now rather than at the next launch.
+        let registry = self.registry
+        Task { await registry.refresh() }
     }
 
     func isEnabled(_ event: MonitorEventDescription, in category: NotificationCategory) -> Bool {
@@ -72,6 +76,8 @@ final class EventSettingsModel {
 
     /// Puts every module, event and field back to what its monitor declared, by forgetting
     /// the choices rather than by writing today's defaults over them.
+    /// Switching everything back also brings the running monitors in line — including
+    /// stopping any that default to off.
     func resetAll() {
         for module in modules {
             preferences.reset(module.category)
@@ -83,5 +89,7 @@ final class EventSettingsModel {
             }
         }
         revision += 1
+        let registry = self.registry
+        Task { await registry.refresh() }
     }
 }

@@ -4,13 +4,17 @@ import SignalCore
 
 /// Says when a network scanner appears or disappears from Bonjour discovery.
 ///
-/// Unlike every other monitor in `MonitorRegistry`, this one is not assembled and started
-/// automatically — see `MonitorRegistry`'s doc comment on why. Bonjour discovery is what
-/// triggers macOS's Local Network permission prompt, and HG4MAC shipped this off by
-/// default specifically to keep that prompt from surprising anyone; HardwareSentry has no
-/// preferences screen yet (C1) to offer the same opt-in.
+/// Assembled like every other monitor, but the only one that does not run until someone
+/// switches it on: browsing Bonjour is what triggers macOS's Local Network permission
+/// prompt. HG4MAC shipped this off by default for exactly that reason, and the registry
+/// honours the same choice through `enabledByDefault`.
 public actor ScannerMonitor: Monitor {
     public static let category = ScannerEvent.category
+
+    /// The one monitor that stays off until asked for. Browsing Bonjour is what makes
+    /// macOS ask for permission to look at the local network, and a prompt nobody
+    /// invited is worse than a feature nobody switched on.
+    public static let enabledByDefault = false
 
     public static let events: [MonitorEventDescription] = [
         .init(name: ScannerEvent.found.rawValue, title: "Network scanner found"),

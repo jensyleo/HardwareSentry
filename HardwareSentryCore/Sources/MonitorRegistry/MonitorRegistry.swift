@@ -7,6 +7,7 @@ import GamepadMonitor
 import NetworkMonitor
 import PowerMonitor
 import PrinterMonitor
+import ScannerMonitor
 import SentryContract
 import SignalCore
 import ThermalMonitor
@@ -85,8 +86,11 @@ public actor MonitorRegistry {
             NetworkMonitor(
                 source: SystemNetworkSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences)
+            ),
+            ScannerMonitor(
+                source: BonjourScannerSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: ScannerMonitor.category, preferences: preferences)
             )
-            // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
     }
 
@@ -106,18 +110,47 @@ public actor MonitorRegistry {
             Self.describing(AudioMonitor.self),
             Self.describing(VolumeMonitor.self),
             Self.describing(PowerMonitor.self),
-            Self.describing(NetworkMonitor.self)
+            Self.describing(NetworkMonitor.self),
+            Self.describing(ScannerMonitor.self)
         ]
     }
 
     private static func describing<M: Monitor>(_ monitor: M.Type) -> MonitorDescription {
-        MonitorDescription(category: M.category, events: M.events, fields: M.fields)
+        MonitorDescription(
+            category: M.category,
+            events: M.events,
+            fields: M.fields,
+            enabledByDefault: M.enabledByDefault
+        )
     }
 
+    /// Starts the monitors someone actually wants, and only those.
+    ///
+    /// A module switched off is not merely silenced: it does not run. That matters beyond
+    /// tidiness — several monitors poll (printers every few seconds, paired Bluetooth
+    /// devices, free disk space), and one of them cannot even begin without macOS asking
+    /// the person for permission. Work nobody asked for should not be done.
     public func start() async {
         if monitors.isEmpty { assemble() }
+        await matchRunningToWanted()
+    }
+
+    /// Called when the settings change, so switching a module on or off takes effect now
+    /// rather than at the next launch.
+    public func refresh() async {
+        guard !monitors.isEmpty else { return }
+        await matchRunningToWanted()
+    }
+
+    private func matchRunningToWanted() async {
         for monitor in monitors {
-            await monitor.start()
+            // Both are safe to call again: starting a running monitor and stopping a
+            // stopped one are no-ops, so this needs no record of what it did last time.
+            if await preferences.isCategoryEnabled(monitor.category) {
+                await monitor.start()
+            } else {
+                await monitor.stop()
+            }
         }
     }
 
