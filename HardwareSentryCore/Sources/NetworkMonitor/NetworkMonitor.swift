@@ -53,9 +53,9 @@ public actor NetworkMonitor: Monitor {
         case .reachability(let isReachable):
             await handleReachability(isReachable)
         case .wifiConnected(let ssid):
-            await context.notify(NetworkEvent.wifiConnected.rawValue, subject: ssid, title: "AirPort Connected", body: "Joined network.\nSSID:\t\(ssid)")
+            await context.notify(NetworkEvent.wifiConnected.rawValue, subject: ssid, title: "AirPort Connected", body: "Joined network.\nSSID:\t\(ssid)", icon: .asset("Network-Wifi-4", in: .module))
         case .wifiDisconnected:
-            await context.notify(NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi", title: "AirPort Disconnected", body: "")
+            await context.notify(NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi", title: "AirPort Disconnected", body: "", icon: .asset("Network-Wifi-Off", in: .module))
         case .linkSnapshot(let links):
             await handleLinkSnapshot(links)
         case .primaryInterfaceSnapshot(let name):
@@ -72,7 +72,8 @@ public actor NetworkMonitor: Monitor {
             NetworkEvent.reachabilityChanged.rawValue,
             subject: "Internet",
             title: isReachable ? "Internet Reachable" : "Internet Unreachable",
-            body: isReachable ? "General Internet connectivity was restored" : "General Internet connectivity was lost"
+            body: isReachable ? "General Internet connectivity was restored" : "General Internet connectivity was lost",
+            icon: .asset(isReachable ? "Network-Generic-On" : "Network-Generic-Off", in: .module)
         )
     }
 
@@ -86,9 +87,9 @@ public actor NetworkMonitor: Monitor {
         for (interfaceName, isActive) in links {
             let wasActive = knownLinks[interfaceName] ?? false
             if isActive, !wasActive {
-                await context.notify(NetworkEvent.linkUp.rawValue, subject: interfaceName, title: "Network Link Up", body: "Interface:\t\(interfaceName)")
+                await context.notify(NetworkEvent.linkUp.rawValue, subject: interfaceName, title: "Network Link Up", body: "Interface:\t\(interfaceName)", icon: .asset("Network-Ethernet-On", in: .module))
             } else if !isActive, wasActive {
-                await context.notify(NetworkEvent.linkDown.rawValue, subject: interfaceName, title: "Network Link Down", body: "Interface:\t\(interfaceName)")
+                await context.notify(NetworkEvent.linkDown.rawValue, subject: interfaceName, title: "Network Link Down", body: "Interface:\t\(interfaceName)", icon: .asset("Network-Ethernet-Off", in: .module))
             }
         }
         knownLinks = links
@@ -111,7 +112,8 @@ public actor NetworkMonitor: Monitor {
             NetworkEvent.primaryInterfaceChanged.rawValue,
             subject: "PrimaryInterface",
             title: "Primary Network Interface Changed",
-            body: "\(previous) → \(name)"
+            body: "\(previous) → \(name)",
+            icon: .asset("Network-PrimaryInterface-On", in: .module)
         )
     }
 }

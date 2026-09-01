@@ -51,7 +51,7 @@ public actor USBMonitor: Monitor {
                     .always(device.name),
                     .field(USBField.vendor.rawValue, vendorDetail(device))
                 ]),
-                icon: .symbol(device.isHub ? "cable.connector" : "externaldrive.connected.to.line.below")
+                icon: .asset(device.iconBaseName ?? "USB-On", in: .module)
             )
         case .detached(let device):
             await context.notify(
@@ -62,7 +62,7 @@ public actor USBMonitor: Monitor {
                     .always(device.name),
                     .field(USBField.vendor.rawValue, vendorDetail(device))
                 ]),
-                icon: .symbol("externaldrive.badge.xmark")
+                icon: .asset(device.iconBaseName.map { "\($0)-Disconnected" } ?? "USB-Off", in: .module)
             )
         }
     }

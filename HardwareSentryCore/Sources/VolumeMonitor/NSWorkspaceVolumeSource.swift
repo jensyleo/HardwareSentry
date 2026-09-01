@@ -1,4 +1,5 @@
 import AppKit
+import DiskArbitration
 import Foundation
 
 /// Watches `NSWorkspace` for volume mount/unmount, and polls local mounted volumes' free
@@ -85,7 +86,28 @@ private final class Watcher: @unchecked Sendable {
         return VolumeDetail(
             fileSystemType: type,
             totalBytes: total > 0 ? total : nil,
-            isReadOnly: info.f_flags & UInt32(MNT_RDONLY) != 0
+            isReadOnly: info.f_flags & UInt32(MNT_RDONLY) != 0,
+            kind: kind(of: path, sizeBytes: total > 0 ? total : nil)
+        )
+    }
+
+    /// Asks Disk Arbitration what the volume sits on. Everything here is best-effort: an
+    /// unreadable description simply means no specific artwork, which is the honest
+    /// outcome rather than a guess.
+    private static func kind(of path: String, sizeBytes: UInt64?) -> VolumeKind? {
+        guard let session = DASessionCreate(kCFAllocatorDefault),
+              let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, URL(fileURLWithPath: path) as CFURL),
+              let description = DADiskCopyDescription(disk) as? [String: Any]
+        else { return nil }
+
+        return VolumeKind.infer(
+            protocolName: description[kDADiskDescriptionDeviceProtocolKey as String] as? String,
+            mediaName: [
+                description[kDADiskDescriptionMediaNameKey as String] as? String,
+                description[kDADiskDescriptionDeviceModelKey as String] as? String
+            ].compactMap { $0 }.joined(separator: " "),
+            mediaKind: description[kDADiskDescriptionMediaKindKey as String] as? String,
+            sizeBytes: sizeBytes
         )
     }
 

@@ -59,7 +59,9 @@ public actor ThermalMonitor: Monitor {
             ThermalEvent.forState(state).rawValue,
             subject: "State",
             title: "Thermal State Changed",
-            body: Self.describeTransition(from: previous, to: state)
+            body: Self.describeTransition(from: previous, to: state),
+            // The icon says the severity at a glance, before the text is read.
+            icon: .asset("Thermal-\(state.label)", in: .module)
         )
     }
 
@@ -68,7 +70,8 @@ public actor ThermalMonitor: Monitor {
             ThermalEvent.darkWakeEmergency.rawValue,
             subject: "DarkWakeEmergency",
             title: "Dark Wake Thermal Emergency",
-            body: "The Mac overheated during a brief maintenance wake and may sleep again immediately to cool down."
+            body: "The Mac overheated during a brief maintenance wake and may sleep again immediately to cool down.",
+            icon: .asset("Thermal-DarkWakeEmergency", in: .module)
         )
     }
 

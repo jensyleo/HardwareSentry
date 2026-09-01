@@ -86,11 +86,12 @@ public actor PrinterMonitor: Monitor {
                     .field(PrinterField.connection.rawValue, "Connection", printer.connection),
                     .field(PrinterField.shared.rawValue, "Shared", printer.isShared ? "Yes" : "No"),
                     .field(PrinterField.capabilities.rawValue, "Capabilities", printer.capabilities)
-                ])
+                ]),
+                icon: .asset("PrinterMonitor-Icon-Connected", in: .module)
             )
         }
         for name in knownNames.subtracting(currentNames) {
-            await context.notify(PrinterEvent.disconnected.rawValue, subject: name, title: "Printer Disconnected", body: name)
+            await context.notify(PrinterEvent.disconnected.rawValue, subject: name, title: "Printer Disconnected", body: name, icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module))
         }
 
         for printer in printers {
@@ -105,7 +106,8 @@ public actor PrinterMonitor: Monitor {
                     title: isProblem ? "Printer Needs Attention" : "Printer OK",
                     body: isProblem
                         ? "\(printer.name)\n\(PrinterStateReasons.friendlyDescription(printer.stateReasons) ?? printer.stateReasons)"
-                        : printer.name
+                        : printer.name,
+                    icon: .asset(isProblem ? "PrinterMonitor-Icon-Disconnected" : "PrinterMonitor-Icon-Connected", in: .module)
                 )
             }
 
@@ -114,7 +116,8 @@ public actor PrinterMonitor: Monitor {
                     PrinterEvent.rejectingJobs.rawValue,
                     subject: printer.name,
                     title: printer.isRejectingJobs ? "Printer Is Rejecting Jobs" : "Printer Is Accepting Jobs Again",
-                    body: printer.name
+                    body: printer.name,
+                    icon: .asset(printer.isRejectingJobs ? "PrinterMonitor-Icon-Rejecting" : "PrinterMonitor-Icon-Connected", in: .module)
                 )
             }
         }
@@ -127,7 +130,8 @@ public actor PrinterMonitor: Monitor {
                     PrinterEvent.defaultChanged.rawValue,
                     subject: "Default",
                     title: "Default Printer Changed",
-                    body: "\(previousDefault) → \(newDefault)"
+                    body: "\(previousDefault) → \(newDefault)",
+                    icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module)
                 )
             }
         }

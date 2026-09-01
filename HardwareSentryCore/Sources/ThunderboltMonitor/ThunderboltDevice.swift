@@ -56,6 +56,24 @@ public struct ThunderboltDevice: Sendable, Equatable {
         default: return nil
         }
     }
+
+    /// The artwork for this device's PCI class, or nil when there is nothing more specific
+    /// than "a Thunderbolt device" to say. A wrong specific icon reads worse than an
+    /// honest generic one.
+    public var iconBaseName: String? {
+        switch baseClass {
+        case 0x01: return "TB-TypeDisk"
+        case 0x02: return "TB-TypeNetworkAdapter"
+        case 0x03: return "TB-TypeEGPU"
+        case 0x04: return "TB-TypeCapture"
+        case 0x06: return "TB-TypeDock"
+        case 0x07: return "TB-TypeCommunication"
+        case 0x09: return "TB-TypeInputDevice"
+        case 0x0C: return "TB-TypeSerialBus"
+        case 0x0D: return "TB-TypeWirelessController"
+        default: return nil
+        }
+    }
 }
 
 /// The optional details this monitor can add to a connect notification.

@@ -27,6 +27,10 @@ public actor ThunderboltMonitor: Monitor {
     /// registry entry is frequently unreadable by the time it's reported, so this is the
     /// only way to still know a disconnecting device was an eGPU.
     private var lastBaseClassByName: [String: UInt8] = [:]
+    /// Also remembered at connect: by the time a device leaves, its registry entry is
+    /// usually unreadable, so the type-specific artwork has to come from what was seen
+    /// when it arrived rather than from the dying entry.
+    private var lastIconBaseByName: [String: String] = [:]
 
     public init(source: any ThunderboltDeviceSource, context: MonitorContext) {
         self.source = source
@@ -53,6 +57,7 @@ public actor ThunderboltMonitor: Monitor {
         switch change {
         case .attached(let device):
             if let baseClass = device.baseClass { lastBaseClassByName[device.name] = baseClass }
+            if let iconBase = device.iconBaseName { lastIconBaseByName[device.name] = iconBase }
             await context.notify(
                 ThunderboltEvent.connected.rawValue,
                 subject: device.name,
@@ -63,7 +68,7 @@ public actor ThunderboltMonitor: Monitor {
                     .field(ThunderboltField.identifier.rawValue, "VID:PID", device.identifierLabel),
                     .field(ThunderboltField.vendor.rawValue, "Vendor", device.vendorName)
                 ]),
-                icon: .symbol("bolt.horizontal.fill")
+                icon: .asset(device.iconBaseName ?? "Thunderbolt-On", in: .module)
             )
             if device.isDisplayController {
                 await context.notify(
@@ -71,18 +76,19 @@ public actor ThunderboltMonitor: Monitor {
                     subject: "eGPU-\(device.name)",
                     title: "eGPU Connected",
                     body: device.name,
-                    icon: .symbol("cpu")
+                    icon: .asset("TB-TypeEGPU", in: .module)
                 )
             }
 
         case .detached(let name):
             let baseClass = lastBaseClassByName.removeValue(forKey: name)
+            let iconBase = lastIconBaseByName.removeValue(forKey: name)
             await context.notify(
                 ThunderboltEvent.disconnected.rawValue,
                 subject: name,
                 title: "Thunderbolt Disconnection",
                 body: name,
-                icon: .symbol("bolt.horizontal")
+                icon: .asset(iconBase.map { "\($0)-Disconnected" } ?? "Thunderbolt-Off", in: .module)
             )
             if baseClass == 0x03 {
                 await context.notify(
@@ -90,7 +96,7 @@ public actor ThunderboltMonitor: Monitor {
                     subject: "eGPU-\(name)",
                     title: "eGPU Disconnected",
                     body: name,
-                    icon: .symbol("cpu")
+                    icon: .asset("TB-TypeEGPU-Disconnected", in: .module)
                 )
             }
         }

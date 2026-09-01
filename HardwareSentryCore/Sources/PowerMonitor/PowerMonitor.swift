@@ -91,7 +91,8 @@ public actor PowerMonitor: Monitor {
                 PowerEvent.fullyCharged.rawValue,
                 subject: "Battery",
                 title: "Battery Fully Charged",
-                body: ""
+                body: "",
+                icon: .asset("Power-Plugged", in: .module)
             )
         } else if !isFull {
             announcedFullyCharged = false
@@ -110,7 +111,8 @@ public actor PowerMonitor: Monitor {
                 body: await context.body([
                     .always("Battery Low, Please plug the computer in now"),
                     .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
-                ])
+                ]),
+                icon: .asset(Self.iconName(for: snapshot), in: .module)
             )
         } else if changedKind {
             await context.notify(
@@ -120,7 +122,8 @@ public actor PowerMonitor: Monitor {
                 body: await context.body([
                     .always("Source:\t\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))"),
                     .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
-                ])
+                ]),
+                icon: .asset(Self.iconName(for: snapshot), in: .module)
             )
         }
     }
@@ -134,8 +137,32 @@ public actor PowerMonitor: Monitor {
             PowerEvent.lowPowerModeChanged.rawValue,
             subject: "LowPowerMode",
             title: enabled ? "Low Power Mode Enabled" : "Low Power Mode Disabled",
-            body: ""
+            body: "",
+            icon: .asset("Power-LowPowerMode", in: .module)
         )
+    }
+
+    /// Which battery icon matches the situation.
+    ///
+    /// Plugged in but not yet full uses the charging ramp rather than the plain "plugged"
+    /// glyph, even at a low percentage — showing a full battery the moment a nearly-empty
+    /// Mac is plugged in would be actively misleading.
+    static func iconName(for snapshot: PowerSnapshot) -> String {
+        switch snapshot.kind {
+        case .ac:
+            guard let percentage = snapshot.percentage, percentage < 100 else { return "Power-Plugged" }
+            return "Power-Charging-\(rung(percentage))"
+        case .battery, .ups:
+            guard let percentage = snapshot.percentage else { return "Power-NoBattery" }
+            return "Power-\(rung(percentage))"
+        case .unknown:
+            return "Power-BatteryFailure"
+        }
+    }
+
+    /// Rounded to the nearest ten, which is the granularity the artwork comes in.
+    private static func rung(_ percentage: Int) -> Int {
+        min(100, max(0, Int((Double(percentage) / 10).rounded()) * 10))
     }
 
     /// Nil on a Mac with no battery at all, where a charge level would be a fiction.

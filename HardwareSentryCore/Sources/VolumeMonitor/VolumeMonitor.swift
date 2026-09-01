@@ -35,6 +35,9 @@ public actor VolumeMonitor: Monitor {
     /// passed through here first was pulled out, not ejected.
     private var pathsExpectingUnmount: Set<String> = []
     private var pathsBelowSpaceThreshold: Set<String> = []
+    /// Remembered at mount: by the time a volume goes away there is no filesystem left to
+    /// ask what it was, so the artwork has to come from what was seen on the way in.
+    private var kindByPath: [String: VolumeKind] = [:]
 
     public init(source: any VolumeSource, context: MonitorContext) {
         self.source = source
@@ -72,24 +75,34 @@ public actor VolumeMonitor: Monitor {
                     // Only worth saying when it is true; most volumes are writable and
                     // saying so every time is noise.
                     .field(VolumeField.readOnly.rawValue, detail.isReadOnly ? "Read-only" : nil)
-                ])
+                ]),
+                icon: .asset(detail.kind?.iconBaseName ?? "DisksVolumes-Mounted", in: .module)
             )
+            if let kind = detail.kind { kindByPath[path] = kind }
 
         case .willUnmount(let path, _):
             pathsExpectingUnmount.insert(path)
 
         case .unmounted(let path, let name):
             let wasExpected = pathsExpectingUnmount.remove(path) != nil
+            let kind = kindByPath.removeValue(forKey: path)
             pathsBelowSpaceThreshold.remove(path)
             if !wasExpected {
                 await context.notify(
                     VolumeEvent.unsafeEject.rawValue,
                     subject: path,
                     title: "Volume Ejected Unsafely",
-                    body: "\(name) disappeared without being ejected first."
+                    body: "\(name) disappeared without being ejected first.",
+                    icon: .asset(kind.map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module)
                 )
             }
-            await context.notify(VolumeEvent.unmounted.rawValue, subject: path, title: "Volume Unmounted", body: name)
+            await context.notify(
+                VolumeEvent.unmounted.rawValue,
+                subject: path,
+                title: "Volume Unmounted",
+                body: name,
+                icon: .asset(kind.map { "\($0.iconBaseName)-Unmounted" } ?? "DisksVolumes-Eject", in: .module)
+            )
 
         case .freeSpaceSnapshot(let byPath):
             await handleFreeSpaceSnapshot(byPath)
@@ -105,7 +118,8 @@ public actor VolumeMonitor: Monitor {
                     VolumeEvent.lowSpace.rawValue,
                     subject: path,
                     title: "Low Disk Space",
-                    body: "\(path) has \(Int(freePercent.rounded()))% free space left."
+                    body: "\(path) has \(Int(freePercent.rounded()))% free space left.",
+                    icon: .asset("Device-Critical", in: .module)
                 )
             } else if wasBelow, freePercent >= Self.lowSpaceRecoverPercent {
                 pathsBelowSpaceThreshold.remove(path)

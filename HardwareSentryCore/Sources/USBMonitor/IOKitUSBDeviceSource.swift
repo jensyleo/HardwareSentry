@@ -91,8 +91,16 @@ private final class RegistryWatcher: @unchecked Sendable {
         return USBDevice(
             name: name,
             vendorName: string(service, "USB Vendor Name") ?? string(service, kUSBVendorString),
-            isHub: IOObjectConformsTo(service, "IOUSBHostHubDevice") != 0
+            isHub: IOObjectConformsTo(service, "IOUSBHostHubDevice") != 0,
+            deviceClass: byte(service, "bDeviceClass")
         )
+    }
+
+    private static func byte(_ service: io_service_t, _ key: String) -> UInt8? {
+        guard let number = IORegistryEntryCreateCFProperty(
+            service, key as CFString, kCFAllocatorDefault, 0
+        )?.takeRetainedValue() as? NSNumber else { return nil }
+        return UInt8(truncatingIfNeeded: number.intValue)
     }
 
     private static func string(_ service: io_service_t, _ key: String) -> String? {

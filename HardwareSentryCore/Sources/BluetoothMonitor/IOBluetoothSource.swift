@@ -72,7 +72,13 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, @unchecked Send
 
     @objc func classicConnected(_ note: IOBluetoothUserNotification, device: IOBluetoothDevice) {
         device.register(forDisconnectNotification: self, selector: #selector(classicDisconnected(_:device:)))
-        continuation.yield(.classicConnected(name: device.name ?? "Bluetooth Device", typeIdentifier: "Other"))
+        continuation.yield(.classicConnected(
+            name: device.name ?? "Bluetooth Device",
+            kind: BluetoothDeviceKind.from(
+                major: UInt32(device.deviceClassMajor),
+                minor: UInt32(device.deviceClassMinor)
+            )
+        ))
     }
 
     @objc func classicDisconnected(_ note: IOBluetoothUserNotification, device: IOBluetoothDevice) {

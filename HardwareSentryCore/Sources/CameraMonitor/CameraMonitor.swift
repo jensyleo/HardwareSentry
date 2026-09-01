@@ -61,12 +61,20 @@ public actor CameraMonitor: Monitor {
     private func handle(_ event: CameraSourceEvent) async {
         switch event {
         case .connected(let uid, let name):
-            await context.notify(CameraEvent.connected.rawValue, subject: uid, title: "Camera Connected", body: name)
+            await context.notify(
+                CameraEvent.connected.rawValue, subject: uid,
+                title: "Camera Connected", body: name,
+                icon: .asset("CameraMonitor-Icon", in: .module)
+            )
 
         case .disconnected(let uid, let name):
             pendingStops.removeValue(forKey: uid)?.cancel()
             lastNotifiedRunning.remove(uid)
-            await context.notify(CameraEvent.disconnected.rawValue, subject: uid, title: "Camera Disconnected", body: name)
+            await context.notify(
+                CameraEvent.disconnected.rawValue, subject: uid,
+                title: "Camera Disconnected", body: name,
+                icon: .asset("CameraMonitor-Icon", in: .module)
+            )
 
         case .runningStateChanged(let running):
             currentlyRunning = Set(running.keys)
@@ -123,7 +131,7 @@ public actor CameraMonitor: Monitor {
             subject: "\(uid)-\(running ? "started" : "stopped")",
             title: running ? "Camera Started Being Used" : "Camera Stopped Being Used",
             body: name,
-            icon: running ? .symbol("web.camera.fill") : .symbol("web.camera")
+            icon: .asset(running ? "CameraMonitor-Icon-InUse" : "CameraMonitor-Icon", in: .module)
         )
     }
 

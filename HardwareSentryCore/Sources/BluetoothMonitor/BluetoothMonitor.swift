@@ -22,6 +22,9 @@ public actor BluetoothMonitor: Monitor {
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
 
+    /// The artwork each device was last seen with, so a disconnect can still show what
+    /// kind of thing left rather than a generic Bluetooth glyph.
+    private var lastKindByName: [String: BluetoothDeviceKind] = [:]
     private var lastKnownRadioOn: Bool?
     private var lastKnownPaired: [String: String]?
     private var hasPairedBaseline = false
@@ -49,11 +52,21 @@ public actor BluetoothMonitor: Monitor {
 
     private func handle(_ event: BluetoothSourceEvent) async {
         switch event {
-        case .classicConnected(let name, _):
-            await context.notify(BluetoothEvent.connected.rawValue, subject: name, title: "Bluetooth Connection", body: name)
+        case .classicConnected(let name, let kind):
+            if let kind { lastKindByName[name] = kind }
+            await context.notify(
+                BluetoothEvent.connected.rawValue, subject: name,
+                title: "Bluetooth Connection", body: name,
+                icon: .asset(kind?.iconBaseName ?? "Bluetooth-On", in: .module)
+            )
 
         case .classicDisconnected(let name):
-            await context.notify(BluetoothEvent.disconnected.rawValue, subject: name, title: "Bluetooth Disconnection", body: name)
+            let kind = lastKindByName.removeValue(forKey: name)
+            await context.notify(
+                BluetoothEvent.disconnected.rawValue, subject: name,
+                title: "Bluetooth Disconnection", body: name,
+                icon: .asset(kind.map { "\($0.iconBaseName)-Disconnected" } ?? "Bluetooth-Off", in: .module)
+            )
 
         case .radioPower(let isOn):
             let previous = lastKnownRadioOn
@@ -63,7 +76,8 @@ public actor BluetoothMonitor: Monitor {
                 isOn ? BluetoothEvent.radioOn.rawValue : BluetoothEvent.radioOff.rawValue,
                 subject: "Radio",
                 title: isOn ? "Bluetooth Turned On" : "Bluetooth Turned Off",
-                body: ""
+                body: "",
+                icon: .asset(isOn ? "Bluetooth-Radio-On" : "Bluetooth-Radio-Off", in: .module)
             )
 
         case .subsystemState(let state):
@@ -71,7 +85,8 @@ public actor BluetoothMonitor: Monitor {
                 BluetoothEvent.subsystemStateChanged.rawValue,
                 subject: "Subsystem",
                 title: "Bluetooth Status",
-                body: state.title
+                body: state.title,
+                icon: .asset("Bluetooth-Off", in: .module)
             )
 
         case .pairedSnapshot(let current):
@@ -92,11 +107,11 @@ public actor BluetoothMonitor: Monitor {
 
         for address in currentAddresses.subtracting(previousAddresses) {
             let name = current[address] ?? address
-            await context.notify(BluetoothEvent.paired.rawValue, subject: address, title: "Bluetooth Device Paired", body: name)
+            await context.notify(BluetoothEvent.paired.rawValue, subject: address, title: "Bluetooth Device Paired", body: name, icon: .asset("Bluetooth-On", in: .module))
         }
         for address in previousAddresses.subtracting(currentAddresses) {
             let name = previous[address] ?? address
-            await context.notify(BluetoothEvent.unpaired.rawValue, subject: address, title: "Bluetooth Device Unpaired", body: name)
+            await context.notify(BluetoothEvent.unpaired.rawValue, subject: address, title: "Bluetooth Device Unpaired", body: name, icon: .asset("Bluetooth-Off", in: .module))
         }
 
         lastKnownPaired = current

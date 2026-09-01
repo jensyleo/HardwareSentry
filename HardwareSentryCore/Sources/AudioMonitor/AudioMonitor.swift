@@ -88,9 +88,9 @@ public actor AudioMonitor: Monitor {
             }
             await refreshMicNotifications()
         case .midiDeviceAdded(let name):
-            await context.notify(AudioEvent.midiDeviceAdded.rawValue, subject: name, title: "MIDI Device Added", body: name)
+            await context.notify(AudioEvent.midiDeviceAdded.rawValue, subject: name, title: "MIDI Device Added", body: name, icon: .asset("AudioMonitor-Icon", in: .module))
         case .midiDeviceRemoved(let name):
-            await context.notify(AudioEvent.midiDeviceRemoved.rawValue, subject: name, title: "MIDI Device Removed", body: name)
+            await context.notify(AudioEvent.midiDeviceRemoved.rawValue, subject: name, title: "MIDI Device Removed", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
         }
     }
 
@@ -117,13 +117,14 @@ public actor AudioMonitor: Monitor {
                 body: await context.body([
                     .always(device.name),
                     .field(AudioField.transport.rawValue, "Connection", device.transport.label)
-                ])
+                ]),
+                icon: .asset("AudioMonitor-Icon", in: .module)
             )
         }
         for id in knownIDs.subtracting(currentIDs) {
             guard reportedConnectedIDs.remove(id) != nil else { continue }
             let name = knownDevices[id]?.name ?? "Audio Device"
-            await context.notify(AudioEvent.disconnected.rawValue, subject: id, title: "Audio Device Disconnected", body: name)
+            await context.notify(AudioEvent.disconnected.rawValue, subject: id, title: "Audio Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
         }
 
         knownDevices = current
@@ -140,7 +141,8 @@ public actor AudioMonitor: Monitor {
             kind == .output ? AudioEvent.defaultOutputChanged.rawValue : AudioEvent.defaultInputChanged.rawValue,
             subject: kind == .output ? "DefaultOutput" : "DefaultInput",
             title: kind == .output ? "Default Output Changed" : "Default Input Changed",
-            body: name
+            body: name,
+            icon: .asset("AudioMonitor-Icon", in: .module)
         )
     }
 
@@ -178,7 +180,7 @@ public actor AudioMonitor: Monitor {
             subject: "\(id)-\(running ? "started" : "stopped")",
             title: running ? "Microphone Started Being Used" : "Microphone Stopped Being Used",
             body: name,
-            icon: running ? .symbol("mic.fill") : .symbol("mic")
+            icon: .asset(running ? "AudioMonitor-Icon-MicInUse" : "AudioMonitor-Icon-MicIdle", in: .module)
         )
     }
 }

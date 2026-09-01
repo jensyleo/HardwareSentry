@@ -50,7 +50,7 @@ public actor ScannerMonitor: Monitor {
                 subject: name,
                 title: "Network Scanner Found",
                 body: name,
-                icon: .symbol("scanner")
+                icon: .asset("ScannerMonitor-Icon-Found", in: .module)
             )
         case .lost(let name):
             await context.notify(
@@ -58,7 +58,7 @@ public actor ScannerMonitor: Monitor {
                 subject: name,
                 title: "Network Scanner Lost",
                 body: name,
-                icon: .symbol("scanner.fill")
+                icon: .asset("ScannerMonitor-Icon-Lost", in: .module)
             )
         }
     }

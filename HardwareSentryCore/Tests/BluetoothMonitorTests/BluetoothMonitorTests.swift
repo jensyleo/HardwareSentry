@@ -43,7 +43,7 @@ struct BluetoothMonitorTests {
     @Test("a classic device connecting and disconnecting is announced")
     func classicConnectDisconnect() async {
         let events = await run([
-            .classicConnected(name: "Magic Keyboard", typeIdentifier: "Keyboard"),
+            .classicConnected(name: "Magic Keyboard", kind: .keyboard),
             .classicDisconnected(name: "Magic Keyboard")
         ])
 

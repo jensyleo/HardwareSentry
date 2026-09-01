@@ -60,7 +60,8 @@ public actor DisplayMonitor: Monitor {
                 DisplayEvent.colorProfileChanged.rawValue,
                 subject: "ColorProfile",
                 title: "Display Color Profile Changed",
-                body: "A display's ICC color profile changed (System Settings, Night Shift/True Tone, or a calibration tool)"
+                body: "A display's ICC color profile changed (System Settings, Night Shift/True Tone, or a calibration tool)",
+                icon: .asset("Display-On", in: .module)
             )
         }
     }
@@ -89,7 +90,8 @@ public actor DisplayMonitor: Monitor {
                     .field(DisplayField.refreshRate.rawValue, "Refresh rate", Self.refreshDetail(display)),
                     .field(DisplayField.rotation.rawValue, "Rotation", Self.rotationDetail(display)),
                     .field(DisplayField.role.rawValue, "Role", Self.label(for: display.role))
-                ])
+                ]),
+                icon: .asset("Display-On", in: .module)
             )
         }
         for id in knownIDs.subtracting(currentIDs) {
@@ -98,7 +100,8 @@ public actor DisplayMonitor: Monitor {
                 DisplayEvent.disconnected.rawValue,
                 subject: id,
                 title: "Display Disconnected",
-                body: name
+                body: name,
+                icon: .asset("Display-Off", in: .module)
             )
         }
 
@@ -110,7 +113,8 @@ public actor DisplayMonitor: Monitor {
                     DisplayEvent.modeChanged.rawValue,
                     subject: id,
                     title: "Display Mode Changed",
-                    body: "\(latest.name)\n\(Self.describeModeChange(from: previous, to: latest))"
+                    body: "\(latest.name)\n\(Self.describeModeChange(from: previous, to: latest))",
+                    icon: .asset("Display-On", in: .module)
                 )
             }
             if previous.role != latest.role {
@@ -118,7 +122,8 @@ public actor DisplayMonitor: Monitor {
                     DisplayEvent.roleChanged.rawValue,
                     subject: id,
                     title: "Display Role Changed",
-                    body: "\(latest.name)\nRole:\t\(Self.label(for: previous.role)) → \(Self.label(for: latest.role))"
+                    body: "\(latest.name)\nRole:\t\(Self.label(for: previous.role)) → \(Self.label(for: latest.role))",
+                    icon: .asset("Display-On", in: .module)
                 )
             }
             if previous.isAsleep != latest.isAsleep {
@@ -126,7 +131,8 @@ public actor DisplayMonitor: Monitor {
                     DisplayEvent.sleepChanged.rawValue,
                     subject: id,
                     title: latest.isAsleep ? "Display Slept" : "Display Woke",
-                    body: latest.name
+                    body: latest.name,
+                    icon: .asset(latest.isAsleep ? "Display-Off" : "Display-On", in: .module)
                 )
             }
         }

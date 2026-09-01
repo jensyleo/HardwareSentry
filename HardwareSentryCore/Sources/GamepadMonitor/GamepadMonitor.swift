@@ -56,7 +56,8 @@ public actor GamepadMonitor: Monitor {
             event.rawValue,
             subject: change.name ?? String(describing: change.kind),
             title: title,
-            body: body
+            body: body,
+            icon: .asset("GamepadMonitor-Icon", in: .module)
         )
     }
 

@@ -28,36 +28,43 @@ let package = Package(
         .target(
             name: "USBMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "ThermalMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "GamepadMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "ThunderboltMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "ScannerMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "CameraMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "DisplayMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
@@ -68,31 +75,37 @@ let package = Package(
         .target(
             name: "PrinterMonitor",
             dependencies: ["SentryContract", "CCUPS"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "BluetoothMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "AudioMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "VolumeMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "PowerMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
             name: "NetworkMonitor",
             dependencies: ["SentryContract"],
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
