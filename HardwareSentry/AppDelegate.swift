@@ -85,6 +85,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     }
 
+    /// Launching the application again while it is already running opens the settings.
+    ///
+    /// Without this, a second launch of a menu-bar-only application does nothing visible at
+    /// all — the icon is already up there, so double-clicking it in Applications looks
+    /// exactly like a program that failed to start. Settings is what somebody going back to
+    /// a background application almost always wants.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        openSettings()
+        return true
+    }
+
+    /// Brings the settings window up and the application forward with it — without the
+    /// second part a menu-bar-only application puts the window behind whatever was already
+    /// on screen.
+    func openSettings() {
+        // Raised if it already exists rather than opened again, so a second launch does not
+        // leave two of them.
+        if let existing = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == HardwareSentryApp.settingsWindowID }) {
+            existing.makeKeyAndOrderFront(nil)
+        } else {
+            openSettingsWindow?()
+        }
+        NSApplication.shared.activate()
+    }
+
+    /// Handed in by the scene, which is the only thing that can open a SwiftUI `Window`.
+    var openSettingsWindow: (() -> Void)?
+
     func applicationWillTerminate(_ notification: Notification) {
         let registry = self.registry
         Task { await registry?.stop() }

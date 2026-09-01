@@ -9,11 +9,11 @@ public actor PrinterMonitor: Monitor {
     public static let category = PrinterEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: PrinterEvent.connected.rawValue, title: "Printer connected"),
-        .init(name: PrinterEvent.disconnected.rawValue, title: "Printer disconnected"),
-        .init(name: PrinterEvent.error.rawValue, title: "Needs attention / OK", enabledByDefault: false),
-        .init(name: PrinterEvent.defaultChanged.rawValue, title: "Default printer changed", enabledByDefault: false),
-        .init(name: PrinterEvent.rejectingJobs.rawValue, title: "Rejecting/accepting jobs", enabledByDefault: false)
+        .init(name: PrinterEvent.connected.rawValue, title: "Printer connected", icon: .asset("PrinterMonitor-Icon-Connected", in: .module)),
+        .init(name: PrinterEvent.disconnected.rawValue, title: "Printer disconnected", icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module)),
+        .init(name: PrinterEvent.error.rawValue, title: "Needs attention / OK", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module)),
+        .init(name: PrinterEvent.defaultChanged.rawValue, title: "Default printer changed", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module)),
+        .init(name: PrinterEvent.rejectingJobs.rawValue, title: "Rejecting/accepting jobs", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [

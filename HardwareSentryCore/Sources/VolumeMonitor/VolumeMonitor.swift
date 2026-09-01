@@ -14,10 +14,10 @@ public actor VolumeMonitor: Monitor {
     public static let lowSpaceRecoverPercent = 10.0
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: VolumeEvent.mounted.rawValue, title: "Volume mounted"),
-        .init(name: VolumeEvent.unmounted.rawValue, title: "Volume unmounted"),
-        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Volume disappeared without being ejected", enabledByDefault: false),
-        .init(name: VolumeEvent.lowSpace.rawValue, title: "Free space low", enabledByDefault: false)
+        .init(name: VolumeEvent.mounted.rawValue, title: "Volume mounted", icon: .asset("DisksVolumes-Mounted", in: .module)),
+        .init(name: VolumeEvent.unmounted.rawValue, title: "Volume unmounted", icon: .asset("DisksVolumes-Eject", in: .module)),
+        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Volume disappeared without being ejected", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module)),
+        .init(name: VolumeEvent.lowSpace.rawValue, title: "Free space low", enabledByDefault: false, icon: .asset("Device-Critical", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [

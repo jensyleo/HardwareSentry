@@ -9,12 +9,12 @@ public actor DisplayMonitor: Monitor {
     public static let category = DisplayEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: DisplayEvent.connected.rawValue, title: "Display connected"),
-        .init(name: DisplayEvent.disconnected.rawValue, title: "Display disconnected"),
-        .init(name: DisplayEvent.modeChanged.rawValue, title: "Resolution/refresh rate/rotation changed"),
-        .init(name: DisplayEvent.roleChanged.rawValue, title: "Role changed (Main/Extended/Mirrored)"),
-        .init(name: DisplayEvent.sleepChanged.rawValue, title: "Display slept/woke"),
-        .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false)
+        .init(name: DisplayEvent.connected.rawValue, title: "Display connected", icon: .asset("Display-On", in: .module)),
+        .init(name: DisplayEvent.disconnected.rawValue, title: "Display disconnected", icon: .asset("Display-Off", in: .module)),
+        .init(name: DisplayEvent.modeChanged.rawValue, title: "Resolution/refresh rate/rotation changed", icon: .asset("Display-On", in: .module)),
+        .init(name: DisplayEvent.roleChanged.rawValue, title: "Role changed (Main/Extended/Mirrored)", icon: .asset("Display-On", in: .module)),
+        .init(name: DisplayEvent.sleepChanged.rawValue, title: "Display slept/woke", icon: .asset("Display-Off", in: .module)),
+        .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false, icon: .asset("Display-On", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [

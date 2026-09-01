@@ -14,14 +14,14 @@ public actor GamepadMonitor: Monitor {
     public static let category = GamepadEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: GamepadEvent.controllerConnected.rawValue, title: "Game controller connected"),
-        .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected"),
-        .init(name: GamepadEvent.keyboardConnected.rawValue, title: "Game-recognized keyboard connected", enabledByDefault: false),
-        .init(name: GamepadEvent.keyboardDisconnected.rawValue, title: "Game-recognized keyboard disconnected", enabledByDefault: false),
-        .init(name: GamepadEvent.mouseConnected.rawValue, title: "Game-recognized mouse connected", enabledByDefault: false),
-        .init(name: GamepadEvent.mouseDisconnected.rawValue, title: "Game-recognized mouse disconnected", enabledByDefault: false),
-        .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected"),
-        .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected")
+        .init(name: GamepadEvent.controllerConnected.rawValue, title: "Game controller connected", icon: .asset("GamepadMonitor-Icon", in: .module)),
+        .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected", icon: .asset("GamepadMonitor-Icon", in: .module)),
+        .init(name: GamepadEvent.keyboardConnected.rawValue, title: "Game-recognized keyboard connected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
+        .init(name: GamepadEvent.keyboardDisconnected.rawValue, title: "Game-recognized keyboard disconnected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
+        .init(name: GamepadEvent.mouseConnected.rawValue, title: "Game-recognized mouse connected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
+        .init(name: GamepadEvent.mouseDisconnected.rawValue, title: "Game-recognized mouse disconnected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
+        .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected", icon: .asset("GamepadMonitor-Icon", in: .module)),
+        .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected", icon: .asset("GamepadMonitor-Icon", in: .module))
     ]
 
     // Only what the framework will answer about a controller that is actually here. The

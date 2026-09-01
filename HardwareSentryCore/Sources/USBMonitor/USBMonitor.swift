@@ -7,8 +7,8 @@ public actor USBMonitor: Monitor {
     public static let category = USBEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: USBEvent.connected.rawValue, title: "Device connected"),
-        .init(name: USBEvent.disconnected.rawValue, title: "Device disconnected")
+        .init(name: USBEvent.connected.rawValue, title: "Device connected", icon: .asset("USB-On", in: .module)),
+        .init(name: USBEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("USB-Off", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [

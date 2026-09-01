@@ -52,10 +52,33 @@ public struct MonitorEventDescription: Sendable, Hashable {
     /// Whether it is on for someone who has never touched the setting.
     public let enabledByDefault: Bool
 
-    public init(name: String, title: String, enabledByDefault: Bool = true) {
+    /// The artwork to show next to this event in preferences.
+    ///
+    /// Declared rather than discovered, because a monitor that picks its icon from the
+    /// device — a headset gets headphones, a hub gets a hub — has no single icon until
+    /// something actually connects, and preferences has to show *something* before that
+    /// ever happens. So this is the representative one: what the event looks like in the
+    /// ordinary case, which is what somebody scanning the list needs in order to recognise
+    /// the row they came to change.
+    public let icon: NotificationIcon
+
+    public init(
+        name: String,
+        title: String,
+        enabledByDefault: Bool = true,
+        icon: NotificationIcon = .none
+    ) {
         self.name = name
         self.title = title
         self.enabledByDefault = enabledByDefault
+        self.icon = icon
+    }
+
+    /// Hashed by name alone. The name is already unique within a monitor, and the icon can
+    /// be a hundred kilobytes of PNG — hashing that on every row of a redrawing list would
+    /// be paying a great deal for a value that adds nothing to the distinction.
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
     }
 }
 

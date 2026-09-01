@@ -10,10 +10,19 @@ import SwiftUI
 struct EventIconPicker: View {
     let event: String
     let category: NotificationCategory
+    /// What this event looks like when nobody has chosen otherwise. Shown as the control
+    /// itself, so the row answers "which notification is this?" before anyone clicks —
+    /// and so the button is the icon it changes rather than an abstract placeholder.
+    let defaultIcon: NotificationIcon
     @Bindable var store: IconOverrideStore
 
     @State private var isAskingForSymbol = false
     @State private var typedSymbol = ""
+
+    /// 32pt, the same size HG4MAC's icon rows use, scaled proportionally so a non-square
+    /// image is letterboxed rather than squashed. One constant for every branch below —
+    /// the branches differ in where the picture comes from, never in how big it is.
+    private static let side: CGFloat = 32
 
     private var current: IconOverride? { store.override(for: event, in: category) }
 
@@ -46,7 +55,12 @@ struct EventIconPicker: View {
             preview
         }
         .menuStyle(.borderlessButton)
-        .fixedSize()
+        // The frame goes on the menu, not on the image inside it: the borderless menu
+        // style measures its label through AppKit, which does not honour a SwiftUI frame
+        // buried in the label's body — the icon then grows to whatever the row will give
+        // it, which is the whole window. `.fixedSize()` made that worse by proposing an
+        // unbounded size in the first place.
+        .frame(width: Self.side + 14, height: Self.side)
         .help(helpText)
         .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
             symbolEntry
@@ -55,23 +69,39 @@ struct EventIconPicker: View {
 
     // MARK: - The control itself
 
-    @ViewBuilder
+    /// Built as a fixed-size `NSImage` rather than a `.resizable()` SwiftUI image: a
+    /// resizable image has no intrinsic size, so the `Menu` wrapping it is told the label
+    /// wants all the room there is and the icon fills the window. The same thing HG4MAC
+    /// does with a 32pt-constrained `NSImageView`.
     private var preview: some View {
+        Image(nsImage: resolvedImage)
+            .frame(width: Self.side, height: Self.side)
+    }
+
+    private var resolvedImage: NSImage {
+        let fallback = NSImage(
+            systemSymbolName: "questionmark.square.dashed",
+            accessibilityDescription: nil
+        )?.resized(toFit: Self.side)
+
         switch current {
         case .symbol(let name):
             // A name that names nothing would otherwise render as a blank control, which
             // reads as a broken picker rather than as a typo.
-            Image(systemName: NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil ? name : "questionmark.square.dashed")
+            return NotificationIcon.symbol(name).image(side: Self.side)
+                ?? fallback
+                ?? NSImage(size: NSSize(width: Self.side, height: Self.side))
         case .file(let path):
-            if let image = NSImage(contentsOfFile: path) {
-                Image(nsImage: image).resizable().frame(width: 16, height: 16)
-            } else {
-                // The file moved. Said here rather than only when the notification fires,
-                // so it can be fixed before anyone misses an icon.
-                Image(systemName: "exclamationmark.triangle")
-            }
+            // The file moved. Said here rather than only when the notification fires, so
+            // it can be fixed before anyone misses an icon.
+            return NSImage(contentsOfFile: path)?.resized(toFit: Self.side)
+                ?? NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)?
+                    .resized(toFit: Self.side)
+                ?? NSImage(size: NSSize(width: Self.side, height: Self.side))
         case nil:
-            Image(systemName: "photo.badge.plus").foregroundStyle(.secondary)
+            return defaultIcon.image(side: Self.side)
+                ?? NSApplication.shared.applicationIconImage?.resized(toFit: Self.side)
+                ?? NSImage(size: NSSize(width: Self.side, height: Self.side))
         }
     }
 
@@ -82,7 +112,7 @@ struct EventIconPicker: View {
             return NSImage(contentsOfFile: path) == nil
                 ? "This image is missing — the default icon will be used instead"
                 : "Icon: \((path as NSString).lastPathComponent)"
-        case nil: return "Choose an icon for this notification"
+        case nil: return "This notification's own icon — click to choose a different one"
         }
     }
 

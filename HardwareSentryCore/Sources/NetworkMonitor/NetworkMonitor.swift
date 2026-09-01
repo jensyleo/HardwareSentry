@@ -9,12 +9,12 @@ public actor NetworkMonitor: Monitor {
     public static let category = NetworkEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: NetworkEvent.reachabilityChanged.rawValue, title: "Internet reachability changed", enabledByDefault: false),
-        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network"),
-        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network"),
-        .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up"),
-        .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down"),
-        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false)
+        .init(name: NetworkEvent.reachabilityChanged.rawValue, title: "Internet reachability changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module)),
+        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module)),
+        .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module)),
+        .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module)),
+        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = NetworkField.allCases.map {

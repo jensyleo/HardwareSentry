@@ -8,10 +8,10 @@ public actor ThunderboltMonitor: Monitor {
     public static let category = ThunderboltEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: ThunderboltEvent.connected.rawValue, title: "Device connected"),
-        .init(name: ThunderboltEvent.disconnected.rawValue, title: "Device disconnected"),
-        .init(name: ThunderboltEvent.egpuConnected.rawValue, title: "External GPU connected", enabledByDefault: false),
-        .init(name: ThunderboltEvent.egpuDisconnected.rawValue, title: "External GPU disconnected", enabledByDefault: false)
+        .init(name: ThunderboltEvent.connected.rawValue, title: "Device connected", icon: .asset("Thunderbolt-On", in: .module)),
+        .init(name: ThunderboltEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("Thunderbolt-Off", in: .module)),
+        .init(name: ThunderboltEvent.egpuConnected.rawValue, title: "External GPU connected", enabledByDefault: false, icon: .asset("TB-TypeEGPU", in: .module)),
+        .init(name: ThunderboltEvent.egpuDisconnected.rawValue, title: "External GPU disconnected", enabledByDefault: false, icon: .asset("TB-TypeEGPU-Disconnected", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [

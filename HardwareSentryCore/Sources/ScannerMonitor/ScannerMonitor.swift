@@ -17,8 +17,8 @@ public actor ScannerMonitor: Monitor {
     public static let enabledByDefault = false
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: ScannerEvent.found.rawValue, title: "Network scanner found"),
-        .init(name: ScannerEvent.lost.rawValue, title: "Network scanner lost")
+        .init(name: ScannerEvent.found.rawValue, title: "Network scanner found", icon: .asset("ScannerMonitor-Icon-Found", in: .module)),
+        .init(name: ScannerEvent.lost.rawValue, title: "Network scanner lost", icon: .asset("ScannerMonitor-Icon-Lost", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = ScannerField.allCases.map {

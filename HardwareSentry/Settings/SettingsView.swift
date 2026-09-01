@@ -14,11 +14,11 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            EventSettingsView(model: events, iconOverrides: iconOverrides)
-                .tabItem { Label("Notifications", systemImage: "bell.badge") }
-
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
+
+            EventSettingsView(model: events, iconOverrides: iconOverrides)
+                .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
             HistoryView(store: history)
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }

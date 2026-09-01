@@ -9,13 +9,13 @@ public actor BluetoothMonitor: Monitor {
     public static let category = BluetoothEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: BluetoothEvent.connected.rawValue, title: "Device connected"),
-        .init(name: BluetoothEvent.disconnected.rawValue, title: "Device disconnected"),
-        .init(name: BluetoothEvent.radioOn.rawValue, title: "Radio turned on", enabledByDefault: false),
-        .init(name: BluetoothEvent.radioOff.rawValue, title: "Radio turned off", enabledByDefault: false),
-        .init(name: BluetoothEvent.subsystemStateChanged.rawValue, title: "Subsystem trouble (resetting/unauthorized/unsupported)", enabledByDefault: false),
-        .init(name: BluetoothEvent.paired.rawValue, title: "Device paired", enabledByDefault: false),
-        .init(name: BluetoothEvent.unpaired.rawValue, title: "Device unpaired", enabledByDefault: false)
+        .init(name: BluetoothEvent.connected.rawValue, title: "Device connected", icon: .asset("Bluetooth-On", in: .module)),
+        .init(name: BluetoothEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("Bluetooth-Off", in: .module)),
+        .init(name: BluetoothEvent.radioOn.rawValue, title: "Radio turned on", enabledByDefault: false, icon: .asset("Bluetooth-Radio-On", in: .module)),
+        .init(name: BluetoothEvent.radioOff.rawValue, title: "Radio turned off", enabledByDefault: false, icon: .asset("Bluetooth-Radio-Off", in: .module)),
+        .init(name: BluetoothEvent.subsystemStateChanged.rawValue, title: "Subsystem trouble (resetting/unauthorized/unsupported)", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module)),
+        .init(name: BluetoothEvent.paired.rawValue, title: "Device paired", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module)),
+        .init(name: BluetoothEvent.unpaired.rawValue, title: "Device unpaired", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = BluetoothField.allCases.map {

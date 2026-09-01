@@ -9,13 +9,13 @@ public actor AudioMonitor: Monitor {
     public static let category = AudioEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: AudioEvent.defaultOutputChanged.rawValue, title: "Default output device changed"),
-        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default input device changed"),
-        .init(name: AudioEvent.connected.rawValue, title: "Device connected (not USB/Bluetooth)"),
-        .init(name: AudioEvent.disconnected.rawValue, title: "Device disconnected (not USB/Bluetooth)"),
-        .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone started/stopped being used"),
-        .init(name: AudioEvent.midiDeviceAdded.rawValue, title: "MIDI device added"),
-        .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI device removed")
+        .init(name: AudioEvent.defaultOutputChanged.rawValue, title: "Default output device changed", icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default input device changed", icon: .asset("AudioMonitor-Icon-MicIdle", in: .module)),
+        .init(name: AudioEvent.connected.rawValue, title: "Device connected (not USB/Bluetooth)", icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.disconnected.rawValue, title: "Device disconnected (not USB/Bluetooth)", icon: .asset("AudioMonitor-Icon-Off", in: .module)),
+        .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone started/stopped being used", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
+        .init(name: AudioEvent.midiDeviceAdded.rawValue, title: "MIDI device added", icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI device removed", icon: .asset("AudioMonitor-Icon-Off", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [
