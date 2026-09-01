@@ -1,4 +1,5 @@
 import CameraMonitor
+import DisplayMonitor
 import Foundation
 import GamepadMonitor
 import SentryContract
@@ -50,6 +51,10 @@ public actor MonitorRegistry {
             CameraMonitor(
                 source: AVFoundationCameraSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category)
+            ),
+            DisplayMonitor(
+                source: CoreGraphicsDisplaySource(),
+                context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category)
             )
             // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
@@ -62,7 +67,8 @@ public actor MonitorRegistry {
             (ThermalMonitor.category, ThermalMonitor.events),
             (GamepadMonitor.category, GamepadMonitor.events),
             (ThunderboltMonitor.category, ThunderboltMonitor.events),
-            (CameraMonitor.category, CameraMonitor.events)
+            (CameraMonitor.category, CameraMonitor.events),
+            (DisplayMonitor.category, DisplayMonitor.events)
         ]
     }
 
