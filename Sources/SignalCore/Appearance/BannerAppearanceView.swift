@@ -21,6 +21,19 @@ public struct BannerAppearanceView: View {
             }
 
             Section("Placement") {
+                Picker("Display", selection: $store.appearance.screen) {
+                    ForEach(BannerScreen.allCases) { screen in
+                        Text(screen.label).tag(screen)
+                    }
+                }
+                // Said rather than hidden: a control whose every option does the same
+                // thing looks broken until you know why.
+                if NSScreen.screens.count < 2 {
+                    Text("With one display connected, every choice is that display.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Picker("Corner", selection: $store.appearance.corner) {
                     ForEach(BannerCorner.allCases, id: \.self) { corner in
                         Text(corner.label).tag(corner)

@@ -28,11 +28,18 @@ public final class BannerDelivery: NotificationDelivering {
             if appearance.visibleLifetime != oldValue.visibleLifetime {
                 stack?.visibleLifetime = appearance.visibleLifetime
             }
+            // A different screen can be a different size, so what fits changes with it.
+            if appearance.screen != oldValue.screen || appearance.margin != oldValue.margin {
+                resizeStackToCurrentScreen()
+            }
             relayout()
         }
     }
 
-    private let visibleFrame: @MainActor () -> NSRect?
+    /// Overridable so the layout can be exercised against a pretend desk. Left nil by a
+    /// host, in which case the screen the appearance asks for is looked up for real.
+    private let visibleFrameOverride: (@MainActor () -> NSRect?)?
+    private let screenChangeObserver = ObserverBox()
     /// When a sound was last played, so a handful of banners arriving together do not
     /// arrive as a burst of chimes.
     private var lastSoundAt: Date?
@@ -44,10 +51,49 @@ public final class BannerDelivery: NotificationDelivering {
 
     public init(
         appearance: BannerAppearance = .standard,
-        visibleFrame: @escaping @MainActor () -> NSRect? = { NSScreen.main?.visibleFrame }
+        visibleFrame: (@MainActor () -> NSRect?)? = nil
     ) {
         self.appearance = appearance
-        self.visibleFrame = visibleFrame
+        self.visibleFrameOverride = visibleFrame
+        watchForScreenChanges()
+    }
+
+    deinit {
+        screenChangeObserver.removeIfNeeded()
+    }
+
+    /// The area to draw in, asked fresh every time rather than remembered: a display can
+    /// be unplugged, rearranged or have its resolution changed between one notification
+    /// and the next, and a remembered rectangle would put banners off the edge of the
+    /// world.
+    private func visibleFrame() -> NSRect? {
+        if let visibleFrameOverride { return visibleFrameOverride() }
+        return appearance.screen.resolve(among: ScreenSnapshot.current(), pointer: NSEvent.mouseLocation)
+    }
+
+    /// Displays being plugged in, unplugged or rearranged moves the ground under any
+    /// banner currently up. Without this, one on a display that has just gone away stays
+    /// at coordinates that no longer exist.
+    private func watchForScreenChanges() {
+        screenChangeObserver.token = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.resizeStackToCurrentScreen()
+                self.relayout()
+            }
+        }
+    }
+
+    /// Tells the policy how much room it now has. A banner already up is left alone even
+    /// if it no longer fits — pulling one out from under someone mid-read to satisfy a
+    /// height limit would be worse than briefly exceeding it.
+    private func resizeStackToCurrentScreen() {
+        guard let frame = visibleFrame() else { return }
+        stack?.availableHeight = frame.height - appearance.margin * 2
     }
 
     /// Puts every banner currently on screen back where the current appearance says it
@@ -223,5 +269,16 @@ public final class BannerDelivery: NotificationDelivering {
             guard !Task.isCancelled else { return }
             self?.expireDue()
         }
+    }
+}
+
+/// Holds the screen-change token across `deinit`, which is not actor-isolated —
+/// `NSObjectProtocol` is not `Sendable`, but a box that owns one and only ever removes it
+/// can be. The same shape the monitor sources use for their own tokens.
+private final class ObserverBox: @unchecked Sendable {
+    var token: (any NSObjectProtocol)?
+
+    func removeIfNeeded() {
+        if let token { NotificationCenter.default.removeObserver(token) }
     }
 }

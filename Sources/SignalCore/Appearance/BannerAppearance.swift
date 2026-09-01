@@ -99,6 +99,8 @@ public struct BannerAppearance: Sendable, Equatable {
     public var material: BannerMaterial
     public var isAnimated: Bool
     public var sound: BannerSound
+    /// Which display banners appear on. Only distinguishable with more than one.
+    public var screen: BannerScreen
 
     // Clamped on the way in as well as at construction, so the invariant holds however
     // the value was arrived at — loaded from a store, or set field by field by an editor.
@@ -128,7 +130,8 @@ public struct BannerAppearance: Sendable, Equatable {
         textScale: BannerTextScale = .medium,
         material: BannerMaterial = .popover,
         isAnimated: Bool = true,
-        sound: BannerSound = .none
+        sound: BannerSound = .none,
+        screen: BannerScreen = .withPointer
     ) {
         self.corner = corner
         self.width = width.clamped(to: Self.widthRange)
@@ -140,6 +143,7 @@ public struct BannerAppearance: Sendable, Equatable {
         self.material = material
         self.isAnimated = isAnimated
         self.sound = sound
+        self.screen = screen
     }
 }
 

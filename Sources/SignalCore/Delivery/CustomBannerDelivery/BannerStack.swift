@@ -71,7 +71,9 @@ public struct BannerStack: Sendable {
     private var queue: [Pending] = []
     private var nextID: UInt64 = 0
 
-    private let availableHeight: CGFloat
+    /// How much room there is to stack in. A `var` because the display can change size,
+    /// or be swapped for another one, while banners are up.
+    public var availableHeight: CGFloat
     private let spacing: CGFloat
     /// How long a banner stays up. A `var` because a person can change it in a settings
     /// window while banners are already on screen.
