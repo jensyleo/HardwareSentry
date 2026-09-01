@@ -1,4 +1,5 @@
 import Foundation
+import GamepadMonitor
 import SentryContract
 import SignalCore
 import ThermalMonitor
@@ -35,6 +36,10 @@ public actor MonitorRegistry {
             ThermalMonitor(
                 source: SystemThermalStateSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category)
+            ),
+            GamepadMonitor(
+                source: GameControllerSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category)
             )
         ]
     }
@@ -43,7 +48,8 @@ public actor MonitorRegistry {
     public func describeEvents() -> [(category: NotificationCategory, events: [MonitorEventDescription])] {
         [
             (USBMonitor.category, USBMonitor.events),
-            (ThermalMonitor.category, ThermalMonitor.events)
+            (ThermalMonitor.category, ThermalMonitor.events),
+            (GamepadMonitor.category, GamepadMonitor.events)
         ]
     }
 
