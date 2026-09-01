@@ -9,6 +9,7 @@ import SwiftUI
 struct SettingsView: View {
     let appearance: BannerAppearanceStore
     let events: EventSettingsModel
+    let history: NotificationHistoryStore
 
     var body: some View {
         TabView {
@@ -17,6 +18,9 @@ struct SettingsView: View {
 
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
+
+            HistoryView(store: history)
+                .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
         }
         // Every dimension is a minimum and a preference, never a fixed value: a fixed one
         // makes the settings window refuse to resize, and the appearance tab is already

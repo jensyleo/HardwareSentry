@@ -34,7 +34,7 @@ struct HardwareSentryApp: App {
         // tab permanently cut off — and it grows with every setting added. The menu item
         // and ⌘, are wired by hand below, which is the whole of what `Settings` gave us.
         Window("HardwareSentry Settings", id: Self.settingsWindowID) {
-            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings)
+            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings, history: delegate.history)
         }
         .defaultSize(width: 620, height: 720)
         .windowResizability(.contentMinSize)

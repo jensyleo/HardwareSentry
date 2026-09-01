@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var preferences: NotificationPreferencesStore!
     private(set) var appearance: BannerAppearanceStore!
     private(set) var eventSettings: EventSettingsModel!
+    private(set) var history: NotificationHistoryStore!
     private var dispatcher: NotificationDispatcher!
     private var registry: MonitorRegistry!
     private var bannerDelivery: BannerDelivery!
@@ -48,13 +49,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // this one does not.
         bannerDelivery = BannerDelivery(appearance: appearance.appearance)
         let delivery = bannerDelivery!
+        history = NotificationHistoryStore()
 
         dispatcher = NotificationDispatcher(
             pipeline: [
                 CategoryEnabledFilter(preferences: preferences),
                 EventEnabledFilter(preferences: preferences),
                 DuplicateSuppressionMiddleware(),
-                FlapDetectionMiddleware()
+                FlapDetectionMiddleware(),
+                // Last on purpose: what gets remembered is what a person was actually
+                // shown, not everything the monitors raised and the filters then dropped.
+                HistoryHookMiddleware { [history] event, context in
+                    Task { @MainActor in history?.record(event, at: context.firedAt) }
+                }
             ],
             delivery: delivery,
             // Everything already plugged in is announced first, and a burst of that is
