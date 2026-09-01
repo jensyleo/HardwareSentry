@@ -45,6 +45,10 @@ public final class NotificationPreferencesStore: NotificationPreferences, @unche
         wanted(at: key(for: name, in: category))
     }
 
+    public func isFieldEnabled(_ name: String, in category: NotificationCategory) async -> Bool {
+        wanted(at: fieldKey(for: name, in: category))
+    }
+
     // MARK: - Asked and set by a preferences screen
 
     public func isEnabled<E: NotificationEventKey>(_ event: E) -> Bool {
@@ -122,6 +126,28 @@ public final class NotificationPreferencesStore: NotificationPreferences, @unche
         defaults.set(enabled, forKey: key(for: name, in: category))
     }
 
+    // MARK: - Optional body detail
+
+    public func isFieldEnabled(_ name: String, in category: NotificationCategory) -> Bool {
+        wanted(at: fieldKey(for: name, in: category))
+    }
+
+    public func setFieldEnabled(_ enabled: Bool, for name: String, in category: NotificationCategory) {
+        defaults.set(enabled, forKey: fieldKey(for: name, in: category))
+    }
+
+    public func resetField(_ name: String, in category: NotificationCategory) {
+        defaults.removeObject(forKey: fieldKey(for: name, in: category))
+    }
+
+    public func registerFieldDefaults(_ values: [String: Bool], in category: NotificationCategory) {
+        var registration: [String: Any] = [:]
+        for (name, shown) in values {
+            registration[fieldKey(for: name, in: category)] = shown
+        }
+        defaults.register(defaults: registration)
+    }
+
     public func registerDefaults(_ values: [NotificationCategory: Bool]) {
         var registration: [String: Any] = [:]
         for (category, enabled) in values {
@@ -138,6 +164,12 @@ public final class NotificationPreferencesStore: NotificationPreferences, @unche
 
     func key(for name: String, in category: NotificationCategory) -> String {
         "\(keyPrefix).\(category.rawValue).\(name)"
+    }
+
+    /// Fields live in their own part of the namespace, so that a field and an event of
+    /// the same name are two settings rather than one shared by accident.
+    func fieldKey(for name: String, in category: NotificationCategory) -> String {
+        "\(keyPrefix).\(category.rawValue).field.\(name)"
     }
 
     private func wanted(at key: String) -> Bool {
