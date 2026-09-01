@@ -1,3 +1,4 @@
+import AudioMonitor
 import BluetoothMonitor
 import CameraMonitor
 import DisplayMonitor
@@ -65,6 +66,10 @@ public actor MonitorRegistry {
             BluetoothMonitor(
                 source: IOBluetoothSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category)
+            ),
+            AudioMonitor(
+                source: CoreAudioSource(),
+                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category)
             )
             // ScannerMonitor is deliberately NOT assembled here — see its own doc comment.
         ]
@@ -80,7 +85,8 @@ public actor MonitorRegistry {
             (CameraMonitor.category, CameraMonitor.events),
             (DisplayMonitor.category, DisplayMonitor.events),
             (PrinterMonitor.category, PrinterMonitor.events),
-            (BluetoothMonitor.category, BluetoothMonitor.events)
+            (BluetoothMonitor.category, BluetoothMonitor.events),
+            (AudioMonitor.category, AudioMonitor.events)
         ]
     }
 
