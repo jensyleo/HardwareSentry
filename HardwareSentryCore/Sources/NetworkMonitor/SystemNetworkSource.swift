@@ -12,23 +12,24 @@ import SystemConfiguration
 /// it can run without a real network event. Everything worth reasoning about lives in
 /// `NetworkMonitor`, behind `NetworkSource`.
 public struct SystemNetworkSource: NetworkSource {
-    /// How often to read the Wi-Fi signal, and how long to wait between saying anything
-    /// about it.
+    /// How often to read the Wi-Fi signal.
     ///
     /// Configurable because the right answer depends on what somebody wants from it: on a
     /// desk where the signal never moves, checking every twelve seconds is wasted work;
-    /// carrying a laptop around a building, a minute is too slow to be useful. Clamped
-    /// rather than trusted — a stored zero would spin, and a stored hour would look broken.
+    /// carrying a laptop around a building, a minute is too slow to be useful. Twelve
+    /// seconds is the original's figure. Clamped rather than trusted — a stored zero would
+    /// spin, and a stored hour would look broken.
+    ///
+    /// The cooldown between two notifications is deliberately not here: this reads, and
+    /// `NetworkMonitor` decides what is worth saying. It used to carry one, which nothing
+    /// consumed — a setting that appeared to work and did nothing.
     public struct SignalPolling: Sendable, Equatable {
         public var interval: TimeInterval
-        public var cooldown: TimeInterval
 
         public static let intervalRange: ClosedRange<TimeInterval> = 5...60
-        public static let cooldownRange: ClosedRange<TimeInterval> = 0...60
 
-        public init(interval: TimeInterval = 12, cooldown: TimeInterval = 10) {
+        public init(interval: TimeInterval = 12) {
             self.interval = interval.clamped(to: Self.intervalRange)
-            self.cooldown = cooldown.clamped(to: Self.cooldownRange)
         }
     }
 

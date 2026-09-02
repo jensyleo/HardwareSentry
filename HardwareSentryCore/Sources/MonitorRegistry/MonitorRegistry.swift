@@ -181,7 +181,8 @@ public actor MonitorRegistry {
             category: M.category,
             events: M.events,
             fields: M.fields,
-            enabledByDefault: M.enabledByDefault
+            enabledByDefault: M.enabledByDefault,
+            icon: M.icon
         )
     }
 

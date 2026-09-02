@@ -8,6 +8,13 @@ import SignalCore
 public actor NetworkMonitor: Monitor {
     public static let category = NetworkEvent.category
 
+    /// Said outright rather than taken from the first event, which is a Wi-Fi one.
+    ///
+    /// This module covers Wi-Fi, wired links, VPN, DNS and the rest; letting the list icon
+    /// fall out of whichever event happens to be declared first made the whole of
+    /// networking look like Wi-Fi the moment the events were reordered into groups.
+    public static let icon: NotificationIcon = .asset("Network-Generic-On", in: .module)
+
     public static let events: [MonitorEventDescription] = [
         // Wi-Fi and wired are one module because they are one subsystem, not because
         // anybody thinks of them as one topic — so they read as separate lists.
@@ -98,10 +105,14 @@ public actor NetworkMonitor: Monitor {
     private var lastKnownPath: NetworkPathDetail?
     private var hadIPAddresses = false
 
+    /// - Parameter signalCooldown: how long after reporting a signal level before another
+    ///   is reported. Ten seconds, the original's figure, clamped to its range — zero is a
+    ///   real choice there and means "report every level change", so only the upper bound
+    ///   and negatives are corrected.
     public init(source: any NetworkSource, context: MonitorContext, signalCooldown: TimeInterval = 10) {
         self.source = source
         self.context = context
-        self.signalWatcher = WiFiSignalWatcher(cooldown: signalCooldown)
+        self.signalWatcher = WiFiSignalWatcher(cooldown: min(60, max(0, signalCooldown)))
     }
 
     public func start() async {
@@ -137,7 +148,16 @@ public actor NetworkMonitor: Monitor {
 
             // Baselined from the reading that came with joining, so the first real
             // movement is caught one poll sooner than it would be otherwise.
-            if let rssi = detail?.rssi { signalWatcher.baseline(WiFiSignalLevel(rssi: rssi)) }
+            // Only from a reading that exists. A zero is the interface declining to
+            // answer, and baselining at "no signal" would make the very next poll look
+            // like the signal had leapt from nothing to whatever it always was — a
+            // notification about joining, dressed as a change. The original guards this
+            // the same way, by leaving its baseline unset rather than storing zero bars.
+            if let rssi = detail?.rssi, rssi != 0 {
+                signalWatcher.baseline(WiFiSignalLevel(rssi: rssi))
+            } else {
+                signalWatcher.reset()
+            }
             await context.notify(
                 NetworkEvent.wifiConnected.rawValue, subject: ssid,
                 title: "AirPort Connected",

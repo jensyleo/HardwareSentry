@@ -28,6 +28,18 @@ targets:
         # local file in this repo rather than referenced from HG4MAC's — no cross-repo
         # dependency, and it stops being needed the moment the real icon lands.
         CFBundleIconFile: AppIcon
+        # Without this, every polling loop in the application is throttled.
+        #
+        # A menu-bar accessory is always in the background, which is exactly what App Nap
+        # exists to slow down: a timer set for twelve seconds can be stretched to minutes
+        # or stalled outright. Everything that has to ask rather than be told — the Wi-Fi
+        # signal level, the radio's backstop check, the printer's destination list, a
+        # scanner's status, the power repeat, the weekly battery check — quietly stops
+        # working, while everything driven by a system notification carries on. That
+        # combination looks like "the signal-level feature is broken" rather than like
+        # power management, which is how it was reported. The original sets this for the
+        # same reason and says so in its own notes.
+        LSAppNapIsDisabled: true
     dependencies:
       - package: HardwareSentryCore
         product: MonitorRegistry

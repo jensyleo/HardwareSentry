@@ -67,11 +67,11 @@ private struct ModuleRow: View {
         .opacity(isEnabled ? 1 : 0.55)
     }
 
-    /// The module's first event's artwork, which is the closest thing to a picture of the
-    /// module that exists without inventing a second set of icons to keep in step.
+    /// What the module says it looks like — its first event's artwork unless it named
+    /// something better, which a module covering several unrelated things has to.
     @MainActor
     private static func icon(for module: MonitorDescription) -> NSImage {
-        module.events.first?.icon.image(side: 18)
+        module.icon.image(side: 18)
             ?? NSImage(systemSymbolName: "square.dashed", accessibilityDescription: nil)?.resized(toFit: 18)
             ?? NSImage(size: NSSize(width: 18, height: 18))
     }

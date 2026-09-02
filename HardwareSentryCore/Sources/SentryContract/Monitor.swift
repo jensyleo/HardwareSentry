@@ -35,6 +35,14 @@ public protocol Monitor: Sendable {
     /// A monitor with nothing optional to say leaves this alone.
     static var fields: [MonitorFieldDescription] { get }
 
+    /// The picture of the module itself, for a list of modules.
+    ///
+    /// Defaulted to the first event's artwork, which is right for a monitor whose events
+    /// are all about one kind of thing. A monitor covering several — Wi-Fi, wired links,
+    /// VPN, DNS — has no first event that stands for the whole, so it says which icon does
+    /// rather than letting the answer depend on which event happens to be declared first.
+    static var icon: NotificationIcon { get }
+
     /// Begins watching. Anything already present is announced through `context`, which
     /// knows whether that counts as a startup sweep.
     func start() async
@@ -122,6 +130,8 @@ public extension Monitor {
 
     /// Watching is what this application is for.
     static var enabledByDefault: Bool { true }
+
+    static var icon: NotificationIcon { events.first?.icon ?? .none }
 }
 
 /// Everything a preferences screen needs to know about one monitor, without running it.
@@ -130,6 +140,8 @@ public struct MonitorDescription: Sendable, Identifiable {
     public let events: [MonitorEventDescription]
     public let fields: [MonitorFieldDescription]
     public let enabledByDefault: Bool
+    /// What the module looks like in a list of modules.
+    public let icon: NotificationIcon
 
     public var id: String { category.rawValue }
 
@@ -149,12 +161,14 @@ public struct MonitorDescription: Sendable, Identifiable {
         category: NotificationCategory,
         events: [MonitorEventDescription],
         fields: [MonitorFieldDescription],
-        enabledByDefault: Bool = true
+        enabledByDefault: Bool = true,
+        icon: NotificationIcon? = nil
     ) {
         self.category = category
         self.events = events
         self.fields = fields
         self.enabledByDefault = enabledByDefault
+        self.icon = icon ?? events.first?.icon ?? .none
     }
 }
 

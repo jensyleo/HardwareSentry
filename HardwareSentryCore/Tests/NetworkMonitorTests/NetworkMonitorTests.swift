@@ -1314,7 +1314,6 @@ struct SignalPollingTests {
     func defaultsMatchTheOriginal() {
         let polling = SystemNetworkSource.SignalPolling()
         #expect(polling.interval == 12)
-        #expect(polling.cooldown == 10)
     }
 
     @Test("a stored interval outside what makes sense is brought back into range")
@@ -1325,12 +1324,15 @@ struct SignalPollingTests {
     }
 
     @Test("a cooldown of zero is a real choice and is kept")
-    func zeroCooldownIsAllowed() {
-        // Unlike the interval, zero means something here: report every level change with
-        // no holding back.
-        #expect(SystemNetworkSource.SignalPolling(cooldown: 0).cooldown == 0)
-        #expect(SystemNetworkSource.SignalPolling(cooldown: -5).cooldown == 0)
-        #expect(SystemNetworkSource.SignalPolling(cooldown: 999).cooldown == 60)
+    func zeroCooldownIsAllowed() async {
+        // The cooldown belongs to the monitor, not to the reading: this decides what is
+        // worth saying, and the source only looks. Zero means something here, unlike the
+        // interval — report every level change with no holding back.
+        var watcher = WiFiSignalWatcher(cooldown: 0)
+        watcher.baseline(.excellent)
+        let now = Date()
+        #expect(watcher.consider(.good, now: now) != nil)
+        #expect(watcher.consider(.fair, now: now) != nil)
     }
 }
 
@@ -1901,5 +1903,88 @@ struct MonitorGroupTests {
 
         #expect(description.fieldGroups.map(\.title) == ["Zebra", "Apple"])
         #expect(description.fieldGroups.first?.rows.map(\.name) == ["z", "z2"])
+    }
+}
+
+@Suite("NetworkMonitor · matching the original's signal behaviour")
+struct WiFiSignalParityTests {
+    private func signals(_ script: [NetworkSourceEvent], cooldown: TimeInterval = 0) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            signalCooldown: cooldown
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events.filter { $0.name.hasPrefix("AirportSignal") }
+    }
+
+    @Test("joining with no readable signal does not make the next poll look like a change")
+    func joiningWithoutARSSIDoesNotBaselineAtZero() async {
+        // The original leaves its baseline unset when the RSSI reads zero rather than
+        // storing zero bars. Baselining at "no signal" would make the first real reading
+        // look like a leap from nothing, so joining a network would be announced twice:
+        // once as joining, once as the signal improving.
+        let events = await signals([
+            .wifiConnected(ssid: "Home", detail: WiFiDetail(rssi: 0)),
+            .wifiSignal(rssi: -50, ssid: "Home")
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("joining with a readable signal baselines from it, so one poll is enough")
+    func joiningBaselinesFromTheReading() async {
+        let events = await signals([
+            .wifiConnected(ssid: "Home", detail: WiFiDetail(rssi: -50)),  // excellent
+            .wifiSignal(rssi: -70, ssid: "Home")                          // fair
+        ])
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == NetworkEvent.wifiSignalFair.rawValue)
+    }
+
+    @Test("the cooldown delays news without swallowing it")
+    func cooldownDelaysRatherThanDrops() {
+        var watcher = WiFiSignalWatcher(cooldown: 10)
+        let start = Date()
+        watcher.baseline(.excellent)
+
+        // Spoken once, then held.
+        #expect(watcher.consider(.good, now: start) != nil)
+        #expect(watcher.consider(.fair, now: start.addingTimeInterval(1)) == nil)
+        #expect(watcher.consider(.weak, now: start.addingTimeInterval(2)) == nil)
+
+        // Once it lifts, the level that is reported is where the signal actually got to,
+        // and it is still measured against the level last spoken about.
+        let resumed = watcher.consider(.weak, now: start.addingTimeInterval(11))
+        #expect(resumed?.level == .weak)
+        #expect(resumed?.isImproving == false)
+    }
+
+    @Test("flapping back to the level last announced cancels itself")
+    func flappingBackIsSilent() {
+        var watcher = WiFiSignalWatcher(cooldown: 10)
+        let start = Date()
+        watcher.baseline(.good)
+
+        #expect(watcher.consider(.fair, now: start) != nil)
+        // Straight back to good inside the cooldown, and then it stays there: nothing more
+        // is said, because the level equals the one last reported.
+        #expect(watcher.consider(.fair, now: start.addingTimeInterval(2)) == nil)
+        #expect(watcher.consider(.fair, now: start.addingTimeInterval(20)) == nil)
+    }
+
+    @Test("the module's own icon is not whichever event happens to be declared first")
+    func moduleIconIsDeclared() {
+        // The regression this fixes: grouping the events put a Wi-Fi one first, and the
+        // whole of networking started wearing a Wi-Fi icon in the module list.
+        #expect(NetworkMonitor.icon == .asset("Network-Generic-On", in: .module))
+        #expect(NetworkMonitor.icon != NetworkMonitor.events.first?.icon)
     }
 }
