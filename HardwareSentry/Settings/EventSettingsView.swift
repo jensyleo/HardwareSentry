@@ -1,3 +1,4 @@
+import AppKit
 import SentryContract
 import SignalCore
 import SwiftUI
@@ -17,16 +18,25 @@ struct EventSettingsView: View {
     @Bindable var iconOverrides: IconOverrideStore
 
     @State private var selection: String?
-    /// Which half of a module's settings is showing. Held here rather than inside the
-    /// panel so that switching module keeps you on the same half — somebody working
-    /// through the icons of one module after another should not be dropped back onto the
-    /// switches every time they change module.
-    @State private var pane: ModulePane = .notifications
+    /// Which of the selected module's tabs is showing, by name.
+    ///
+    /// Held here rather than inside the panel so it survives switching module: somebody
+    /// working through the icons of one module after another should not be dropped back
+    /// onto the first tab every time they change module. A name that the next module does
+    /// not have falls back to its first tab.
+    @State private var pane: String = ModulePane.iconsTitle
 
     var body: some View {
+        VStack(spacing: 0) {
+            PerformancePicker(model: model)
+            splitView
+        }
+    }
+
+    private var splitView: some View {
         NavigationSplitView {
             List(model.modules, selection: $selection) { module in
-                ModuleRow(module: module, isEnabled: model.isEnabled(module.category))
+                ModuleRow(module: module, model: model)
                     .tag(module.id)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
@@ -50,26 +60,71 @@ struct EventSettingsView: View {
     }
 }
 
+/// How much of the application runs, as one choice rather than thirteen.
+///
+/// Above the module list, not inside it, because it is about all of them at once — and
+/// because it is the first thing to decide: which modules run at all comes before which of
+/// their notifications arrive.
+private struct PerformancePicker: View {
+    @Bindable var model: EventSettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Performance")
+                .font(.headline)
+
+            Picker("", selection: Binding(
+                get: { model.performanceMode },
+                set: { model.setPerformanceMode($0) }
+            )) {
+                // In the original's order, which puts the two presets between the extremes
+                // rather than in the enum's own numbering.
+                ForEach([
+                    EventSettingsModel.PerformanceMode.minimal,
+                    .recommended,
+                    .all,
+                    .custom
+                ]) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.radioGroup)
+            .horizontalRadioGroupLayout()
+            .labelsHidden()
+
+            Text(model.performanceMode.explanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        Divider()
+    }
+}
+
 /// One module in the list: its artwork, its name, and whether it is running at all.
 private struct ModuleRow: View {
     let module: MonitorDescription
-    let isEnabled: Bool
+    @Bindable var model: EventSettingsModel
 
     var body: some View {
         HStack(spacing: 8) {
             Image(nsImage: Self.icon(for: module))
             Text(module.category.rawValue)
             Spacer()
-            // A dot rather than a switch: the switch lives on the detail panel, and two
+            // The module's own switch, here rather than duplicated on the panel: two
             // controls for one setting invites the question of whether they are the same
-            // setting. This only reports.
-            if !isEnabled {
-                Image(systemName: "moon.zzz.fill")
-                    .foregroundStyle(.tertiary)
-                    .help("This module is switched off")
-            }
+            // setting, and the answer being "yes" does not stop it being asked.
+            Toggle("", isOn: Binding(
+                get: { model.isEnabled(module.category) },
+                set: { model.setEnabled($0, for: module.category) }
+            ))
+            .labelsHidden()
+            .help("Switching this off stops the module watching altogether, rather than only silencing it.")
         }
-        .opacity(isEnabled ? 1 : 0.55)
+        .opacity(model.isEnabled(module.category) ? 1 : 0.55)
     }
 
     /// What the module says it looks like — its first event's artwork unless it named
@@ -82,42 +137,50 @@ private struct ModuleRow: View {
     }
 }
 
-/// Which half of a module's settings is on screen.
+/// The tabs a module's settings are split across.
 ///
-/// Two lists rather than one with an icon at the start of every row. Network alone raises
-/// thirty-one notifications and offers thirty optional lines; with a picker on each row,
-/// the list of things to switch on and off is twice as tall as it needs to be, and the
-/// icons — which are chosen once and then left alone — are in the way of the switches,
-/// which are what somebody comes here to change. The original splits them the same way.
-enum ModulePane: String, CaseIterable, Identifiable {
-    case notifications = "Notifications"
-    case icons = "Icons"
+/// One per subject the module declared, plus icons. Two things drove this. A module that
+/// covers several subjects — Network raises thirty-one notifications and offers thirty
+/// optional lines across Wi-Fi, wired links, VPN, addresses and system configuration — is
+/// unreadable as one scroll, and the subject a row belongs to is only knowable by scrolling
+/// back to the nearest heading. And icons are chosen once and then left alone, while the
+/// switches are changed often, so a picker on every row makes the list of switches twice
+/// as tall as it needs to be for the sake of something nobody is looking at.
+enum ModulePane {
+    static let iconsTitle = "Icons"
+    /// What an ungrouped module's one subject tab is called.
+    static let plainTitle = "Notifications"
 
-    var id: String { rawValue }
-
-    var symbol: String {
-        switch self {
-        case .notifications: return "bell.badge"
-        case .icons: return "photo.badge.plus"
-        }
+    /// The tab names for one module, in the order the module declared its subjects.
+    static func titles(for module: MonitorDescription) -> [String] {
+        let subjects = module.eventGroups.map { $0.title ?? plainTitle }
+        return subjects + [iconsTitle]
     }
 }
 
-/// Everything for one module: whether it runs, which of its events arrive, and how much
-/// each message says.
+/// Everything for one module: which of its notifications arrive, how much each message
+/// says, and what each one looks like.
 private struct ModuleDetail: View {
     let module: MonitorDescription
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
-    @Binding var pane: ModulePane
+    @Binding var pane: String
+
+    private var titles: [String] { ModulePane.titles(for: module) }
+
+    /// The tab actually showing. A name carried over from a module that had it and this
+    /// one does not falls back to the first, so the panel is never blank.
+    private var currentTitle: String {
+        titles.contains(pane) ? pane : (titles.first ?? ModulePane.iconsTitle)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             // Above the form rather than inside it: this chooses which form is showing,
             // so it is not one of the settings.
-            Picker("", selection: $pane) {
-                ForEach(ModulePane.allCases) { choice in
-                    Label(choice.rawValue, systemImage: choice.symbol).tag(choice)
+            Picker("", selection: Binding(get: { currentTitle }, set: { pane = $0 })) {
+                ForEach(titles, id: \.self) { title in
+                    Text(title).tag(title)
                 }
             }
             .pickerStyle(.segmented)
@@ -125,33 +188,96 @@ private struct ModuleDetail: View {
             .padding(.horizontal)
             .padding(.top, 10)
 
-            switch pane {
-            case .notifications: notificationsPane
-            case .icons: iconsPane
+            if currentTitle == ModulePane.iconsTitle {
+                iconsPane
+            } else {
+                subjectPane(named: currentTitle)
             }
         }
         .navigationTitle(module.category.rawValue)
     }
 
+    // MARK: - One subject
+
+    /// The optional lines that belong to one subject.
+    ///
+    /// Only the lines: whether a notification arrives at all is a checkbox beside its icon,
+    /// which is where somebody picking through notifications is already looking, and it
+    /// keeps this list to one question — how much does the message say.
+    private func subjectPane(named title: String) -> some View {
+        let fields = module.fieldGroups
+            .first { ($0.title ?? ModulePane.plainTitle) == title }?
+            .rows ?? []
+
+        return Form {
+            if fields.isEmpty {
+                Section {
+                    Text("Nothing optional to add to these messages. Whether each one arrives is a checkbox beside its icon, on the Icons tab.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Section("Notification fields") {
+                    ForEach(fields, id: \.name) { field in
+                        Toggle(field.title, isOn: binding(for: field, in: module.category))
+                            .toggleStyle(.checkbox)
+                    }
+                }
+                .disabled(!model.isEnabled(module.category))
+            }
+
+            if title == titles.first {
+                Section {
+                    Toggle("Announce what is already connected at launch", isOn: Binding(
+                        get: { model.announcesWhatIsAlreadyThere },
+                        set: { model.announcesWhatIsAlreadyThere = $0 }
+                    ))
+                    Text("Takes effect the next time the application starts. This one is for every module at once.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    HStack {
+                        Spacer()
+                        // Icons have their own button, on their own tab: someone who has
+                        // spent time picking icons should not lose them by switching a
+                        // notification back on, and someone tidying up their icons should
+                        // not have their notification choices reset underneath them.
+                        Button("Restore Defaults") { model.resetAll() }
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
     // MARK: - Icons
 
-    /// One row per notification, with nothing but its picture and its name.
+    /// One row per notification: its picture, its name, and whether it arrives.
     ///
-    /// Deliberately not disabled when the module is switched off: choosing what a
-    /// notification will look like before switching it on is a reasonable order to do
-    /// things in, and the artwork is not affected by whether the module runs.
+    /// The checkbox is here rather than on the subject tabs because these two questions
+    /// are asked together — somebody scanning for the notification they want to silence
+    /// recognises it by its icon before they read its name.
     private var iconsPane: some View {
         Form {
-            Section {
-                Text("Click an icon to choose a different one — a suggested symbol, any SF Symbol by name, or an image of your own.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Section("Module icon") {
+                HStack(spacing: 8) {
+                    Image(nsImage: module.icon.image(side: 32) ?? NSImage(size: NSSize(width: 32, height: 32)))
+                        .frame(width: 32, height: 32)
+                    Text("Shown beside this module's name in the list")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
             }
 
             ForEach(module.eventGroups) { group in
-                Section(group.title ?? "Notifications") {
+                Section(group.title ?? ModulePane.plainTitle) {
                     ForEach(group.rows, id: \.name) { event in
                         HStack(spacing: 8) {
+                            // Leading, not trailing: the icon is how someone recognises the
+                            // row they came to change, so it has to be where the eye lands
+                            // first rather than at the end of a line of text.
                             EventIconPicker(
                                 event: event.name,
                                 category: module.category,
@@ -160,6 +286,13 @@ private struct ModuleDetail: View {
                             )
                             Text(event.title)
                             Spacer()
+                            // A checkbox rather than a switch: this is one item in a long
+                            // list of the same question, which is what checkboxes are for,
+                            // and it is how the original presents it.
+                            Toggle("", isOn: binding(for: event, in: module.category))
+                                .labelsHidden()
+                                .toggleStyle(.checkbox)
+                                .disabled(!model.isEnabled(module.category))
                         }
                     }
                 }
@@ -174,75 +307,6 @@ private struct ModuleDetail: View {
             }
         }
         .formStyle(.grouped)
-    }
-
-    // MARK: - Notifications
-
-    private var notificationsPane: some View {
-        Form {
-            Section {
-                Toggle("Watch for these", isOn: binding(for: module.category))
-                    .toggleStyle(.switch)
-            } footer: {
-                Text("Switching this off stops the module watching altogether, rather than only silencing it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            // One section per heading the module declared, in its own order. A module
-            // that declared none comes back as a single unnamed run, so this renders every
-            // module the same way rather than asking whether this one bothered.
-            ForEach(module.eventGroups) { group in
-                Section(group.title ?? "Notifications") {
-                    ForEach(group.rows, id: \.name) { event in
-                        Toggle(event.title, isOn: binding(for: event, in: module.category))
-                            .disabled(!model.isEnabled(module.category))
-                    }
-                }
-            }
-
-            // Not events: extra lines inside a notification that is arriving anyway. In
-            // their own section so the difference is visible rather than implied.
-            if !module.fields.isEmpty {
-                ForEach(module.fieldGroups) { group in
-                    Section(group.title.map { "Include in the message — \($0)" } ?? "Include in the message") {
-                        ForEach(group.rows, id: \.name) { field in
-                            Toggle(field.title, isOn: binding(for: field, in: module.category))
-                        }
-                    }
-                    .disabled(!model.isEnabled(module.category))
-                }
-            }
-
-            Section {
-                Toggle("Announce what is already connected at launch", isOn: Binding(
-                    get: { model.announcesWhatIsAlreadyThere },
-                    set: { model.announcesWhatIsAlreadyThere = $0 }
-                ))
-                Text("Takes effect the next time the application starts.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                HStack {
-                    Spacer()
-                    // Icons have their own button, on their own tab: someone who has spent
-                    // time picking icons should not lose them by switching a notification
-                    // back on, and someone tidying up their icons should not have their
-                    // notification choices reset underneath them.
-                    Button("Restore Defaults") { model.resetAll() }
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    private func binding(for category: NotificationCategory) -> Binding<Bool> {
-        Binding(
-            get: { model.isEnabled(category) },
-            set: { model.setEnabled($0, for: category) }
-        )
     }
 
     private func binding(for event: MonitorEventDescription, in category: NotificationCategory) -> Binding<Bool> {

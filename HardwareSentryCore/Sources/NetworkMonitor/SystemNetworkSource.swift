@@ -123,16 +123,32 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         self.signalPolling = signalPolling
     }
 
+    /// The order of these calls is the order the opening notifications appear in, and it
+    /// is chosen rather than incidental.
+    ///
+    /// Connections first — the Wi-Fi network joined, then the links that are up — and only
+    /// then the addresses, DNS and the rest of the configuration that sits on top of them.
+    /// That is the order the things themselves happen in: you join a network, and *then*
+    /// you are given an address on it. It used to come out backwards, because the address
+    /// sweep is an instant synchronous read while the Wi-Fi sweep waited on a permission
+    /// callback, so "IP Addresses Updated" arrived before "AirPort Connected" — which reads
+    /// as the Mac having an address on a network it had not joined yet. The original hit
+    /// exactly this and fixed it the same way.
     func start() {
         startAdapterRemovalWatch()
         startReachability()
-        startDynamicStore()
+
+        // 1. What this Mac is connected to.
         startWiFi()
+        announceAlreadyJoinedWiFi()
+        startDynamicStore()
+
+        // 2. What it was given once it was connected.
         pollForAddressesAtLaunch()
-        // Sweeps the already-joined network itself, once it knows whether it is allowed
-        // to name it — either immediately below (already granted from a previous launch)
-        // or later, in `locationManagerDidChangeAuthorization`, once someone answers the
-        // prompt this triggers.
+
+        // Asks for permission to *name* the network. The sweep above has already run
+        // without it, and runs again if the answer is yes, so nothing here is waiting on
+        // an answer that may never come.
         startLocationAuthorization()
     }
 

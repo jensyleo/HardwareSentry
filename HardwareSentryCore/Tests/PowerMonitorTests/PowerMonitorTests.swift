@@ -431,18 +431,30 @@ struct PowerBatteryHealthTests {
         #expect(await delivery.events.first?.title == "Battery Service Recommended")
     }
 
-    @Test("a named fault is said even with every optional field switched off")
-    func faultsIgnoreFieldPreferences() async {
-        let (monitor, delivery) = await make(
+    @Test("a named fault is a line of its own, switchable like the rest")
+    func faultsAreTheirOwnField() async {
+        // On by default, because it only ever appears when something is wrong — but
+        // switchable, because it is not this application's place to decide that somebody
+        // may not turn a line off.
+        let (on, onDelivery) = await make(
             health: BatteryHealthDetail(healthPercent: 60, failureModes: ["Cell Imbalance"]),
-            preferences: ChosenFields(allowed: [])
+            preferences: ChosenFields(allowed: [PowerField.batteryFailureModes.rawValue])
         )
-        await monitor.checkBatteryHealthNow(force: true)
-
-        let body = await delivery.events.first?.body
+        await on.checkBatteryHealthNow(force: true)
+        let body = await onDelivery.events.first?.body
         #expect(body?.contains("Cell Imbalance") == true)
         // The optional numbers really are off, so this is not passing by accident.
         #expect(body?.contains("60%") == false)
+
+        let (off, offDelivery) = await make(
+            health: BatteryHealthDetail(healthPercent: 60, failureModes: ["Cell Imbalance"]),
+            preferences: ChosenFields(allowed: [])
+        )
+        await off.checkBatteryHealthNow(force: true)
+        // The notification still arrives — the title says "Battery Needs Attention" — but
+        // the detail line is the one thing that was switched off.
+        #expect(await offDelivery.events.first?.title == "Battery Needs Attention")
+        #expect(await offDelivery.events.first?.body.contains("Cell Imbalance") == false)
     }
 
     @Test("capacity drifting by a few mAh is not treated as news")

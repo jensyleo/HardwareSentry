@@ -180,14 +180,13 @@ public actor PowerMonitor: Monitor {
                 .field(PowerField.cycleCount.rawValue, "Cycles", health.cycleNote),
                 .field(PowerField.batteryHealthPercent.rawValue, "Health", health.healthNote),
                 .field(PowerField.batteryCondition.rawValue, "Condition", health.conditionNote),
-                .field(PowerField.batteryCondition.rawValue, "Overall", health.coarseNote),
+                .field(PowerField.batteryHealthCoarse.rawValue, "Overall", health.coarseNote),
                 .field(PowerField.batteryCapacity.rawValue, "Capacity", health.capacityNote),
                 .field(PowerField.batteryErrorMargin.rawValue, "Margin", health.errorMarginNote),
-                // Not gated by a field: a battery reporting a named fault or an internal
-                // failure is the whole reason this notification exists, and letting a
-                // preference hide it would hide the one thing nobody would choose to miss.
-                .always(health.failuresNote ?? ""),
-                .always(health.internalFailureNote ?? "")
+                // Switchable like everything else, and on by default. They only ever
+                // appear when something is wrong, so they cost nothing when it is not.
+                .field(PowerField.batteryFailureModes.rawValue, "Faults", health.failuresNote),
+                .field(PowerField.batteryInternalFailure.rawValue, "Warning", health.internalFailureNote)
             ]),
             icon: .asset(Self.healthIconName(for: health), in: .module),
             priority: health.hasInternalFailure || !health.failureModes.isEmpty ? .high : .normal
@@ -368,7 +367,11 @@ public actor PowerMonitor: Monitor {
                 title: "On \(Self.localizedName(for: snapshot.kind))",
                 body: await body(
                     for: snapshot,
-                    leading: [.always("Source:\t\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))")]
+                    leading: [.field(
+                        PowerField.sourceChangeArrow.rawValue,
+                        "Source",
+                        "\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))"
+                    )]
                 ),
                 icon: .asset(Self.iconName(for: snapshot), in: .module)
             )

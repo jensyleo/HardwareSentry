@@ -42,6 +42,14 @@ public enum PowerField: String, CaseIterable {
     case batteryCondition = "BatteryCondition"
     case batteryCapacity = "BatteryCapacity"
     case batteryErrorMargin = "BatteryErrorMargin"
+    /// The coarse "Good/Fair/Poor" verdict, apart from the precise condition.
+    case batteryHealthCoarse = "BatteryHealthCoarse"
+    /// Named faults the battery reports.
+    case batteryFailureModes = "BatteryFailureModes"
+    /// The battery's own internal-failure flag.
+    case batteryInternalFailure = "BatteryInternalFailure"
+    /// The "AC Power → Battery Power" line on a source change.
+    case sourceChangeArrow = "SourceChangeArrow"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
@@ -58,6 +66,10 @@ public enum PowerField: String, CaseIterable {
         case .batteryCondition: return "Condition and overall health"
         case .batteryCapacity: return "Capacity now vs. new"
         case .batteryErrorMargin: return "Reporting error margin"
+        case .batteryHealthCoarse: return "Overall health (Good/Fair/Poor)"
+        case .batteryFailureModes: return "Named battery faults"
+        case .batteryInternalFailure: return "Internal failure warning"
+        case .sourceChangeArrow: return "Show which source it changed from"
         }
     }
 
@@ -72,7 +84,13 @@ public enum PowerField: String, CaseIterable {
         switch self {
         case .chargeLevel, .sourceType, .chargeState, .timeRemaining,
              .adapterWattage, .cycleCount, .batteryHealthPercent,
-             .batteryCondition, .batteryCapacity:
+             .batteryCondition, .batteryCapacity, .batteryHealthCoarse,
+             // The two fault lines are on, and they are the only optional lines in the
+             // application that only ever appear when something is wrong — so they cost
+             // nothing when everything is fine. They used to be unswitchable, which was
+             // the wrong call: it is not this application's place to decide that somebody
+             // may not turn a line off.
+             .batteryFailureModes, .batteryInternalFailure, .sourceChangeArrow:
             return true
         case .diagnostics, .adapterIdentity, .batteryErrorMargin:
             return false

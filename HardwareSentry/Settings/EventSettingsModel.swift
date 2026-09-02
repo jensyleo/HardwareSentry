@@ -21,14 +21,23 @@ final class EventSettingsModel {
 
     @ObservationIgnored private let preferences: NotificationPreferencesStore
     @ObservationIgnored private let registry: MonitorRegistry
+    @ObservationIgnored private let defaults: UserDefaults
 
     /// Bumped on every change so the whole screen redraws — a module being switched off
     /// greys out its events, so a row cannot only refresh itself.
     private var revision = 0
 
-    init(preferences: NotificationPreferencesStore, registry: MonitorRegistry) {
+    init(
+        preferences: NotificationPreferencesStore,
+        registry: MonitorRegistry,
+        defaults: UserDefaults = .standard
+    ) {
         self.preferences = preferences
         self.registry = registry
+        self.defaults = defaults
+        // Everything, so this control can never silently stop a module somebody already
+        // had running before it existed.
+        defaults.register(defaults: [Self.performanceModeKey: PerformanceMode.all.rawValue])
     }
 
     func load() async {
@@ -63,6 +72,9 @@ final class EventSettingsModel {
 
     func setEnabled(_ enabled: Bool, for category: NotificationCategory) {
         preferences.setEnabled(enabled, for: category)
+        // Touching one module by hand means the preset no longer describes what is
+        // running, so the preset stops claiming to.
+        fallIntoCustom()
         revision += 1
         // A module switched off stops watching, not just stops talking — so the registry
         // has to hear about it now rather than at the next launch.
@@ -89,6 +101,115 @@ final class EventSettingsModel {
         preferences.setFieldEnabled(shown, for: field.name, in: category)
         revision += 1
     }
+
+    // MARK: - How much of it runs
+
+    /// Which modules run, as one choice rather than thirteen.
+    ///
+    /// Every module watching costs something — a few of them poll — and somebody who only
+    /// wants to know when a disk is plugged in should not have to switch off twelve things
+    /// one at a time to get there. The sets are the original's, and so is the default:
+    /// everything, so that this control can never silently stop a module somebody already
+    /// had running before it existed.
+    enum PerformanceMode: Int, CaseIterable, Identifiable {
+        case minimal = 0
+        case all = 1
+        case custom = 2
+        /// Numbered last on purpose, as in the original: renumbering the others would make
+        /// an already-stored choice mean something different.
+        case recommended = 3
+
+        var id: Int { rawValue }
+
+        var label: String {
+            switch self {
+            case .minimal: return "Minimal elements"
+            case .recommended: return "Recommended"
+            case .all: return "All elements"
+            case .custom: return "Custom"
+            }
+        }
+
+        var explanation: String {
+            switch self {
+            case .minimal: return "Only what the original HardwareGrowler shipped with: volumes, USB, Thunderbolt, Bluetooth, power and network."
+            case .recommended: return "Minimal, plus the two most people want day to day: displays and audio devices. Leaves out the ones that poll or are niche."
+            case .all: return "Every module. What you get if you never touch this."
+            case .custom: return "Whatever you switch on yourself in the list below. Your arrangement is remembered if you try one of the others."
+            }
+        }
+
+        /// Which categories run. Nil for custom, which is whatever is already stored.
+        var categories: Set<String>? {
+            switch self {
+            case .minimal: return Self.minimalSet
+            case .recommended: return Self.minimalSet.union(["Display", "Audio"])
+            case .all: return nil
+            case .custom: return nil
+            }
+        }
+
+        private static let minimalSet: Set<String> = [
+            "Volume", "USB", "Thunderbolt", "Bluetooth", "Power", "Network"
+        ]
+    }
+
+    var performanceMode: PerformanceMode {
+        _ = revision
+        return PerformanceMode(rawValue: defaults.integer(forKey: Self.performanceModeKey)) ?? .all
+    }
+
+    /// Applies a preset, remembering the custom arrangement first.
+    ///
+    /// The snapshot is the original's own bug fix, and worth keeping: without it, going
+    /// Custom → Minimal → Custom silently lost the arrangement, because applying a preset
+    /// overwrites the same switches with no memory of what was there.
+    func setPerformanceMode(_ mode: PerformanceMode) {
+        let previous = performanceMode
+        if previous == .custom, mode != .custom {
+            let disabled = modules.filter { !isEnabled($0.category) }.map(\.category.rawValue)
+            defaults.set(disabled, forKey: Self.customSnapshotKey)
+        }
+
+        defaults.set(mode.rawValue, forKey: Self.performanceModeKey)
+
+        switch mode {
+        case .custom:
+            // Back to what was there before a preset was tried. Nothing stored means
+            // nothing to restore, and the switches are left exactly as they are.
+            if let disabled = defaults.array(forKey: Self.customSnapshotKey) as? [String] {
+                let off = Set(disabled)
+                for module in modules {
+                    preferences.setEnabled(!off.contains(module.category.rawValue), for: module.category)
+                }
+            }
+        case .all:
+            // Each module back to what it declared, rather than all switched on: Scanner
+            // declares itself off, because starting it asks for permission to browse the
+            // local network, and "all elements" is not a reason to spring that on somebody.
+            for module in modules {
+                preferences.reset(module.category)
+            }
+        case .minimal, .recommended:
+            guard let wanted = mode.categories else { return }
+            for module in modules {
+                preferences.setEnabled(wanted.contains(module.category.rawValue), for: module.category)
+            }
+        }
+
+        revision += 1
+        let registry = self.registry
+        Task { await registry.refresh() }
+    }
+
+    /// Switching one module by hand is what "custom" means, so it selects itself.
+    private func fallIntoCustom() {
+        guard performanceMode != .custom else { return }
+        defaults.set(PerformanceMode.custom.rawValue, forKey: Self.performanceModeKey)
+    }
+
+    private static let performanceModeKey = "HardwareSentry.PerformanceMode"
+    private static let customSnapshotKey = "HardwareSentry.PerformanceCustomSnapshot"
 
     /// Puts every module, event and field back to what its monitor declared, by forgetting
     /// the choices rather than by writing today's defaults over them.
