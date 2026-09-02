@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct HardwareSentryApp: App {
     static let settingsWindowID = "settings"
+    static let helpWindowID = "help"
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
@@ -18,6 +19,8 @@ struct HardwareSentryApp: App {
                 NSApplication.shared.orderFrontStandardAboutPanel(nil)
                 NSApplication.shared.activate()
             }
+
+            HelpButton()
 
             Button("Send a Test Notification") {
                 delegate.sendTestNotification()
@@ -47,10 +50,29 @@ struct HardwareSentryApp: App {
         // and ⌘, are wired by hand below, which is the whole of what `Settings` gave us.
         Window("HardwareSentry Settings", id: Self.settingsWindowID) {
             SettingsView(appearance: delegate.appearance, events: delegate.eventSettings, history: delegate.history, iconOverrides: delegate.iconOverrides, general: delegate.general)
-                .onAppear { NSApplication.shared.activate() }
+                .onAppear { delegate.general.settingsWindowOpened() }
+                .onDisappear { delegate.general.settingsWindowClosed() }
         }
         .defaultSize(width: 620, height: 720)
         .windowResizability(.contentMinSize)
+
+        Window("HardwareSentry Help", id: Self.helpWindowID) {
+            HelpView(registry: delegate.registry)
+        }
+        .defaultSize(width: 860, height: 620)
+    }
+}
+
+/// Opens the help window, and puts it in the Help menu where macOS users look for it.
+private struct HelpButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("HardwareSentry Help") {
+            openWindow(id: HardwareSentryApp.helpWindowID)
+            NSApplication.shared.activate()
+        }
+        .keyboardShortcut("?")
     }
 }
 

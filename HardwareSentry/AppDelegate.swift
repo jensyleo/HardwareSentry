@@ -20,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// it can write to even though nothing ever writes back through it.
     var menuBarIconIsVisible: Bool = true
     private var dispatcher: NotificationDispatcher!
-    private var registry: MonitorRegistry!
+    private(set) var registry: MonitorRegistry!
     private var bannerDelivery: BannerDelivery!
     private var iconOverrideMiddleware: IconOverrideMiddleware!
 

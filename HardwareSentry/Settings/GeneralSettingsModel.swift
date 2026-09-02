@@ -61,10 +61,38 @@ final class GeneralSettingsModel {
             return IconVisibility(rawValue: defaults.integer(forKey: Self.visibilityKey)) ?? .menuBar
         }
         set {
+            // Hiding every way of reaching the application is worth one question. The
+            // answer can be suppressed, because somebody who meant it the first time does
+            // not need asking again.
+            if newValue == .none, !defaults.bool(forKey: Self.suppressNoIconWarningKey), !confirmHidingEverything() {
+                revision += 1   // redraws the picker back to what it was
+                return
+            }
             defaults.set(newValue.rawValue, forKey: Self.visibilityKey)
             revision += 1
             apply(newValue)
         }
+    }
+
+    /// - Returns: whether to go ahead.
+    private func confirmHidingEverything() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "HardwareSentry will keep running with no icon anywhere."
+        alert.informativeText = """
+            It will carry on watching your hardware and showing notifications, but there             will be no menu bar item and no dock icon to click.
+
+            To get back to these settings, open HardwareSentry again from Applications or             Launchpad.
+            """
+        alert.addButton(withTitle: "Hide the Icon")
+        alert.addButton(withTitle: "Cancel")
+        alert.showsSuppressionButton = true
+        NSApplication.shared.activate()
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        if alert.suppressionButton?.state == .on {
+            defaults.set(true, forKey: Self.suppressNoIconWarningKey)
+        }
+        return true
     }
 
     /// Called at launch as well as on change, so the choice from last time is in force
@@ -73,20 +101,38 @@ final class GeneralSettingsModel {
         apply(iconVisibility)
     }
 
+    /// Applies the choice at once, so picking one has a visible result.
+    ///
+    /// With one exception: dropping to `.accessory` while these settings are open would
+    /// pull the window out from under whoever is reading it. So the application stays
+    /// `.regular` for as long as the window is up, and `applyOnSettingsWindowClose()`
+    /// finishes the job. Opening the window does the same in reverse — a menu-bar-only
+    /// application has to become `.regular` briefly to take focus at all.
     private func apply(_ visibility: IconVisibility) {
-        // Switching to `.accessory` while the settings window is open would hide it and
-        // leave somebody who just chose "no icon visible" with no way back, so the policy
-        // change waits until the window they are looking at has gone.
-        guard NSApplication.shared.keyWindow == nil else { return }
+        guard !isSettingsWindowOpen else { return }
         NSApplication.shared.setActivationPolicy(visibility.activationPolicy)
     }
 
-    /// Applied when the settings window closes, for the case above.
-    func applyDeferredIconVisibility() {
+    /// Called as the settings window appears and disappears, so the policy can be held at
+    /// `.regular` while it is on screen.
+    private(set) var isSettingsWindowOpen = false
+
+    func settingsWindowOpened() {
+        isSettingsWindowOpen = true
+        NSApplication.shared.setActivationPolicy(.regular)
+        NSApplication.shared.activate()
+    }
+
+    func settingsWindowClosed() {
+        isSettingsWindowOpen = false
         NSApplication.shared.setActivationPolicy(iconVisibility.activationPolicy)
+        // Focus goes back to whatever was in front before, which for a menu-bar
+        // application is what somebody expects when they close its settings.
+        if !iconVisibility.showsDockIcon { NSApplication.shared.hide(nil) }
     }
 
     private static let visibilityKey = "HardwareSentry.IconVisibility"
+    private static let suppressNoIconWarningKey = "HardwareSentry.SuppressNoIconWarning"
 
     // MARK: - Starting with the Mac
 
