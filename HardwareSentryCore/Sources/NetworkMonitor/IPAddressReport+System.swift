@@ -32,7 +32,8 @@ extension IPAddressReport {
             guard let text = Self.presentation(of: addressPointer, family: family) else { continue }
 
             if family == UInt8(AF_INET) {
-                ipv4[name, default: []].append(text)
+                let mask = interface.ifa_netmask.flatMap { Self.prefixLength(ofMask: $0) }
+                ipv4[name, default: []].append(mask.map { "\(text)/\($0)" } ?? text)
             } else {
                 ipv6[name, default: []].append(text)
             }
@@ -47,6 +48,14 @@ extension IPAddressReport {
                 ipv6: ipv6[name] ?? []
             )
         })
+    }
+
+    /// The number of leading 1 bits in a netmask — 255.255.255.0 becomes 24.
+    private static func prefixLength(ofMask mask: UnsafeMutablePointer<sockaddr>) -> Int? {
+        guard mask.pointee.sa_family == UInt8(AF_INET) else { return nil }
+        return mask.withMemoryRebound(to: sockaddr_in.self, capacity: 1) {
+            Int(UInt32(bigEndian: $0.pointee.sin_addr.s_addr).nonzeroBitCount)
+        }
     }
 
     private static func presentation(of address: UnsafeMutablePointer<sockaddr>, family: UInt8) -> String? {

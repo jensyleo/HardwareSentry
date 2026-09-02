@@ -17,6 +17,7 @@
 		94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */; };
 		C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */; };
 		C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */; };
+		F32FA0A3099738191D9A130A /* GeneralSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */; };
 		F76A1D28924864D7762D5C35 /* MonitorRegistry in Frameworks */ = {isa = PBXBuildFile; productRef = 04A73023C9FE09C7DEB77BBC /* MonitorRegistry */; };
 /* End PBXBuildFile section */
 
@@ -32,6 +33,7 @@
 		9760C652282756CC6EBD17A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareSentryApp.swift; sourceTree = "<group>"; };
 		B366AD86D8C8CBF87C30F9CF /* HardwareSentryCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HardwareSentryCore; path = HardwareSentryCore; sourceTree = SOURCE_ROOT; };
+		C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsModel.swift; sourceTree = "<group>"; };
 		CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHistoryStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -74,6 +76,7 @@
 				08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */,
 				6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */,
 				0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */,
+				C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */,
 				19F12EAA9A55261D9EE07357 /* HistoryView.swift */,
 				CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */,
 				6D3BB57E267D9097497B67D5 /* SettingsView.swift */,
@@ -187,6 +190,7 @@
 				1945E63340C5FA7F3A28C418 /* EventIconPicker.swift in Sources */,
 				8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */,
 				94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */,
+				F32FA0A3099738191D9A130A /* GeneralSettingsModel.swift in Sources */,
 				C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */,
 				80046909DBF1CE41414BDB05 /* HistoryView.swift in Sources */,
 				206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */,

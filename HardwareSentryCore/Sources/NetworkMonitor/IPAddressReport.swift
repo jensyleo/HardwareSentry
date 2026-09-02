@@ -6,6 +6,8 @@ public struct InterfaceAddresses: Sendable, Equatable {
     /// The name a person would recognise from System Settings — "Wi-Fi", "Thunderbolt
     /// Bridge" — falling back to the BSD name when the system has no friendlier one.
     public let friendlyName: String?
+    /// IPv4 addresses with their prefix length — "192.168.1.42/24". The mask is what says
+    /// how big the network is, which is half of what an address means.
     public let ipv4: [String]
     public let ipv6: [String]
 

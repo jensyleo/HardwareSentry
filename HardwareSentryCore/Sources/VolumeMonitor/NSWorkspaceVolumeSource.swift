@@ -35,29 +35,26 @@ private final class Watcher: @unchecked Sendable {
         self.freeSpacePollInterval = freeSpacePollInterval
     }
 
-    /// The volume's own name, which is what somebody calls it.
+    /// The last component of the mount path, which is what a volume is called in the one
+    /// place it is guaranteed to have a name.
     ///
-    /// The last path component is right for "/Volumes/Backup" but not for the startup
-    /// disk, whose path is "/" — that has no last component worth showing, and a
-    /// notification reading just "/" says nothing about which disk it means.
-    private static func displayName(of url: URL) -> String {
-        if let name = try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName, !name.isEmpty {
-            return name
-        }
-        let path = url.path
-        let last = (path as NSString).lastPathComponent
-        return last == "/" ? path : last
+    /// Deliberately not the volume's localized name: reading that needs file access macOS
+    /// gates, and it disagrees with the path for exactly the volumes that have no Finder
+    /// presence anyway. The startup disk comes out as "/", which is what it is.
+    static func displayName(of path: String) -> String {
+        (path as NSString).lastPathComponent
     }
 
     private func announceAlreadyMounted() {
-        for url in FileManager.default.mountedVolumeURLs(
-            includingResourceValuesForKeys: nil,
-            options: [.skipHiddenVolumes]
-        ) ?? [] {
+        // No `.skipHiddenVolumes`: the system volumes macOS hides from Finder — Preboot,
+        // VM, Update, xarts, iSCPreboot, Hardware, Data/home — are mounted volumes, and a
+        // tool whose job is to say what is mounted should say so. Somebody who does not
+        // want them can switch the module or the launch announcement off.
+        for url in FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: []) ?? [] {
             let path = url.path
             continuation.yield(.mounted(
                 path: path,
-                name: Self.displayName(of: url),
+                name: Self.displayName(of: path),
                 detail: Self.detail(of: path)
             ))
         }
@@ -70,17 +67,17 @@ private final class Watcher: @unchecked Sendable {
             guard let path = note.userInfo?["NSDevicePath"] as? String else { return }
             self?.continuation.yield(.mounted(
                 path: path,
-                name: (path as NSString).lastPathComponent,
+                name: Self.displayName(of: path),
                 detail: Self.detail(of: path)
             ))
         })
         tokens.append(center.addObserver(forName: NSWorkspace.willUnmountNotification, object: nil, queue: nil) { [weak self] note in
             guard let path = note.userInfo?["NSDevicePath"] as? String else { return }
-            self?.continuation.yield(.willUnmount(path: path, name: (path as NSString).lastPathComponent))
+            self?.continuation.yield(.willUnmount(path: path, name: Self.displayName(of: path)))
         })
         tokens.append(center.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: nil) { [weak self] note in
             guard let path = note.userInfo?["NSDevicePath"] as? String else { return }
-            self?.continuation.yield(.unmounted(path: path, name: (path as NSString).lastPathComponent))
+            self?.continuation.yield(.unmounted(path: path, name: Self.displayName(of: path)))
         })
 
         // `didMountNotification` only ever fires for a volume that mounts while this is

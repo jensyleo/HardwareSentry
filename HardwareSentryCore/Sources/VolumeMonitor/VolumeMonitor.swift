@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SentryContract
 import SignalCore
@@ -66,17 +67,26 @@ public actor VolumeMonitor: Monitor {
             await context.notify(
                 VolumeEvent.mounted.rawValue,
                 subject: path,
-                title: "Volume Mounted",
+                // The volume's own name in the title, not a fixed word: with eight
+                // volumes announced at once, a column of identical "Volume Mounted"
+                // headings tells you nothing about which is which.
+                title: "\(name) Mounted",
                 body: await context.body([
-                    .always(name),
-                    .field(VolumeField.path.rawValue, "Path", path),
+                    .always("Click to open"),
+                    .field(VolumeField.path.rawValue, path),
                     .field(VolumeField.fileSystem.rawValue, "Format", detail.fileSystemType),
                     .field(VolumeField.size.rawValue, "Size", detail.sizeLabel),
                     // Only worth saying when it is true; most volumes are writable and
                     // saying so every time is noise.
                     .field(VolumeField.readOnly.rawValue, detail.isReadOnly ? "Read-only" : nil)
                 ]),
-                icon: .asset(detail.kind?.iconBaseName ?? "DisksVolumes-Mounted", in: .module)
+                icon: .asset(detail.kind?.iconBaseName ?? "DisksVolumes-Mounted", in: .module),
+                // Clicking a mount notification opens the volume, which is the one thing
+                // somebody is likely to want the moment they are told it appeared.
+                onInteraction: { outcome in
+                    guard outcome == .clicked else { return }
+                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                }
             )
             if let kind = detail.kind { kindByPath[path] = kind }
 
@@ -99,8 +109,8 @@ public actor VolumeMonitor: Monitor {
             await context.notify(
                 VolumeEvent.unmounted.rawValue,
                 subject: path,
-                title: "Volume Unmounted",
-                body: name,
+                title: "\(name) Unmounted",
+                body: "",
                 icon: .asset(kind.map { "\($0.iconBaseName)-Unmounted" } ?? "DisksVolumes-Eject", in: .module)
             )
 

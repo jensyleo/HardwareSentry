@@ -141,9 +141,13 @@ struct VolumeMonitorTests {
             detail: VolumeDetail(fileSystemType: "apfs", totalBytes: 2_000_000_000_000, isReadOnly: false)
         )])
 
+        // The volume's name is the title, not the first body line — with eight volumes
+        // announced at once, identical headings say nothing about which is which.
+        #expect(events.first?.title == "Backup Mounted")
+
         let body = events.first?.body ?? ""
-        #expect(body.hasPrefix("Backup"))
-        #expect(body.contains("Path:\t/Volumes/Backup"))
+        #expect(body.hasPrefix("Click to open"))
+        #expect(body.contains("/Volumes/Backup"))
         #expect(body.contains("Format:\tapfs"))
         #expect(body.contains("Size:\t"))
         // Writable is the normal case; saying so every time would be noise.
@@ -160,7 +164,7 @@ struct VolumeMonitorTests {
         #expect(readOnly.first?.body.contains("Size:") == false)
 
         let bare = await run([.mounted(path: "/Volumes/X", name: "X")])
-        #expect(bare.first?.body.hasPrefix("X") == true)
+        #expect(bare.first?.title == "X Mounted")
         #expect(bare.first?.body.contains("Format:") == false)
     }
 
