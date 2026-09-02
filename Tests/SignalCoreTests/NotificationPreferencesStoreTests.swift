@@ -191,3 +191,27 @@ struct NotificationPreferencesStoreByNameTests {
         #expect(store.isEnabled("lowPowerMode", in: "Power"))
     }
 }
+
+@Suite("Announcing what is already there")
+struct AnnounceExistingTests {
+    private func makeStore(_ id: String) -> (NotificationPreferencesStore, UserDefaults) {
+        let defaults = UserDefaults(suiteName: "AnnounceExistingTests.\(id)")!
+        return (NotificationPreferencesStore(defaults: defaults, keyPrefix: "Test.\(id)"), defaults)
+    }
+
+    @Test("on unless somebody says otherwise")
+    func onByDefault() {
+        let (store, _) = makeStore(UUID().uuidString)
+        #expect(store.announcesWhatIsAlreadyThere)
+    }
+
+    @Test("switching it off comes back next launch")
+    func choiceSurvivesARelaunch() {
+        let id = UUID().uuidString
+        let (store, defaults) = makeStore(id)
+        store.announcesWhatIsAlreadyThere = false
+
+        let reopened = NotificationPreferencesStore(defaults: defaults, keyPrefix: "Test.\(id)")
+        #expect(!reopened.announcesWhatIsAlreadyThere)
+    }
+}

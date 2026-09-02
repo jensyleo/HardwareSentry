@@ -59,6 +59,16 @@ public final class NotificationPreferencesStore: NotificationPreferences, @unche
         defaults.set(enabled, forKey: key(for: event.rawValue, in: E.category))
     }
 
+    /// Whether monitors should announce what they find already there when they start.
+    ///
+    /// Application-wide rather than per-module: it is one decision about what launching
+    /// the application means, not thirteen. On unless somebody says otherwise — an
+    /// application that says nothing when it starts looks like one that failed to start.
+    public var announcesWhatIsAlreadyThere: Bool {
+        get { defaults.object(forKey: "\(keyPrefix).AnnounceExisting") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "\(keyPrefix).AnnounceExisting") }
+    }
+
     public func isEnabled(_ category: NotificationCategory) -> Bool {
         wanted(at: key(for: category))
     }
