@@ -10,14 +10,25 @@ import IOBluetooth
 /// about lives in `BluetoothMonitor`, behind `BluetoothSource`.
 public struct IOBluetoothSource: BluetoothSource {
     private let pairedPollInterval: Duration
+    private let signalPollInterval: Duration
 
-    public init(pairedPollInterval: Duration = .seconds(15)) {
+    /// - Parameter signalPollInterval: ten seconds, the original's figure. There is no
+    ///   push notification for RSSI moving, so it has to be asked for.
+    public init(
+        pairedPollInterval: Duration = .seconds(15),
+        signalPollInterval: Duration = .seconds(10)
+    ) {
         self.pairedPollInterval = pairedPollInterval
+        self.signalPollInterval = signalPollInterval
     }
 
     public func changes() -> AsyncStream<BluetoothSourceEvent> {
         AsyncStream { continuation in
-            let watcher = Watcher(continuation: continuation, pairedPollInterval: pairedPollInterval)
+            let watcher = Watcher(
+                continuation: continuation,
+                pairedPollInterval: pairedPollInterval,
+                signalPollInterval: signalPollInterval
+            )
             continuation.onTermination = { _ in watcher.stop() }
             watcher.start()
         }
@@ -27,6 +38,7 @@ public struct IOBluetoothSource: BluetoothSource {
 private final class Watcher: NSObject, CBCentralManagerDelegate, @unchecked Sendable {
     private let continuation: AsyncStream<BluetoothSourceEvent>.Continuation
     private let pairedPollInterval: Duration
+    private let signalPollInterval: Duration
 
     private var connectNotification: IOBluetoothUserNotification?
     private var radioOnToken: NSObjectProtocol?
@@ -34,9 +46,16 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, @unchecked Send
     private var subsystemManager: CBCentralManager?
     private var pairedPollTask: Task<Void, Never>?
 
-    init(continuation: AsyncStream<BluetoothSourceEvent>.Continuation, pairedPollInterval: Duration) {
+    private var signalPollTask: Task<Void, Never>?
+
+    init(
+        continuation: AsyncStream<BluetoothSourceEvent>.Continuation,
+        pairedPollInterval: Duration,
+        signalPollInterval: Duration
+    ) {
         self.continuation = continuation
         self.pairedPollInterval = pairedPollInterval
+        self.signalPollInterval = signalPollInterval
     }
 
     func start() {
@@ -60,9 +79,40 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, @unchecked Send
                 try? await Task.sleep(for: pairedPollInterval)
             }
         }
+
+        signalPollTask = Task { [signalPollInterval] in
+            while !Task.isCancelled {
+                self.continuation.yield(.signalSnapshot(Self.connectedSignals()))
+                try? await Task.sleep(for: signalPollInterval)
+            }
+        }
+    }
+
+    /// Reads the live signal of every connected paired device.
+    ///
+    /// Connected only: `rawRSSI` answers nothing meaningful for a device that is merely
+    /// paired, and ranking that answer would put a keyboard in a drawer on the same
+    /// footing as one being typed on.
+    private static func connectedSignals() -> [String: BluetoothSignalReading] {
+        guard let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else { return [:] }
+
+        var readings: [String: BluetoothSignalReading] = [:]
+        for device in devices where device.isConnected() {
+            guard let address = device.addressString else { continue }
+            let rssi = Int(device.rawRSSI())
+            // 127 is IOBluetooth's "not available". Kept out here as well as in the
+            // ranking, so a device that cannot answer never enters the comparison at all.
+            guard rssi != BluetoothSignalLevel.unavailableRSSI else { continue }
+            readings[address] = BluetoothSignalReading(
+                name: device.name ?? address,
+                rssi: rssi
+            )
+        }
+        return readings
     }
 
     func stop() {
+        signalPollTask?.cancel()
         connectNotification?.unregister()
         if let radioOnToken { NotificationCenter.default.removeObserver(radioOnToken) }
         if let radioOffToken { NotificationCenter.default.removeObserver(radioOffToken) }

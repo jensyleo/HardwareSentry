@@ -2,11 +2,9 @@ import SignalCore
 
 /// What this monitor can tell you about.
 ///
-/// This is the "presence" core only — a classic device connecting/disconnecting, the
-/// radio's own power state, subsystem-level trouble, and pairing changes. BLE/GATT
-/// accessory detail and per-level signal-strength notifications are not ported at all; see
-/// the porting notes for exactly why and what it would take.
-public enum BluetoothEvent: String, NotificationEventKey {
+/// Presence, the radio's own state, pairing changes, and how strong each connected
+/// device's signal is. BLE/GATT accessory detail is not ported; see the porting notes.
+public enum BluetoothEvent: String, NotificationEventKey, CaseIterable {
     case connected = "BluetoothConnected"
     case disconnected = "BluetoothDisconnected"
     case radioOn = "BluetoothRadioOn"
@@ -14,6 +12,13 @@ public enum BluetoothEvent: String, NotificationEventKey {
     case subsystemStateChanged = "BluetoothSubsystemStateChanged"
     case paired = "BluetoothPaired"
     case unpaired = "BluetoothUnpaired"
+    // One row per bar, as with Wi-Fi. Per device: two accessories drift independently, and
+    // a keyboard on the desk should not be compared with a headset in another room.
+    case signalNone = "BluetoothSignalNone"
+    case signalWeak = "BluetoothSignalWeak"
+    case signalFair = "BluetoothSignalFair"
+    case signalGood = "BluetoothSignalGood"
+    case signalExcellent = "BluetoothSignalExcellent"
 
     public static let category: NotificationCategory = "Bluetooth"
 }

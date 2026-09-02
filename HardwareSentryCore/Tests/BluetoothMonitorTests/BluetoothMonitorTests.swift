@@ -109,7 +109,12 @@ struct BluetoothMonitorTests {
             "BluetoothRadioOff": false,
             "BluetoothSubsystemStateChanged": false,
             "BluetoothPaired": false,
-            "BluetoothUnpaired": false
+            "BluetoothUnpaired": false,
+            "BluetoothSignalExcellent": false,
+            "BluetoothSignalGood": false,
+            "BluetoothSignalFair": false,
+            "BluetoothSignalWeak": false,
+            "BluetoothSignalNone": false
         ])
     }
 
@@ -138,19 +143,19 @@ private struct ChosenFields: NotificationPreferences {
 
 @Suite("BluetoothDetail")
 struct BluetoothDetailTests {
-    @Test("signal strength is said in dBm and in words, because most people do not read dBm")
+    @Test("signal strength is said in dBm and in bars, the way the original says it")
     func rssiIsSpelledOut() {
-        #expect(BluetoothDetail(rssi: -45).rssiNote == "-45 dBm (excellent)")
-        #expect(BluetoothDetail(rssi: -65).rssiNote == "-65 dBm (good)")
-        #expect(BluetoothDetail(rssi: -75).rssiNote == "-75 dBm (fair)")
-        #expect(BluetoothDetail(rssi: -95).rssiNote == "-95 dBm (weak)")
+        #expect(BluetoothDetail(rssi: -45).rssiNote == "-45 dBm (4/4)")
+        #expect(BluetoothDetail(rssi: -65).rssiNote == "-65 dBm (3/4)")
+        #expect(BluetoothDetail(rssi: -75).rssiNote == "-75 dBm (1/4)")
+        #expect(BluetoothDetail(rssi: -95).rssiNote == "-95 dBm (0/4)")
     }
 
-    @Test("a controller with no reading says nothing rather than a perfect signal")
+    @Test("only 127 means no reading; zero is a real and rather good one")
     func zeroRSSIIsNotAPerfectSignal() {
         // IOBluetooth reports 0 for "no reading", which read literally is the strongest
         // possible signal — the one value that must not be shown.
-        #expect(BluetoothDetail(rssi: 0).rssiNote == nil)
+        #expect(BluetoothDetail(rssi: 0).rssiNote == "0 dBm (4/4)")
         #expect(BluetoothDetail().rssiNote == nil)
     }
 
@@ -206,16 +211,18 @@ struct BluetoothMonitorFieldTests {
         return await delivery.events.first?.body
     }
 
-    @Test("out of the box the message says what kind of thing connected, and nothing more")
-    func onlyTheKindIsOnByDefault() async {
+    @Test("out of the box the message says what kind of thing connected, and how strong")
+    func kindAndSignalAreOnByDefault() async {
         let defaults = Set(BluetoothMonitor.fields.filter(\.shownByDefault).map(\.name))
-        #expect(defaults == [BluetoothField.kind.rawValue])
+        #expect(defaults == [BluetoothField.kind.rawValue, BluetoothField.signal.rawValue])
 
         let body = await body(
             .classicConnected(name: "WH-1000XM4", kind: .headphones, detail: Self.headphones),
             allowing: defaults
         )
-        #expect(body == "WH-1000XM4\nType:\tHeadphones")
+        // The signal is on because it is the answer to "why does this keep cutting out",
+        // and because the original has it on.
+        #expect(body == "WH-1000XM4\nType:\tHeadphones\nSignal:\t-52 dBm (4/4)")
     }
 
     @Test("with everything switched on, the details read in the declared order")
@@ -230,7 +237,7 @@ struct BluetoothMonitorFieldTests {
         Type:\tHeadphones
         Address:\t00-11-22-33-44-55
         Paired:\tYes
-        Signal:\t-52 dBm (excellent)
+        Signal:\t-52 dBm (4/4)
         Link type:\tACL (data)
         Initiated by:\tThe device
         Services:\tAudio Sink, Handsfree
@@ -304,5 +311,196 @@ struct BluetoothIconTests {
         for name in ["Bluetooth-On", "Bluetooth-Off", "Bluetooth-Radio-On", "Bluetooth-Radio-Off"] {
             #expect(Bundle.module.url(forResource: name, withExtension: "png") != nil, "missing \(name)")
         }
+    }
+}
+
+// MARK: - Signal strength, per device
+
+@Suite("BluetoothSignalLevel")
+struct BluetoothSignalLevelTests {
+    @Test("the thresholds are the Wi-Fi ones, which is what the original uses")
+    func thresholdsMatchWiFi() {
+        #expect(BluetoothSignalLevel(rssi: -40) == .excellent)
+        #expect(BluetoothSignalLevel(rssi: -55) == .excellent)
+        #expect(BluetoothSignalLevel(rssi: -56) == .good)
+        #expect(BluetoothSignalLevel(rssi: -65) == .good)
+        #expect(BluetoothSignalLevel(rssi: -66) == .fair)
+        #expect(BluetoothSignalLevel(rssi: -73) == .fair)
+        #expect(BluetoothSignalLevel(rssi: -74) == .weak)
+        #expect(BluetoothSignalLevel(rssi: -80) == .weak)
+        #expect(BluetoothSignalLevel(rssi: -81) == .lost)
+    }
+
+    @Test("zero is a real reading here, unlike Wi-Fi")
+    func zeroIsARealReading() {
+        // The bug this fixes. Classic Bluetooth reports RSSI against its golden receive
+        // range, so zero means "comfortably inside it" — which the original shows as
+        // "0 dBm (4/4)". Suppressing it, as the Wi-Fi rule does, is why a Magic Keyboard
+        // showed no signal line at all in this application.
+        #expect(BluetoothSignalLevel(rssi: 0) == .excellent)
+        #expect(BluetoothDetail(rssi: 0).rssiNote == "0 dBm (4/4)")
+    }
+
+    @Test("127 is the sentinel, and it is refused")
+    func unavailableIsRefused() {
+        #expect(BluetoothSignalLevel(rssi: 127) == nil)
+        #expect(BluetoothDetail(rssi: 127).rssiNote == nil)
+        #expect(BluetoothDetail().rssiNote == nil)
+    }
+
+    @Test("the note is worded as the original words it")
+    func noteWording() {
+        #expect(BluetoothDetail(rssi: -62).rssiNote == "-62 dBm (3/4)")
+        #expect(BluetoothDetail(rssi: -90).rssiNote == "-90 dBm (0/4)")
+    }
+
+    @Test("each level has an event and an icon that exists")
+    func everyLevelIsDeclared() {
+        for level in BluetoothSignalLevel.allCases {
+            let declared = BluetoothMonitor.events.first { $0.name == level.event.rawValue }
+            #expect(declared != nil, "\(level) has no declared event")
+            #expect(declared?.icon != .none, "\(level) has no icon")
+            // Off by default, as in the original: an accessory's signal moves whenever it
+            // is picked up.
+            #expect(declared?.enabledByDefault == false)
+        }
+    }
+}
+
+@Suite("BluetoothSignalWatcher")
+struct BluetoothSignalWatcherTests {
+    private let mouse = "d0-c0-50-c3-25-7a"
+    private let keyboard = "fc-a5-c8-0c-97-1b"
+
+    @Test("the first reading for a device is a baseline, not news")
+    func firstReadingIsSilent() {
+        var watcher = BluetoothSignalWatcher(cooldown: 0)
+        #expect(watcher.consider(address: mouse, name: "Magic Mouse", rssi: -50) == nil)
+    }
+
+    @Test("a level change is reported with the original's wording")
+    func levelChangeIsReported() {
+        var watcher = BluetoothSignalWatcher(cooldown: 0)
+        watcher.consider(address: mouse, name: "Magic Mouse", rssi: -50)
+
+        let change = watcher.consider(address: mouse, name: "Magic Mouse", rssi: -70)
+        #expect(change?.level == .fair)
+        #expect(change?.isImproving == false)
+        #expect(change?.summary == "Signal ↓ degraded (2/4)")
+        #expect(change?.name == "Magic Mouse")
+    }
+
+    @Test("drifting within one level says nothing")
+    func sameLevelIsSilent() {
+        var watcher = BluetoothSignalWatcher(cooldown: 0)
+        watcher.consider(address: mouse, name: "Magic Mouse", rssi: -56)
+        #expect(watcher.consider(address: mouse, name: "Magic Mouse", rssi: -64) == nil)
+    }
+
+    @Test("two devices are tracked apart")
+    func devicesAreIndependent() {
+        var watcher = BluetoothSignalWatcher(cooldown: 0)
+        watcher.consider(address: mouse, name: "Magic Mouse", rssi: -50)
+        watcher.consider(address: keyboard, name: "Magic Keyboard", rssi: -50)
+
+        // The mouse moving is not the keyboard moving, and neither baseline is the other's.
+        #expect(watcher.consider(address: mouse, name: "Magic Mouse", rssi: -78)?.level == .weak)
+        #expect(watcher.consider(address: keyboard, name: "Magic Keyboard", rssi: -50) == nil)
+    }
+
+    @Test("the cooldown is per device, and delays news without swallowing it")
+    func cooldownIsPerDevice() {
+        var watcher = BluetoothSignalWatcher(cooldown: 15)
+        let start = Date()
+        watcher.consider(address: mouse, name: "Magic Mouse", rssi: -50, now: start)
+        watcher.consider(address: keyboard, name: "Magic Keyboard", rssi: -50, now: start)
+
+        #expect(watcher.consider(address: mouse, name: "Magic Mouse", rssi: -70, now: start) != nil)
+        // The keyboard is not held back by the mouse having just spoken.
+        #expect(watcher.consider(address: keyboard, name: "Magic Keyboard", rssi: -70, now: start) != nil)
+
+        // And the mouse sliding further during its own cooldown is reported once it lifts,
+        // measured against the level last announced rather than the one in between.
+        #expect(watcher.consider(address: mouse, name: "Magic Mouse", rssi: -78, now: start.addingTimeInterval(5)) == nil)
+        let resumed = watcher.consider(address: mouse, name: "Magic Mouse", rssi: -78, now: start.addingTimeInterval(16))
+        #expect(resumed?.level == .weak)
+    }
+
+    @Test("a device that leaves is forgotten, so coming back baselines afresh")
+    func forgettingOnDisconnect() {
+        var watcher = BluetoothSignalWatcher(cooldown: 0)
+        watcher.consider(address: mouse, name: "Magic Mouse", rssi: -50)
+        watcher.keepOnly([])
+
+        // Back in the room, weak: a baseline, not a collapse from excellent.
+        #expect(watcher.consider(address: mouse, name: "Magic Mouse", rssi: -78) == nil)
+    }
+
+    @Test("an unavailable reading is not a level change")
+    func unavailableIsNotAChange() {
+        var watcher = BluetoothSignalWatcher(cooldown: 0)
+        watcher.consider(address: mouse, name: "Magic Mouse", rssi: -50)
+        #expect(watcher.consider(address: mouse, name: "Magic Mouse", rssi: 127) == nil)
+    }
+}
+
+@Suite("BluetoothMonitor · signal notifications")
+struct BluetoothSignalNotificationTests {
+    private func run(_ snapshots: [[String: BluetoothSignalReading]]) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = BluetoothMonitor(
+            source: ScriptedBluetoothSource(script: snapshots.map { .signalSnapshot($0) }),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: BluetoothMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            signalCooldown: 0
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events.filter { $0.name.hasPrefix("BluetoothSignal") }
+    }
+
+    @Test("the event raised is the level it landed on, and the subject is the device")
+    func eventFollowsTheLevel() async {
+        let events = await run([
+            ["aa": BluetoothSignalReading(name: "Magic Mouse", rssi: -50)],
+            ["aa": BluetoothSignalReading(name: "Magic Mouse", rssi: -70)]
+        ])
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == BluetoothEvent.signalFair.rawValue)
+        #expect(events.first?.subject == "aa")
+        #expect(events.first?.title == "Bluetooth Signal Changed")
+        #expect(events.first?.body == "Magic Mouse\nSignal ↓ degraded (2/4)")
+    }
+
+    @Test("two accessories moving at once are two notifications, not one flapping thing")
+    func perDeviceNotifications() async {
+        let events = await run([
+            [
+                "aa": BluetoothSignalReading(name: "Magic Mouse", rssi: -50),
+                "bb": BluetoothSignalReading(name: "Magic Keyboard", rssi: -50)
+            ],
+            [
+                "aa": BluetoothSignalReading(name: "Magic Mouse", rssi: -70),
+                "bb": BluetoothSignalReading(name: "Magic Keyboard", rssi: -78)
+            ]
+        ])
+
+        #expect(events.count == 2)
+        #expect(Set(events.compactMap(\.subject)) == ["aa", "bb"])
+    }
+
+    @Test("a device disappearing from the snapshot is not reported as a signal change")
+    func vanishingIsSilent() async {
+        let events = await run([
+            ["aa": BluetoothSignalReading(name: "Magic Mouse", rssi: -50)],
+            [:],
+            ["aa": BluetoothSignalReading(name: "Magic Mouse", rssi: -78)]
+        ])
+        #expect(events.isEmpty)
     }
 }

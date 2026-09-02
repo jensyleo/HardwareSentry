@@ -9,17 +9,37 @@ public actor BluetoothMonitor: Monitor {
     public static let category = BluetoothEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: BluetoothEvent.connected.rawValue, title: "Device connected", icon: .asset("Bluetooth-On", in: .module)),
-        .init(name: BluetoothEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("Bluetooth-Off", in: .module)),
-        .init(name: BluetoothEvent.radioOn.rawValue, title: "Radio turned on", enabledByDefault: false, icon: .asset("Bluetooth-Radio-On", in: .module)),
-        .init(name: BluetoothEvent.radioOff.rawValue, title: "Radio turned off", enabledByDefault: false, icon: .asset("Bluetooth-Radio-Off", in: .module)),
-        .init(name: BluetoothEvent.subsystemStateChanged.rawValue, title: "Subsystem trouble (resetting/unauthorized/unsupported)", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module)),
-        .init(name: BluetoothEvent.paired.rawValue, title: "Device paired", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module)),
-        .init(name: BluetoothEvent.unpaired.rawValue, title: "Device unpaired", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module))
+        .init(name: BluetoothEvent.connected.rawValue, title: "Device connected", icon: .asset("Bluetooth-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.radioOn.rawValue, title: "Radio turned on", enabledByDefault: false, icon: .asset("Bluetooth-Radio-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.radioOff.rawValue, title: "Radio turned off", enabledByDefault: false, icon: .asset("Bluetooth-Radio-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.subsystemStateChanged.rawValue, title: "Subsystem trouble (resetting/unauthorized/unsupported)", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.paired.rawValue, title: "Device paired", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.unpaired.rawValue, title: "Device unpaired", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+
+        // Off by default, as in the original, and unlike the Wi-Fi ones. An accessory's
+        // signal moves whenever it is picked up or carried to the next room, so on a Mac
+        // with a keyboard, a mouse and a headset this is a notification about somebody
+        // reaching across their desk.
+        .init(name: BluetoothEvent.signalExcellent.rawValue, title: BluetoothSignalLevel.excellent.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.excellent.iconName, in: .module), group: Group.signal),
+        .init(name: BluetoothEvent.signalGood.rawValue, title: BluetoothSignalLevel.good.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.good.iconName, in: .module), group: Group.signal),
+        .init(name: BluetoothEvent.signalFair.rawValue, title: BluetoothSignalLevel.fair.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.fair.iconName, in: .module), group: Group.signal),
+        .init(name: BluetoothEvent.signalWeak.rawValue, title: BluetoothSignalLevel.weak.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.weak.iconName, in: .module), group: Group.signal),
+        .init(name: BluetoothEvent.signalNone.rawValue, title: BluetoothSignalLevel.lost.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.lost.iconName, in: .module), group: Group.signal)
     ]
 
+    /// The module's own picture, said outright: its first event is a device one, and this
+    /// module is about more than devices.
+    public static let icon: NotificationIcon = .asset("Bluetooth-On", in: .module)
+
     public static let fields: [MonitorFieldDescription] = BluetoothField.allCases.map {
-        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault, group: $0.group)
+    }
+
+    /// The headings its rows sit under.
+    enum Group {
+        static let device = "Devices and radio"
+        static let signal = "Signal strength"
     }
 
     private let source: any BluetoothSource
@@ -29,13 +49,21 @@ public actor BluetoothMonitor: Monitor {
     /// The artwork each device was last seen with, so a disconnect can still show what
     /// kind of thing left rather than a generic Bluetooth glyph.
     private var lastKindByName: [String: BluetoothDeviceKind] = [:]
+    private var signalWatcher: BluetoothSignalWatcher
     private var lastKnownRadioOn: Bool?
     private var lastKnownPaired: [String: String]?
     private var hasPairedBaseline = false
 
-    public init(source: any BluetoothSource, context: MonitorContext) {
+    /// - Parameter signalCooldown: how long after reporting one device's signal level
+    ///   before reporting it again. Fifteen seconds, the original's figure.
+    public init(
+        source: any BluetoothSource,
+        context: MonitorContext,
+        signalCooldown: TimeInterval = 15
+    ) {
         self.source = source
         self.context = context
+        self.signalWatcher = BluetoothSignalWatcher(cooldown: signalCooldown)
     }
 
     public func start() async {
@@ -107,6 +135,39 @@ public actor BluetoothMonitor: Monitor {
 
         case .pairedSnapshot(let current):
             await handlePairedSnapshot(current)
+
+        case .signalSnapshot(let readings):
+            await handleSignalSnapshot(readings)
+        }
+    }
+
+    /// Reports each device whose signal has moved between bars.
+    ///
+    /// The deciding lives in `BluetoothSignalWatcher`, which is where the per-device
+    /// baseline, the level comparison and the cooldown are written down and tested.
+    private func handleSignalSnapshot(_ readings: [String: BluetoothSignalReading]) async {
+        // Devices that have gone are forgotten, so one coming back baselines afresh
+        // rather than being compared against a level from before it left the room.
+        signalWatcher.keepOnly(Set(readings.keys))
+
+        // Sorted so a Mac with three accessories reports them in a stable order rather
+        // than in whatever order the dictionary happened to iterate.
+        for (address, reading) in readings.sorted(by: { $0.key < $1.key }) {
+            guard let change = signalWatcher.consider(
+                address: address,
+                name: reading.name,
+                rssi: reading.rssi
+            ) else { continue }
+
+            await context.notify(
+                change.level.event.rawValue,
+                // Per device, so two accessories drifting at once do not read as one
+                // thing flapping.
+                subject: address,
+                title: "Bluetooth Signal Changed",
+                body: "\(change.name)\n\(change.summary)",
+                icon: .asset(change.level.iconName, in: .module)
+            )
         }
     }
 

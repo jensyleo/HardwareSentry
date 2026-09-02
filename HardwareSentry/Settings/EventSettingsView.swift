@@ -17,6 +17,11 @@ struct EventSettingsView: View {
     @Bindable var iconOverrides: IconOverrideStore
 
     @State private var selection: String?
+    /// Which half of a module's settings is showing. Held here rather than inside the
+    /// panel so that switching module keeps you on the same half — somebody working
+    /// through the icons of one module after another should not be dropped back onto the
+    /// switches every time they change module.
+    @State private var pane: ModulePane = .notifications
 
     var body: some View {
         NavigationSplitView {
@@ -27,7 +32,7 @@ struct EventSettingsView: View {
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, pane: $pane)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -77,14 +82,103 @@ private struct ModuleRow: View {
     }
 }
 
+/// Which half of a module's settings is on screen.
+///
+/// Two lists rather than one with an icon at the start of every row. Network alone raises
+/// thirty-one notifications and offers thirty optional lines; with a picker on each row,
+/// the list of things to switch on and off is twice as tall as it needs to be, and the
+/// icons — which are chosen once and then left alone — are in the way of the switches,
+/// which are what somebody comes here to change. The original splits them the same way.
+enum ModulePane: String, CaseIterable, Identifiable {
+    case notifications = "Notifications"
+    case icons = "Icons"
+
+    var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .notifications: return "bell.badge"
+        case .icons: return "photo.badge.plus"
+        }
+    }
+}
+
 /// Everything for one module: whether it runs, which of its events arrive, and how much
 /// each message says.
 private struct ModuleDetail: View {
     let module: MonitorDescription
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
+    @Binding var pane: ModulePane
 
     var body: some View {
+        VStack(spacing: 0) {
+            // Above the form rather than inside it: this chooses which form is showing,
+            // so it is not one of the settings.
+            Picker("", selection: $pane) {
+                ForEach(ModulePane.allCases) { choice in
+                    Label(choice.rawValue, systemImage: choice.symbol).tag(choice)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal)
+            .padding(.top, 10)
+
+            switch pane {
+            case .notifications: notificationsPane
+            case .icons: iconsPane
+            }
+        }
+        .navigationTitle(module.category.rawValue)
+    }
+
+    // MARK: - Icons
+
+    /// One row per notification, with nothing but its picture and its name.
+    ///
+    /// Deliberately not disabled when the module is switched off: choosing what a
+    /// notification will look like before switching it on is a reasonable order to do
+    /// things in, and the artwork is not affected by whether the module runs.
+    private var iconsPane: some View {
+        Form {
+            Section {
+                Text("Click an icon to choose a different one — a suggested symbol, any SF Symbol by name, or an image of your own.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(module.eventGroups) { group in
+                Section(group.title ?? "Notifications") {
+                    ForEach(group.rows, id: \.name) { event in
+                        HStack(spacing: 8) {
+                            EventIconPicker(
+                                event: event.name,
+                                category: module.category,
+                                defaultIcon: event.icon,
+                                store: iconOverrides
+                            )
+                            Text(event.title)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+
+            Section {
+                HStack {
+                    Spacer()
+                    Button("Restore Default Icons") { iconOverrides.resetAll() }
+                        .disabled(iconOverrides.overrides.isEmpty)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    // MARK: - Notifications
+
+    private var notificationsPane: some View {
         Form {
             Section {
                 Toggle("Watch for these", isOn: binding(for: module.category))
@@ -101,19 +195,8 @@ private struct ModuleDetail: View {
             ForEach(module.eventGroups) { group in
                 Section(group.title ?? "Notifications") {
                     ForEach(group.rows, id: \.name) { event in
-                        HStack(spacing: 8) {
-                            // Leading, not trailing: the icon is how someone recognises the
-                            // row they came to change, so it has to be where the eye lands
-                            // first rather than at the end of a line of text.
-                            EventIconPicker(
-                                event: event.name,
-                                category: module.category,
-                                defaultIcon: event.icon,
-                                store: iconOverrides
-                            )
-                            Toggle(event.title, isOn: binding(for: event, in: module.category))
-                        }
-                        .disabled(!model.isEnabled(module.category))
+                        Toggle(event.title, isOn: binding(for: event, in: module.category))
+                            .disabled(!model.isEnabled(module.category))
                     }
                 }
             }
@@ -143,19 +226,16 @@ private struct ModuleDetail: View {
 
             Section {
                 HStack {
-                    // Separate from "Restore Defaults" on purpose: someone who has spent
+                    Spacer()
+                    // Icons have their own button, on their own tab: someone who has spent
                     // time picking icons should not lose them by switching a notification
                     // back on, and someone tidying up their icons should not have their
                     // notification choices reset underneath them.
-                    Button("Restore Default Icons") { iconOverrides.resetAll() }
-                        .disabled(iconOverrides.overrides.isEmpty)
-                    Spacer()
                     Button("Restore Defaults") { model.resetAll() }
                 }
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(module.category.rawValue)
     }
 
     private func binding(for category: NotificationCategory) -> Binding<Bool> {

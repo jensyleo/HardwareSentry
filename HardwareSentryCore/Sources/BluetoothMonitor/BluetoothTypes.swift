@@ -90,8 +90,25 @@ public enum BluetoothSourceEvent: Sendable, Equatable {
     /// push notification for pairing state changes, so this is always the result of a
     /// poll; the monitor is what turns it into paired/unpaired events.
     case pairedSnapshot([String: String])
+    /// The live signal of every connected device, address → (name, RSSI in dBm).
+    ///
+    /// A snapshot rather than a delta, and polled: IOBluetooth has no push notification
+    /// for RSSI moving, and a reading is only meaningful while the device is connected.
+    case signalSnapshot([String: BluetoothSignalReading])
 }
 
 public protocol BluetoothSource: Sendable {
     func changes() -> AsyncStream<BluetoothSourceEvent>
+}
+
+/// One device's live signal reading.
+public struct BluetoothSignalReading: Sendable, Equatable {
+    public let name: String
+    /// dBm. 127 is IOBluetooth's "not available", and is refused rather than ranked.
+    public let rssi: Int
+
+    public init(name: String, rssi: Int) {
+        self.name = name
+        self.rssi = rssi
+    }
 }

@@ -52,9 +52,17 @@ public struct BluetoothDetail: Sendable, Equatable {
 
     /// Reported with its unit, because a bare "-58" is not obviously a signal strength,
     /// and with the plain-words strength alongside, because most people do not read dBm.
+    /// "-62 dBm (3/4)", the original's wording.
+    ///
+    /// Zero is reported, not suppressed. That guard was copied from the Wi-Fi detail,
+    /// where zero means the interface declined to answer — but classic Bluetooth reports
+    /// RSSI against its golden receive range, so zero means "comfortably inside it", which
+    /// is a real reading and a good one. Suppressing it is why a Magic Keyboard and a
+    /// Magic Mouse showed no signal line here while the original showed "0 dBm (4/4)".
+    /// The sentinel to refuse is 127.
     var rssiNote: String? {
-        guard let rssi, rssi != 0 else { return nil }
-        return "\(rssi) dBm (\(Self.strength(rssi)))"
+        guard let rssi, let level = BluetoothSignalLevel(rssi: rssi) else { return nil }
+        return "\(rssi) dBm (\(level.rawValue)/4)"
     }
 
     /// Present-only, the same rule the other monitors' capability lines follow.
@@ -67,14 +75,6 @@ public struct BluetoothDetail: Sendable, Equatable {
 
     var pairedNote: String { isPaired ? "Yes" : "No" }
 
-    static func strength(_ rssi: Int) -> String {
-        switch rssi {
-        case (-60)...: return "excellent"
-        case (-70)..<(-60): return "good"
-        case (-80)..<(-70): return "fair"
-        default: return "weak"
-        }
-    }
 }
 
 /// The optional details this monitor can add.
@@ -104,10 +104,16 @@ public enum BluetoothField: String, CaseIterable {
         }
     }
 
-    /// The kind of device is on because it is the one line that turns "Bluetooth
-    /// Connection: WH-1000XM4" into something you can read without knowing your own
-    /// gadgets by model number. The rest are for people who want them.
-    var shownByDefault: Bool { self == .kind }
+    /// Two on. The kind of device is the one line that turns "Bluetooth Connection:
+    /// WH-1000XM4" into something you can read without knowing your own gadgets by model
+    /// number; the signal is on because it is the answer to "why does this keep cutting
+    /// out", and the original has it on too. The rest are for people who want them.
+    var shownByDefault: Bool { self == .kind || self == .signal }
+
+    /// Which heading this line sits under, matching the event groups.
+    var group: String {
+        self == .signal ? BluetoothMonitor.Group.signal : BluetoothMonitor.Group.device
+    }
 }
 
 public extension BluetoothDeviceKind {
