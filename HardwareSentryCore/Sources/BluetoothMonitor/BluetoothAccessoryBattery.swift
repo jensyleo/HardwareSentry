@@ -1,4 +1,5 @@
 import Foundation
+import IOBluetooth
 import IOKit
 
 /// Reads how much battery an Apple Bluetooth accessory has left.
@@ -10,10 +11,14 @@ import IOKit
 /// release, and a notifier that stops naming a battery level after a system update is
 /// worse than one that never named it.
 ///
-/// The cost of that choice is honest and worth stating: AirPods report their left, right
-/// and case levels **only** through those private selectors, so this reads nothing for
-/// them. Keyboards, mice and trackpads — which is what the original's own setting names —
-/// publish a single figure here and are read fine.
+/// AirPods are the reason the private route exists at all: they report their left, right and
+/// case levels **only** through those selectors, and nothing public publishes them. So both
+/// routes are here, in that order — the registry first, because it is supported and will
+/// keep working, and the selectors only for what the registry cannot answer.
+///
+/// Every selector call is guarded by asking the object whether it responds, so a macOS
+/// release that removes them costs a missing line rather than a crash. That is the whole
+/// safety net available: there is no version to check and no deprecation to watch.
 public enum BluetoothAccessoryBattery {
     /// Battery level by device address, for every accessory that publishes one.
     ///
@@ -71,5 +76,68 @@ public enum BluetoothAccessoryBattery {
             .replacingOccurrences(of: ":", with: "")
             .replacingOccurrences(of: "-", with: "")
             .trimmingCharacters(in: .whitespaces)
+    }
+}
+
+
+// MARK: - AirPods, which nothing public reports
+
+public extension BluetoothAccessoryBattery {
+    /// The left, right and case levels of an accessory that carries three batteries.
+    ///
+    /// Read through `IOBluetoothDevice`'s undocumented battery selectors, because for
+    /// AirPods there is no other route: the registry node that keyboards and mice publish
+    /// their level on does not exist for them.
+    ///
+    /// Each call is guarded by `responds(to:)` and goes through `perform(_:)`, so a
+    /// release that drops a selector loses a line and nothing else. Anything outside
+    /// 0...100 is refused — these return a negative number for "no reading", and a
+    /// battery of minus one percent is worse than no battery line at all.
+    struct MultipartLevel: Sendable, Equatable {
+        public let left: Int?
+        public let right: Int?
+        public let enclosure: Int?
+
+        public init(left: Int? = nil, right: Int? = nil, enclosure: Int? = nil) {
+            self.left = left
+            self.right = right
+            self.enclosure = enclosure
+        }
+
+        public var isEmpty: Bool { left == nil && right == nil && enclosure == nil }
+
+        /// "L 80% / R 75% / Case 100%", the original's shape, leaving out whichever part
+        /// did not answer rather than printing a gap.
+        public var note: String? {
+            var parts: [String] = []
+            if let left { parts.append("L \(left)%") }
+            if let right { parts.append("R \(right)%") }
+            if let enclosure { parts.append("Case \(enclosure)%") }
+            return parts.isEmpty ? nil : parts.joined(separator: " / ")
+        }
+    }
+
+    /// A single figure, for an accessory that has one battery and no registry node.
+    static func singleLevel(of device: IOBluetoothDevice) -> Int? {
+        percent(device, "batteryPercentSingle")
+    }
+
+    static func multipartLevel(of device: IOBluetoothDevice) -> MultipartLevel {
+        MultipartLevel(
+            left: percent(device, "batteryPercentLeft"),
+            right: percent(device, "batteryPercentRight"),
+            enclosure: percent(device, "batteryPercentCase")
+        )
+    }
+
+    /// Asks for one undocumented value, or gives nothing.
+    private static func percent(_ device: IOBluetoothDevice, _ name: String) -> Int? {
+        let selector = NSSelectorFromString(name)
+        guard device.responds(to: selector) else { return nil }
+        guard let value = device.perform(selector)?.takeUnretainedValue() as? NSNumber else { return nil }
+        let percent = value.intValue
+        // These answer with a negative number when there is no reading, and an accessory
+        // is never above full.
+        return (0...100).contains(percent) ? percent : nil
     }
 }

@@ -659,3 +659,35 @@ struct BLEAccessoryTests {
         #expect(byName[BluetoothEvent.leDisconnected.rawValue] == false)
     }
 }
+
+@Suite("BluetoothAccessoryBattery · accessories with three batteries")
+struct MultipartBatteryTests {
+    @Test("the three levels read as one line, leaving out whichever did not answer")
+    func multipartNote() {
+        let full = BluetoothAccessoryBattery.MultipartLevel(left: 80, right: 75, enclosure: 100)
+        #expect(full.note == "L 80% / R 75% / Case 100%")
+
+        // One earpiece in the case and the other in an ear is an ordinary situation, and
+        // the line should say what it knows rather than print a gap.
+        let partial = BluetoothAccessoryBattery.MultipartLevel(left: 80, enclosure: 100)
+        #expect(partial.note == "L 80% / Case 100%")
+
+        #expect(BluetoothAccessoryBattery.MultipartLevel().note == nil)
+        #expect(BluetoothAccessoryBattery.MultipartLevel().isEmpty)
+    }
+
+    @Test("a single figure wins over the split one where both exist")
+    func singleWinsOverMultipart() {
+        // A device that publishes a level the supported way is better read that way; the
+        // split reading is for the accessories that publish nothing else.
+        let both = BluetoothDetail(
+            batteryPercent: 64,
+            multipartBattery: .init(left: 80, right: 75)
+        )
+        #expect(both.batteryNote == "64%")
+
+        let airpods = BluetoothDetail(multipartBattery: .init(left: 80, right: 75, enclosure: 100))
+        #expect(airpods.batteryNote == "L 80% / R 75% / Case 100%")
+        #expect(BluetoothDetail().batteryNote == nil)
+    }
+}

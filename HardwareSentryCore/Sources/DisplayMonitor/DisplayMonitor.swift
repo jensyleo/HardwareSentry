@@ -14,7 +14,11 @@ public actor DisplayMonitor: Monitor {
         .init(name: DisplayEvent.modeChanged.rawValue, title: "Resolution/refresh rate/rotation changed", icon: .asset("Display-On", in: .module)),
         .init(name: DisplayEvent.roleChanged.rawValue, title: "Role changed (Main/Extended/Mirrored)", icon: .asset("Display-On", in: .module)),
         .init(name: DisplayEvent.sleepChanged.rawValue, title: "Display slept/woke", icon: .asset("Display-Off", in: .module)),
-        .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false, icon: .asset("Display-On", in: .module))
+        .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false, icon: .asset("Display-On", in: .module)),
+        // Off by default, and it should stay that way for anybody who does not want it:
+        // it reads undocumented kernel log text, only works on Apple Silicon, and has to
+        // poll. What it buys is a second or two of warning before the real notification.
+        .init(name: DisplayEvent.linkDetected.rawValue, title: "Video link detected (experimental)", enabledByDefault: false, icon: .asset("Display-On", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = DisplayField.allCases.map {
@@ -52,6 +56,18 @@ public actor DisplayMonitor: Monitor {
         switch event {
         case .snapshot(let displays):
             await handleSnapshot(displays)
+        case .videoLinkDetected:
+            await context.notify(
+                DisplayEvent.linkDetected.rawValue,
+                subject: "VideoLink",
+                title: "Video Link Detected",
+                body: """
+                A physical video link was seen before macOS had assigned the display a role.
+                Read from internal kernel log text, so it may be wrong and may stop working                 after a system update.
+                """,
+                icon: .asset("Display-On", in: .module)
+            )
+
         case .colorProfileChanged:
             await context.notify(
                 DisplayEvent.colorProfileChanged.rawValue,

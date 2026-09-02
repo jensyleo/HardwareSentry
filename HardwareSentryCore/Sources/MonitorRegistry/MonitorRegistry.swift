@@ -36,6 +36,7 @@ public actor MonitorRegistry {
     private let scannerStatusInterval: Duration
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
     private let networkSignalCooldown: TimeInterval
+    private let videoLinkPollInterval: Duration
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -54,7 +55,8 @@ public actor MonitorRegistry {
         volumeLowSpacePercent: Double = 5,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
-        networkSignalCooldown: TimeInterval = 10
+        networkSignalCooldown: TimeInterval = 10,
+        videoLinkPollInterval: Duration = .seconds(5)
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
@@ -66,6 +68,7 @@ public actor MonitorRegistry {
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
         self.networkSignalCooldown = networkSignalCooldown
+        self.videoLinkPollInterval = videoLinkPollInterval
     }
 
     /// Passes changed tuning to the monitors that care about it, without rebuilding them.
@@ -121,7 +124,15 @@ public actor MonitorRegistry {
                 context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             DisplayMonitor(
-                source: CoreGraphicsDisplaySource(),
+                // The experimental video-link poll runs only when its notification is
+                // switched on: it reads undocumented kernel log text every few seconds,
+                // and doing that for somebody who has not asked for it would be a real
+                // cost for no news they wanted.
+                source: CoreGraphicsDisplaySource(
+                    videoLinkPolling: preferences.isEnabled(DisplayEvent.linkDetected.rawValue, in: DisplayMonitor.category)
+                        ? videoLinkPollInterval
+                        : nil
+                ),
                 context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             PrinterMonitor(

@@ -28,9 +28,16 @@ extension BluetoothDetail {
             isFavorite: device.isFavorite(),
             // `.distantPast` is what a device that has never been used comes back with.
             lastSeen: device.recentAccessDate().flatMap { $0 > Date(timeIntervalSince1970: 0) ? $0 : nil },
+            // The registry first, because it is supported and will keep working; the
+            // undocumented selector only for what the registry cannot answer.
             batteryPercent: device.addressString
                 .map(BluetoothAccessoryBattery.normalise)
-                .flatMap { batteryLevels[$0] },
+                .flatMap { batteryLevels[$0] }
+                ?? BluetoothAccessoryBattery.singleLevel(of: device),
+            multipartBattery: {
+                let level = BluetoothAccessoryBattery.multipartLevel(of: device)
+                return level.isEmpty ? nil : level
+            }(),
             encryption: Self.describe(encryption: device.getEncryptionMode()),
             serviceClasses: Self.describeServiceClasses(UInt32(device.classOfDevice)),
             vendorID: Self.number(pnp, attribute: 0x0201),

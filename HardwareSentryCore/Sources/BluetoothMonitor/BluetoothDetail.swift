@@ -28,6 +28,8 @@ public struct BluetoothDetail: Sendable, Equatable {
     /// How full the accessory's battery is, for the Apple accessories macOS publishes it
     /// for. Nil for everything else, which is most Bluetooth devices.
     public let batteryPercent: Int?
+    /// The three levels an accessory with separate earpieces and a case reports.
+    public let multipartBattery: BluetoothAccessoryBattery.MultipartLevel?
     /// "Encrypted (AES-CCM)", "Not encrypted" — whether the link itself is protected.
     public let encryption: String?
     /// The broad things the device's Class of Device record claims it does: "Audio",
@@ -59,6 +61,7 @@ public struct BluetoothDetail: Sendable, Equatable {
         isFavorite: Bool = false,
         lastSeen: Date? = nil,
         batteryPercent: Int? = nil,
+        multipartBattery: BluetoothAccessoryBattery.MultipartLevel? = nil,
         encryption: String? = nil,
         serviceClasses: String? = nil,
         vendorID: Int? = nil,
@@ -80,6 +83,7 @@ public struct BluetoothDetail: Sendable, Equatable {
         self.isFavorite = isFavorite
         self.lastSeen = lastSeen
         self.batteryPercent = batteryPercent
+        self.multipartBattery = multipartBattery
         self.encryption = encryption
         self.serviceClasses = serviceClasses
         self.vendorID = vendorID
@@ -92,7 +96,15 @@ public struct BluetoothDetail: Sendable, Equatable {
         self.transmitPower = transmitPower
     }
 
-    var batteryNote: String? { batteryPercent.map { "\($0)%" } }
+    /// One figure when the accessory has one battery, three when it has three.
+    ///
+    /// The single figure wins where both exist: a device that publishes a level the
+    /// supported way is better read that way, and the split reading is for the accessories
+    /// that publish nothing else.
+    var batteryNote: String? {
+        if let batteryPercent { return "\(batteryPercent)%" }
+        return multipartBattery?.note
+    }
 
     /// Vendor, product and version as one line, in hex as well as decimal because that is
     /// how every specification sheet and every other tool prints them.

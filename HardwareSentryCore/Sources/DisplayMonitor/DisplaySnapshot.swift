@@ -53,6 +53,8 @@ public enum DisplaySourceEvent: Sendable, Equatable {
     /// A display's ICC color profile changed somewhere on the system (System Settings,
     /// Night Shift/True Tone, or a calibration tool) — not tied to any specific display ID.
     case colorProfileChanged
+    /// The kernel mentioned a video receiver coming up.
+    case videoLinkDetected
 }
 
 public protocol DisplaySource: Sendable {

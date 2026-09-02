@@ -172,7 +172,10 @@ struct DisplayMonitorTests {
             "DisplayModeChanged": true,
             "DisplayRoleChanged": true,
             "DisplaySleepChanged": true,
-            "DisplayColorProfileChanged": false
+            "DisplayColorProfileChanged": false,
+            // Off, and it should stay off for anybody who does not want it: it reads
+            // undocumented kernel log text, works only on Apple Silicon, and has to poll.
+            "DisplayLinkDetected": false
         ])
     }
 

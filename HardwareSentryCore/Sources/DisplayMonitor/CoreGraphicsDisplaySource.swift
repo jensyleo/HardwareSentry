@@ -16,11 +16,19 @@ import Foundation
 /// `NSScreen` only exposes displays AppKit can address a window to, so a display macOS puts
 /// in Mirror mode never gets its own `NSScreen` entry — confirmed in HG4MAC's own history.
 public struct CoreGraphicsDisplaySource: DisplaySource {
-    public init() {}
+    private let videoLinkPolling: Duration?
+
+    /// - Parameter videoLinkPolling: how often to look in the kernel log for a video link
+    ///   coming up, or nil not to look at all. Nil is the right default for a host that
+    ///   does not want an experimental feature polling in the background; the application
+    ///   passes an interval only when the notification is switched on.
+    public init(videoLinkPolling: Duration? = nil) {
+        self.videoLinkPolling = videoLinkPolling
+    }
 
     public func changes() -> AsyncStream<DisplaySourceEvent> {
         AsyncStream { continuation in
-            let watcher = Watcher(continuation: continuation)
+            let watcher = Watcher(continuation: continuation, videoLinkPolling: videoLinkPolling)
             continuation.onTermination = { _ in watcher.stop() }
             watcher.start()
         }
@@ -30,9 +38,12 @@ public struct CoreGraphicsDisplaySource: DisplaySource {
 private final class Watcher: @unchecked Sendable {
     private let continuation: AsyncStream<DisplaySourceEvent>.Continuation
     private var colorProfileToken: NSObjectProtocol?
+    private let videoLinkPolling: Duration?
+    private var videoLinkTask: Task<Void, Never>?
 
-    init(continuation: AsyncStream<DisplaySourceEvent>.Continuation) {
+    init(continuation: AsyncStream<DisplaySourceEvent>.Continuation, videoLinkPolling: Duration?) {
         self.continuation = continuation
+        self.videoLinkPolling = videoLinkPolling
     }
 
     func start() {
@@ -53,6 +64,8 @@ private final class Watcher: @unchecked Sendable {
         // (ColorSyncDevice.h) — read as a plain string literal rather than the imported
         // global, which Swift 6 flags as not concurrency-safe (it's an `Unmanaged<CFString>`
         // global var, not a `let`) even though its value never actually changes at runtime.
+        startVideoLinkPoll()
+
         colorProfileToken = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.ColorSync.DisplayProfileNotification"),
             object: nil, queue: nil
@@ -62,8 +75,33 @@ private final class Watcher: @unchecked Sendable {
     }
 
     func stop() {
+        videoLinkTask?.cancel()
         if let colorProfileToken { DistributedNotificationCenter.default().removeObserver(colorProfileToken) }
         continuation.finish()
+    }
+
+    /// Looks in the kernel log for a video link, if this host asked for it.
+    ///
+    /// Polling, because `OSLogStore` offers no push callback — only a historical
+    /// enumerator. Each pass reads from where the last one stopped rather than from a
+    /// fixed window, so nothing is seen twice and nothing falls between two passes.
+    private func startVideoLinkPoll() {
+        guard let interval = videoLinkPolling else { return }
+
+        videoLinkTask = Task { [continuation] in
+            let detector = VideoLinkDetector()
+            var since = Date()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled else { return }
+
+                let now = Date()
+                if detector.sawLink(since: since) {
+                    continuation.yield(.videoLinkDetected)
+                }
+                since = now
+            }
+        }
     }
 
     private func emitSnapshot() {
