@@ -1,7 +1,7 @@
 import Foundation
 
 /// How hard the Mac is throttling itself to stay cool, least to most severe.
-public enum ThermalState: Int, Sendable, Equatable, Comparable {
+public enum ThermalState: Int, Sendable, Equatable, Comparable, CaseIterable {
     case nominal
     case fair
     case serious

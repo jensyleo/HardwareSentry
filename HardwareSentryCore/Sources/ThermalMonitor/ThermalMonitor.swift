@@ -7,11 +7,11 @@ public actor ThermalMonitor: Monitor {
     public static let category = ThermalEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: ThermalEvent.nominal.rawValue, title: "Back to normal (Nominal)", enabledByDefault: false, icon: .asset("Thermal-Nominal", in: .module)),
-        .init(name: ThermalEvent.fair.rawValue, title: "Slightly elevated (Fair)", enabledByDefault: false, icon: .asset("Thermal-Fair", in: .module)),
-        .init(name: ThermalEvent.serious.rawValue, title: "Throttling active (Serious)", enabledByDefault: true, icon: .asset("Thermal-Serious", in: .module)),
-        .init(name: ThermalEvent.critical.rawValue, title: "Severe throttling (Critical)", enabledByDefault: true, icon: .asset("Thermal-Critical", in: .module)),
-        .init(name: ThermalEvent.darkWakeEmergency.rawValue, title: "Overheated during a maintenance wake", enabledByDefault: false, icon: .asset("Thermal-DarkWakeEmergency", in: .module))
+        .init(name: ThermalEvent.nominal.rawValue, title: "Nominal (back to normal)", enabledByDefault: false, icon: .asset("Thermal-Nominal", in: .module)),
+        .init(name: ThermalEvent.fair.rawValue, title: "Fair (slightly elevated)", enabledByDefault: false, icon: .asset("Thermal-Fair", in: .module)),
+        .init(name: ThermalEvent.serious.rawValue, title: "Serious (throttling active)", enabledByDefault: true, icon: .asset("Thermal-Serious", in: .module)),
+        .init(name: ThermalEvent.critical.rawValue, title: "Critical (severe throttling)", enabledByDefault: true, icon: .asset("Thermal-Critical", in: .module)),
+        .init(name: ThermalEvent.darkWakeEmergency.rawValue, title: "Dark Wake Thermal Emergency", enabledByDefault: false, icon: .asset("Thermal-DarkWakeEmergency", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [
@@ -51,6 +51,34 @@ public actor ThermalMonitor: Monitor {
     public func stop() async {
         watching.forEach { $0.cancel() }
         watching = []
+    }
+
+    /// The heading its notification switches sit under on the settings screen.
+    ///
+    /// A module whose notifications are four levels of one thing reads better as a list
+    /// of levels than as a list of notifications, and the original words it this way.
+    public static let eventListHeading = "Notify when entering:"
+
+    /// Fires one transition on demand, without waiting for the Mac to get hot.
+    ///
+    /// Worth having because the interesting states are the ones a Mac rarely reaches:
+    /// under ordinary load an M-series machine may never go beyond Fair, so the Serious
+    /// and Critical notifications — the two that are on by default, and the two somebody
+    /// most wants to have seen once before they matter — would otherwise be unverifiable.
+    ///
+    /// Two things it deliberately does not do. It does not touch the remembered state, so
+    /// a simulation cannot leave the real tracking out of step with the machine. And it
+    /// does not check whether that level's notification is switched on: asking for a
+    /// simulation is the opt-in, so every combination can be previewed, including the
+    /// ones that are off by default.
+    public func simulate(from: ThermalState, to: ThermalState) async {
+        await context.notify(
+            ThermalEvent.forState(to).rawValue,
+            subject: "State",
+            title: "Thermal State Changed",
+            body: Self.describeTransition(from: from, to: to),
+            icon: .asset("Thermal-\(to.label)", in: .module)
+        )
     }
 
     private func reportStateChange(to state: ThermalState, through context: MonitorContext) async {

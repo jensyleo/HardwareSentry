@@ -2,6 +2,7 @@ import AppKit
 import SentryContract
 import SignalCore
 import SwiftUI
+import ThermalMonitor
 
 /// Which notifications a person wants, module by module.
 ///
@@ -17,6 +18,8 @@ struct EventSettingsView: View {
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
     @Bindable var tuning: MonitorTuningModel
+    /// Fires one thermal transition on demand. See `ThermalSimulator`.
+    let simulateThermal: (ThermalState, ThermalState) -> Void
 
     @State private var selection: String?
     /// Which of the selected module's tabs is showing, by name.
@@ -43,7 +46,7 @@ struct EventSettingsView: View {
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, pane: $pane)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, pane: $pane)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -176,6 +179,7 @@ private struct ModuleDetail: View {
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
     @Bindable var tuning: MonitorTuningModel
+    let simulateThermal: (ThermalState, ThermalState) -> Void
     @Binding var pane: String
 
     private var titles: [String] { ModulePane.titles(for: module) }
@@ -251,6 +255,23 @@ private struct ModuleDetail: View {
                 }
             }
 
+            // A module whose notifications are levels of one thing lists them here as
+            // well as beside their icons: four thermal levels read as a list of levels,
+            // where fourteen USB device classes would be a wall.
+            if let heading = module.eventListHeading, title == titles.first {
+                Section(heading) {
+                    ForEach(module.events, id: \.name) { event in
+                        Toggle(event.title, isOn: binding(for: event, in: module.category))
+                            .toggleStyle(.checkbox)
+                            .disabled(!model.isEnabled(module.category))
+                    }
+                }
+            }
+
+            if module.category.rawValue == "Thermal", title == titles.first {
+                ThermalSimulator(simulate: simulateThermal)
+            }
+
             if fields.isEmpty {
                 Section {
                     Text("No additional fields yet.")
@@ -266,6 +287,8 @@ private struct ModuleDetail: View {
                 .disabled(!model.isEnabled(module.category))
             }
 
+            // Once, on the first tab: it is one switch for every module at once, and
+            // repeating it on each of Network's five tabs would suggest five switches.
             if title == titles.first {
                 Section {
                     Toggle("Announce what is already connected at launch", isOn: Binding(
@@ -276,16 +299,18 @@ private struct ModuleDetail: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
 
-                Section {
-                    HStack {
-                        Spacer()
-                        // Icons have their own button, on their own tab: someone who has
-                        // spent time picking icons should not lose them by switching a
-                        // notification back on, and someone tidying up their icons should
-                        // not have their notification choices reset underneath them.
-                        Button("Restore Defaults") { model.resetAll() }
-                    }
+            // On every tab, unlike the switch above: somebody who has just worked through
+            // the Wi-Fi tab should not have to go and find the IP tab to undo it.
+            Section {
+                HStack {
+                    Spacer()
+                    // Icons have their own button, on their own tab: someone who has spent
+                    // time picking icons should not lose them by switching a notification
+                    // back on, and someone tidying up their icons should not have their
+                    // notification choices reset underneath them.
+                    Button("Restore Defaults") { model.resetAll() }
                 }
             }
         }
@@ -415,6 +440,43 @@ enum ModuleNotes {
             """
         default:
             return nil
+        }
+    }
+}
+
+
+/// Fires one thermal transition on demand, so the Serious and Critical notifications can
+/// be seen without making the Mac hot.
+///
+/// Worth its own controls because the interesting states are the ones a Mac rarely
+/// reaches: under ordinary load an M-series machine may never go past Fair, so the two
+/// notifications that are on by default — and that somebody most wants to have seen once
+/// before they matter — would otherwise be unverifiable.
+private struct ThermalSimulator: View {
+    let simulate: (ThermalState, ThermalState) -> Void
+
+    @State private var from: ThermalState = .nominal
+    @State private var to: ThermalState = .serious
+
+    var body: some View {
+        Section("Simulate Test Notification") {
+            HStack {
+                Picker("From:", selection: $from) { levels }
+                Picker("To:", selection: $to) { levels }
+            }
+            HStack {
+                Button("Simulate") { simulate(from, to) }
+                Spacer()
+            }
+            Text("Fires the notification for that change without waiting for the Mac to get hot. It does not touch what the application believes the real state is.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var levels: some View {
+        ForEach(ThermalState.allCases, id: \.self) { state in
+            Text(state.label).tag(state)
         }
     }
 }

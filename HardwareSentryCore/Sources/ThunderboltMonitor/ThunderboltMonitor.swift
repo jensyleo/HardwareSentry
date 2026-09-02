@@ -7,16 +7,28 @@ import SignalCore
 public actor ThunderboltMonitor: Monitor {
     public static let category = ThunderboltEvent.category
 
-    public static let events: [MonitorEventDescription] = [
-        .init(name: ThunderboltEvent.connected.rawValue, title: "Device connected", icon: .asset("Thunderbolt-On", in: .module)),
-        .init(name: ThunderboltEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("Thunderbolt-Off", in: .module)),
+    /// One row per PCI class, in the original's order, then the two it calls "(generic)"
+    /// and the two eGPU notices that are separate from a device connecting.
+    public static let events: [MonitorEventDescription] = ThunderboltDeviceKind.allCases.map { kind in
+        .init(
+            name: kind.connectedEvent.rawValue,
+            title: kind.settingsTitle,
+            icon: .asset(kind.iconBaseName, in: .module)
+        )
+    } + [
+        .init(name: ThunderboltEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("Thunderbolt-On", in: .module)),
+        .init(name: ThunderboltEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("Thunderbolt-Off", in: .module)),
         .init(name: ThunderboltEvent.egpuConnected.rawValue, title: "External GPU connected", enabledByDefault: false, icon: .asset("TB-TypeEGPU", in: .module)),
         .init(name: ThunderboltEvent.egpuDisconnected.rawValue, title: "External GPU disconnected", enabledByDefault: false, icon: .asset("TB-TypeEGPU-Disconnected", in: .module))
     ]
 
+    /// Said outright: the first event is now an eGPU, and this module is about more.
+    public static let icon: NotificationIcon = .asset("Thunderbolt-On", in: .module)
+
+    /// In the original's order and its words.
     public static let fields: [MonitorFieldDescription] = [
-        .init(name: ThunderboltField.type.rawValue, title: "Device type"),
         .init(name: ThunderboltField.identifier.rawValue, title: "Vendor/device ID (VID:PID)"),
+        .init(name: ThunderboltField.type.rawValue, title: "Device type (Storage, Display, Bridge/Dock…)"),
         .init(name: ThunderboltField.vendor.rawValue, title: "Vendor name")
     ]
 
@@ -59,7 +71,9 @@ public actor ThunderboltMonitor: Monitor {
             if let baseClass = device.baseClass { lastBaseClassByName[device.name] = baseClass }
             if let iconBase = device.iconBaseName { lastIconBaseByName[device.name] = iconBase }
             await context.notify(
-                ThunderboltEvent.connected.rawValue,
+                // The row this device's own class owns; the generic one only for a class
+                // with no artwork of its own.
+                (device.kind?.connectedEvent ?? ThunderboltEvent.connected).rawValue,
                 subject: device.name,
                 title: await context.connectionTitle(
                     medium: "Thunderbolt",

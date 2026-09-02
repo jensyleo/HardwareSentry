@@ -43,6 +43,14 @@ public protocol Monitor: Sendable {
     /// rather than letting the answer depend on which event happens to be declared first.
     static var icon: NotificationIcon { get }
 
+    /// A heading for this module's notification switches on its own settings tab, or nil
+    /// to leave them where every module has them — beside their icons.
+    ///
+    /// For a module whose notifications are levels of one thing rather than one per kind
+    /// of device: four thermal levels read better as a list of levels than as a list of
+    /// notifications, and a list of fourteen USB device classes would be a wall.
+    static var eventListHeading: String? { get }
+
     /// Begins watching. Anything already present is announced through `context`, which
     /// knows whether that counts as a startup sweep.
     func start() async
@@ -132,6 +140,8 @@ public extension Monitor {
     static var enabledByDefault: Bool { true }
 
     static var icon: NotificationIcon { events.first?.icon ?? .none }
+
+    static var eventListHeading: String? { nil }
 }
 
 /// Everything a preferences screen needs to know about one monitor, without running it.
@@ -142,6 +152,8 @@ public struct MonitorDescription: Sendable, Identifiable {
     public let enabledByDefault: Bool
     /// What the module looks like in a list of modules.
     public let icon: NotificationIcon
+    /// See `Monitor.eventListHeading`.
+    public let eventListHeading: String?
 
     public var id: String { category.rawValue }
 
@@ -162,13 +174,15 @@ public struct MonitorDescription: Sendable, Identifiable {
         events: [MonitorEventDescription],
         fields: [MonitorFieldDescription],
         enabledByDefault: Bool = true,
-        icon: NotificationIcon? = nil
+        icon: NotificationIcon? = nil,
+        eventListHeading: String? = nil
     ) {
         self.category = category
         self.events = events
         self.fields = fields
         self.enabledByDefault = enabledByDefault
         self.icon = icon ?? events.first?.icon ?? .none
+        self.eventListHeading = eventListHeading
     }
 }
 

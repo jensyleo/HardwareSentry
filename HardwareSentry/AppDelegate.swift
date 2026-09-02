@@ -1,5 +1,6 @@
 import AppKit
 import MonitorRegistry
+import ThermalMonitor
 import SignalCore
 
 /// Puts the application together and runs it.
@@ -126,6 +127,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trackAppearanceChanges()
         trackIconOverrideChanges()
 
+    }
+
+    /// Fires one thermal transition on demand, for the Simulate button.
+    func simulateThermal(from: ThermalState, to: ThermalState) {
+        guard let registry else { return }
+        Task { await registry.simulateThermalTransition(from: from, to: to) }
     }
 
     /// Reads the battery's condition on demand, for the "Check Now" button.

@@ -28,19 +28,22 @@ public actor GamepadMonitor: Monitor {
     // capability lines (touchpad, adaptive triggers, motion, paddles) are off by default:
     // they never change for a given controller, so after the first connect they are the
     // same sentence every time.
+    /// In the original's order, with its words and its defaults. Eight on, four off: what
+    /// the controller is and what it can do, without the three capability lines that only
+    /// matter to somebody who already knows their own hardware.
     public static let fields: [MonitorFieldDescription] = [
-        .init(name: GamepadField.category.rawValue, title: "Product category", shownByDefault: true),
+        .init(name: GamepadField.category.rawValue, title: "Controller type (DualSense/Xbox/MFi/etc.)", shownByDefault: true),
         .init(name: GamepadField.player.rawValue, title: "Player index", shownByDefault: true),
         .init(name: GamepadField.battery.rawValue, title: "Battery level", shownByDefault: true),
-        .init(name: GamepadField.batteryState.rawValue, title: "Charging state", shownByDefault: false),
-        .init(name: GamepadField.attached.rawValue, title: "Attached to this Mac", shownByDefault: false),
-        .init(name: GamepadField.adaptiveTriggers.rawValue, title: "Has adaptive triggers", shownByDefault: true),
-        .init(name: GamepadField.touchpad.rawValue, title: "Has a touchpad", shownByDefault: false),
-        .init(name: GamepadField.motion.rawValue, title: "Has motion sensors", shownByDefault: false),
-        .init(name: GamepadField.haptics.rawValue, title: "Has haptics", shownByDefault: false),
-        .init(name: GamepadField.hapticLocalities.rawValue, title: "Haptic locations", shownByDefault: false),
-        .init(name: GamepadField.elitePaddles.rawValue, title: "Has rear paddles", shownByDefault: false),
-        .init(name: GamepadField.lightColor.rawValue, title: "Light colour", shownByDefault: false)
+        .init(name: GamepadField.adaptiveTriggers.rawValue, title: "Adaptive Triggers (DualSense)", shownByDefault: true),
+        .init(name: GamepadField.batteryState.rawValue, title: "Battery state (Charging/Full/Discharging)", shownByDefault: true),
+        .init(name: GamepadField.touchpad.rawValue, title: "Touchpad presence (DualSense/DualShock)", shownByDefault: true),
+        .init(name: GamepadField.haptics.rawValue, title: "Haptics support", shownByDefault: true),
+        .init(name: GamepadField.motion.rawValue, title: "Motion sensors presence", shownByDefault: true),
+        .init(name: GamepadField.lightColor.rawValue, title: "Lightbar color (read-only)", shownByDefault: false),
+        .init(name: GamepadField.elitePaddles.rawValue, title: "Xbox Elite paddles presence", shownByDefault: false),
+        .init(name: GamepadField.hapticLocalities.rawValue, title: "Haptic actuator locations", shownByDefault: false),
+        .init(name: GamepadField.attached.rawValue, title: "Attached-to-device flag", shownByDefault: false)
     ]
 
     private let source: any GamepadSource

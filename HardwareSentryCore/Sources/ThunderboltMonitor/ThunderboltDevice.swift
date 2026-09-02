@@ -64,26 +64,83 @@ public struct ThunderboltDevice: Sendable, Equatable {
     /// The artwork for this device's PCI class, or nil when there is nothing more specific
     /// than "a Thunderbolt device" to say. A wrong specific icon reads worse than an
     /// honest generic one.
-    public var iconBaseName: String? {
+    public var iconBaseName: String? { kind?.iconBaseName }
+
+    /// What this device says it is, or nil for a class with no artwork of its own.
+    public var kind: ThunderboltDeviceKind? { ThunderboltDeviceKind(baseClass: baseClass) }
+}
+
+/// The PCI classes that have artwork and a row of their own.
+///
+/// One row per class, as the original has it, so a dock and an external disk on the same
+/// Mac can be silenced and re-iconed apart from each other.
+public enum ThunderboltDeviceKind: String, Sendable, Equatable, CaseIterable {
+    case egpu, dock, disk, networkAdapter, capture, communication
+    case inputDevice, serialBus, wirelessController
+
+    public init?(baseClass: UInt8?) {
         switch baseClass {
-        case 0x01: return "TB-TypeDisk"
-        case 0x02: return "TB-TypeNetworkAdapter"
-        case 0x03: return "TB-TypeEGPU"
-        case 0x04: return "TB-TypeCapture"
-        case 0x06: return "TB-TypeDock"
-        case 0x07: return "TB-TypeCommunication"
-        case 0x09: return "TB-TypeInputDevice"
-        case 0x0C: return "TB-TypeSerialBus"
-        case 0x0D: return "TB-TypeWirelessController"
+        case 0x01: self = .disk
+        case 0x02: self = .networkAdapter
+        case 0x03: self = .egpu
+        case 0x04: self = .capture
+        case 0x06: self = .dock
+        case 0x07: self = .communication
+        case 0x09: self = .inputDevice
+        case 0x0C: self = .serialBus
+        case 0x0D: self = .wirelessController
         default: return nil
+        }
+    }
+
+    public var iconBaseName: String {
+        switch self {
+        case .disk: return "TB-TypeDisk"
+        case .networkAdapter: return "TB-TypeNetworkAdapter"
+        case .egpu: return "TB-TypeEGPU"
+        case .capture: return "TB-TypeCapture"
+        case .dock: return "TB-TypeDock"
+        case .communication: return "TB-TypeCommunication"
+        case .inputDevice: return "TB-TypeInputDevice"
+        case .serialBus: return "TB-TypeSerialBus"
+        case .wirelessController: return "TB-TypeWirelessController"
+        }
+    }
+
+    /// How the row is named in Settings, in the original's words.
+    var settingsTitle: String {
+        switch self {
+        case .egpu: return "eGPU"
+        case .dock: return "Dock"
+        case .disk: return "Disk"
+        case .networkAdapter: return "Network Adapter"
+        case .capture: return "Capture"
+        case .communication: return "Communication Controller"
+        case .inputDevice: return "Input Device"
+        case .serialBus: return "Serial Bus Controller"
+        case .wirelessController: return "Wireless Controller"
+        }
+    }
+
+    var connectedEvent: ThunderboltEvent {
+        switch self {
+        case .egpu: return .connectedEGPU
+        case .dock: return .connectedDock
+        case .disk: return .connectedDisk
+        case .networkAdapter: return .connectedNetworkAdapter
+        case .capture: return .connectedCapture
+        case .communication: return .connectedCommunication
+        case .inputDevice: return .connectedInputDevice
+        case .serialBus: return .connectedSerialBus
+        case .wirelessController: return .connectedWirelessController
         }
     }
 }
 
 /// The optional details this monitor can add to a connect notification.
 public enum ThunderboltField: String, CaseIterable {
-    case type = "Type"
     case identifier = "VIDPID"
+    case type = "Type"
     case vendor = "Vendor"
 }
 

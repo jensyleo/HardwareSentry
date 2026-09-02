@@ -47,7 +47,9 @@ struct ThunderboltMonitorTests {
         let events = await run([.attached(ThunderboltDevice(name: "CalDigit Dock", baseClass: 0x06))], expecting: 1)
 
         #expect(events.count == 1)
-        #expect(events.first?.name == "ThunderboltConnected")
+        // A dock is a dock: its own row, so it can be silenced and re-iconed apart from
+        // an external disk on the same Mac.
+        #expect(events.first?.name == "ThunderboltConnectedDock")
         #expect(events.first?.subject == "CalDigit Dock")
     }
 
@@ -56,7 +58,7 @@ struct ThunderboltMonitorTests {
         let events = await run([.attached(ThunderboltDevice(name: "Razer Core X", baseClass: 0x03))], expecting: 2)
 
         #expect(events.count == 2)
-        #expect(events[0].name == "ThunderboltConnected")
+        #expect(events[0].name == "ThunderboltConnectedEGPU")
         #expect(events[1].name == "ThunderboltEGPUConnected")
         #expect(events[1].subject == "eGPU-Razer Core X")
     }
@@ -85,12 +87,13 @@ struct ThunderboltMonitorTests {
     func eventsAreDeclaredWithDefaults() {
         let byName = Dictionary(uniqueKeysWithValues: ThunderboltMonitor.events.map { ($0.name, $0.enabledByDefault) })
 
-        #expect(byName == [
-            "ThunderboltConnected": true,
-            "ThunderboltDisconnected": true,
-            "ThunderboltEGPUConnected": false,
-            "ThunderboltEGPUDisconnected": false
-        ])
+        // One row per PCI class, then the two generics and the two eGPU notices.
+        #expect(Set(byName.keys) == Set(ThunderboltEvent.allCases.map(\.rawValue)))
+        #expect(byName["ThunderboltConnected"] == true)
+        #expect(byName["ThunderboltDisconnected"] == true)
+        #expect(byName["ThunderboltEGPUConnected"] == false)
+        #expect(byName["ThunderboltEGPUDisconnected"] == false)
+        #expect(ThunderboltDeviceKind.allCases.allSatisfy { byName[$0.connectedEvent.rawValue] == true })
     }
 
     @Test("the optional details a monitor declares show up in the message")

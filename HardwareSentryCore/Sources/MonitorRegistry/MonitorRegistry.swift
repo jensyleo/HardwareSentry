@@ -90,6 +90,13 @@ public actor MonitorRegistry {
         }
     }
 
+    /// Fires one thermal transition on demand, for the settings screen's Simulate button.
+    public func simulateThermalTransition(from: ThermalState, to: ThermalState) async {
+        for case let thermal as ThermalMonitor in monitors {
+            await thermal.simulate(from: from, to: to)
+        }
+    }
+
     /// Reads the battery's condition right now, whatever the schedule says.
     ///
     /// What the "Check Now" button calls. Reached by asking the assembled monitors rather
@@ -203,7 +210,8 @@ public actor MonitorRegistry {
             events: M.events,
             fields: M.fields,
             enabledByDefault: M.enabledByDefault,
-            icon: M.icon
+            icon: M.icon,
+            eventListHeading: M.eventListHeading
         )
     }
 

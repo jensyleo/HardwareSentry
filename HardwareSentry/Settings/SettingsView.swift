@@ -1,5 +1,6 @@
 import SignalCore
 import SwiftUI
+import ThermalMonitor
 
 /// The settings window: how notifications look, and which ones arrive.
 ///
@@ -14,6 +15,7 @@ struct SettingsView: View {
     let general: GeneralSettingsModel
     let tuning: MonitorTuningModel
     let checkBatteryHealthNow: () -> Void
+    let simulateThermal: (ThermalState, ThermalState) -> Void
 
     var body: some View {
         TabView {
@@ -25,7 +27,7 @@ struct SettingsView: View {
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
             HistoryView(store: history)
