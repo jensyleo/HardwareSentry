@@ -32,9 +32,9 @@ public actor GamepadMonitor: Monitor {
         .init(name: GamepadField.category.rawValue, title: "Product category", shownByDefault: true),
         .init(name: GamepadField.player.rawValue, title: "Player index", shownByDefault: true),
         .init(name: GamepadField.battery.rawValue, title: "Battery level", shownByDefault: true),
-        .init(name: GamepadField.batteryState.rawValue, title: "Charging state", shownByDefault: true),
+        .init(name: GamepadField.batteryState.rawValue, title: "Charging state", shownByDefault: false),
         .init(name: GamepadField.attached.rawValue, title: "Attached to this Mac", shownByDefault: false),
-        .init(name: GamepadField.adaptiveTriggers.rawValue, title: "Has adaptive triggers", shownByDefault: false),
+        .init(name: GamepadField.adaptiveTriggers.rawValue, title: "Has adaptive triggers", shownByDefault: true),
         .init(name: GamepadField.touchpad.rawValue, title: "Has a touchpad", shownByDefault: false),
         .init(name: GamepadField.motion.rawValue, title: "Has motion sensors", shownByDefault: false),
         .init(name: GamepadField.haptics.rawValue, title: "Haptic locations", shownByDefault: false),
@@ -77,17 +77,17 @@ public actor GamepadMonitor: Monitor {
             title: title,
             body: await context.body([
                 .always(headline),
-                .field(GamepadField.category.rawValue, "Category", detail?.productCategory),
+                .field(GamepadField.category.rawValue, "Type", detail?.productCategory),
                 .field(GamepadField.player.rawValue, "Player", detail?.playerNote),
                 .field(GamepadField.battery.rawValue, "Battery", detail?.batteryNote),
-                .field(GamepadField.batteryState.rawValue, "Charging", detail?.batteryState),
-                .field(GamepadField.attached.rawValue, "Attached", detail?.attachedNote),
+                .field(GamepadField.batteryState.rawValue, "Battery State", detail?.batteryState),
+                .field(GamepadField.attached.rawValue, "Attached to device", detail?.attachedNote),
                 .field(GamepadField.adaptiveTriggers.rawValue, "Adaptive Triggers", detail?.adaptiveTriggersNote),
                 .field(GamepadField.touchpad.rawValue, "Touchpad", detail?.touchpadNote),
-                .field(GamepadField.motion.rawValue, "Motion", detail?.motionNote),
-                .field(GamepadField.haptics.rawValue, "Haptics", detail?.hapticLocations),
-                .field(GamepadField.elitePaddles.rawValue, "Rear Paddles", detail?.elitePaddlesNote),
-                .field(GamepadField.lightColor.rawValue, "Light", detail?.lightColor)
+                .field(GamepadField.motion.rawValue, "Motion Sensors", detail?.motionNote),
+                .field(GamepadField.haptics.rawValue, "Haptic Actuators", detail?.hapticLocations),
+                .field(GamepadField.elitePaddles.rawValue, "Elite Paddles", detail?.elitePaddlesNote),
+                .field(GamepadField.lightColor.rawValue, "Lightbar Color", detail?.lightColor)
             ]),
             icon: .asset("GamepadMonitor-Icon", in: .module)
         )

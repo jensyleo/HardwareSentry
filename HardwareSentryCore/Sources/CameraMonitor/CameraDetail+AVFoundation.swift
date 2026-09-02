@@ -38,9 +38,9 @@ extension CameraDetail {
         switch position {
         case .front: return "Front"
         case .back: return "Back"
-        // The framework's own "no definite direction" — most external webcams. Saying
-        // "Unspecified" would be dressing up a non-answer as an answer.
-        case .unspecified: return nil
+        // Named rather than dropped: for an external webcam this IS the answer, and
+        // saying so is more use than a line that quietly vanishes.
+        case .unspecified: return "Unspecified (typical for external webcams)"
         @unknown default: return nil
         }
     }
@@ -63,7 +63,7 @@ extension CameraDetail {
         case kAudioDeviceTransportTypeThunderbolt: return "Thunderbolt"
         case kAudioDeviceTransportTypeDisplayPort: return "DisplayPort"
         case kAudioDeviceTransportTypePCI: return "PCI"
-        case kAudioDeviceTransportTypeAirPlay: return "AirPlay"
+        case kAudioDeviceTransportTypeAirPlay: return "AirPlay/Continuity"
         case kAudioDeviceTransportTypeFireWire: return "FireWire"
         case kAudioDeviceTransportTypeUnknown: return nil
         // A transport nobody has named here: give back the four characters rather than

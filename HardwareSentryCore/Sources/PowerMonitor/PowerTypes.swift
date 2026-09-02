@@ -11,7 +11,7 @@ public enum PowerSourceKind: Sendable, Equatable {
         case .ac: return "AC Power"
         case .battery: return "Battery Power"
         case .ups: return "UPS Power"
-        case .unknown: return "Unknown Power"
+        case .unknown: return "Unknown Power Source"
         }
     }
 }

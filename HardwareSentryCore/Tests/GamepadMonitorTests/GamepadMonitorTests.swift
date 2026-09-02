@@ -146,7 +146,7 @@ struct GamepadMonitorFieldTests {
         hasMotionSensors: true,
         hapticLocations: "Handles, Triggers",
         isAttachedToDevice: false,
-        lightColor: "R100% G0% B0%",
+        lightColor: "R255 G0 B0",
         hasElitePaddles: false
     )
 
@@ -178,16 +178,16 @@ struct GamepadMonitorFieldTests {
 
         #expect(body == """
         DualSense
-        Category:\tDualSense
+        Type:\tDualSense
         Player:\t1
         Battery:\t74%
-        Charging:\tCharging
-        Attached:\tNo
+        Battery State:\tCharging
+        Attached to device:\tNo
         Adaptive Triggers:\tYes
         Touchpad:\tYes
-        Motion:\tYes
-        Haptics:\tHandles, Triggers
-        Light:\tR100% G0% B0%
+        Motion Sensors:\tYes
+        Haptic Actuators:\tHandles, Triggers
+        Lightbar Color:\tR255 G0 B0
         """)
     }
 
@@ -211,7 +211,7 @@ struct GamepadMonitorFieldTests {
             allowing: Set(GamepadField.allCases.map(\.rawValue))
         )
 
-        #expect(body == "Xbox Wireless Controller\nCategory:\tXbox One")
+        #expect(body == "Xbox Wireless Controller\nType:\tXbox One")
     }
 
     @Test("a disconnect carries no details, so it cannot quote a stale battery level")

@@ -67,9 +67,9 @@ public actor BluetoothMonitor: Monitor {
                     .field(BluetoothField.address.rawValue, "Address", detail?.address),
                     .field(BluetoothField.paired.rawValue, "Paired", detail?.pairedNote),
                     .field(BluetoothField.signal.rawValue, "Signal", detail?.rssiNote),
-                    .field(BluetoothField.linkType.rawValue, "Link", detail?.linkType),
-                    .field(BluetoothField.initiator.rawValue, "Connected by", detail?.initiatorNote),
-                    .field(BluetoothField.services.rawValue, "Profiles", detail?.services),
+                    .field(BluetoothField.linkType.rawValue, "Link type", detail?.linkType),
+                    .field(BluetoothField.initiator.rawValue, "Initiated by", detail?.initiatorNote),
+                    .field(BluetoothField.services.rawValue, "Services", detail?.services),
                     .field(BluetoothField.favorite.rawValue, "Favourite", detail?.favoriteNote),
                     .field(BluetoothField.lastSeen.rawValue, "Last used", detail?.lastSeen.map(Self.describe(lastSeen:)))
                 ]),

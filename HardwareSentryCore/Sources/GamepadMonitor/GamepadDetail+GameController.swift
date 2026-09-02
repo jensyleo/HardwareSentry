@@ -19,7 +19,11 @@ extension GamepadDetail {
             productCategory: controller.productCategory.isEmpty ? nil : controller.productCategory,
             // `.indexUnset` is the framework's "nobody assigned one", not player 0.
             playerIndex: controller.playerIndex == .indexUnset ? nil : controller.playerIndex.rawValue,
-            batteryPercent: controller.battery.map { Int(($0.batteryLevel * 100).rounded()) },
+            // A controller with no reading reports a negative level; shown literally that
+            // becomes a charge of "-100%", which is worse than saying nothing.
+            batteryPercent: controller.battery
+                .map { Int(($0.batteryLevel * 100).rounded()) }
+                .flatMap { $0 >= 0 ? $0 : nil },
             batteryState: controller.battery.flatMap { Self.describe($0.batteryState) },
             hasAdaptiveTriggers: profile is GCDualSenseGamepad,
             hasTouchpad: profile is GCDualSenseGamepad || profile is GCDualShockGamepad,
@@ -37,10 +41,8 @@ extension GamepadDetail {
         switch state {
         case .charging: return "Charging"
         case .full: return "Full"
-        case .discharging: return "On battery"
-        // The framework's own "I don't know" — reporting it as a state would be inventing
-        // information the controller declined to give.
-        case .unknown: return nil
+        case .discharging: return "Discharging"
+        case .unknown: return "Unknown"
         @unknown default: return nil
         }
     }
@@ -50,16 +52,27 @@ extension GamepadDetail {
         // its own it says nothing; the specific places are what is worth reading.
         let named = localities
             .filter { $0 != .all && $0 != .default }
-            .map(\.rawValue)
+            .compactMap { Self.hapticNames[$0] }
             .sorted()
         if !named.isEmpty { return named.joined(separator: ", ") }
-        return localities.isEmpty ? nil : "Yes"
+        return localities.isEmpty ? nil : "Supported"
     }
 
+    /// The lightbar's own 0-255 channel values, not percentages: that is the scale
+    /// anyone setting a controller's colour works in.
     private static func describe(_ color: GCColor) -> String {
         String(
-            format: "R%.0f%% G%.0f%% B%.0f%%",
-            color.red * 100, color.green * 100, color.blue * 100
+            format: "R%.0f G%.0f B%.0f",
+            color.red * 255, color.green * 255, color.blue * 255
         )
     }
+
+    /// The actuator positions in ordinary words, rather than the framework's raw
+    /// identifiers.
+    private static let hapticNames: [GCHapticsLocality: String] = [
+        .leftHandle: "Left Handle",
+        .rightHandle: "Right Handle",
+        .leftTrigger: "Left Trigger",
+        .rightTrigger: "Right Trigger"
+    ]
 }

@@ -23,7 +23,7 @@ public actor CameraMonitor: Monitor {
     // happened, and the connect notification's job is to say a camera showed up — someone
     // who wants the specification can turn on the lines they care about.
     public static let fields: [MonitorFieldDescription] = CameraField.allCases.map {
-        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: false)
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
     }
 
     private let source: any CameraSource
@@ -76,13 +76,13 @@ public actor CameraMonitor: Monitor {
                     .field(CameraField.transport.rawValue, "Transport", detail?.transport),
                     .field(CameraField.manufacturer.rawValue, "Manufacturer", detail?.manufacturer),
                     .field(CameraField.position.rawValue, "Position", detail?.position),
-                    .field(CameraField.maxResolution.rawValue, "Max Resolution", detail?.maxResolution),
-                    .field(CameraField.maxFrameRate.rawValue, "Max Frame Rate", detail?.maxFrameRate),
+                    .field(CameraField.maxResolution.rawValue, "Max resolution", detail?.maxResolution),
+                    .field(CameraField.maxFrameRate.rawValue, "Max frame rate", detail?.maxFrameRate),
                     .field(CameraField.continuityCamera.rawValue, "Continuity Camera", detail?.continuityNote),
-                    .field(CameraField.deskView.rawValue, "Desk View", detail?.deskViewNote),
+                    .field(CameraField.deskView.rawValue, "Desk View companion", detail?.deskViewNote),
                     .field(CameraField.centerStage.rawValue, "Center Stage", detail?.centerStageNote),
-                    .field(CameraField.systemPreferred.rawValue, "System Preferred", detail?.systemPreferredNote),
-                    .field(CameraField.linkedDevices.rawValue, "Linked", detail?.linkedDevices)
+                    .field(CameraField.systemPreferred.rawValue, "System Preferred Camera", detail?.systemPreferredNote),
+                    .field(CameraField.linkedDevices.rawValue, "Linked devices", detail?.linkedDevices)
                 ]),
                 icon: .asset("CameraMonitor-Icon", in: .module)
             )

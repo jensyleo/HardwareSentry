@@ -52,7 +52,7 @@ struct USBMonitorTests {
 
         #expect(events.count == 1)
         #expect(events.first?.name == "USBConnected")
-        #expect(events.first?.title == "USB Device Connected")
+        #expect(events.first?.title == "USB Connection")
         #expect(events.first?.category == USBEvent.category)
     }
 
@@ -61,14 +61,14 @@ struct USBMonitorTests {
         let events = await run([.detached(USBDevice(name: "SanDisk Cruzer"))])
 
         #expect(events.first?.name == "USBDisconnected")
-        #expect(events.first?.title == "USB Device Disconnected")
+        #expect(events.first?.title == "USB Disconnection")
     }
 
     @Test("a hub is called a hub")
     func hubIsNamed() async {
         let events = await run([.attached(USBDevice(name: "Anker Hub", isHub: true))])
 
-        #expect(events.first?.title == "USB Hub Connected")
+        #expect(events.first?.title == "USB Hub/Dock Connection")
     }
 
     // The device's name is the subject, deliberately: identifiers the system assigns as it

@@ -231,9 +231,9 @@ struct BluetoothMonitorFieldTests {
         Address:\t00-11-22-33-44-55
         Paired:\tYes
         Signal:\t-52 dBm (excellent)
-        Link:\tACL (data)
-        Connected by:\tThe device
-        Profiles:\tAudio Sink, Handsfree
+        Link type:\tACL (data)
+        Initiated by:\tThe device
+        Services:\tAudio Sink, Handsfree
         Favourite:\tYes
         """)
     }

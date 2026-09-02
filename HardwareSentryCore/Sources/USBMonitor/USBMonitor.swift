@@ -46,7 +46,7 @@ public actor USBMonitor: Monitor {
             await context.notify(
                 USBEvent.connected.rawValue,
                 subject: device.name,
-                title: device.isHub ? "USB Hub Connected" : "USB Device Connected",
+                title: device.isHub ? "USB Hub/Dock Connection" : "USB Connection",
                 body: await context.body([
                     .always(device.name),
                     .field(USBField.vendor.rawValue, vendorDetail(device))
@@ -57,7 +57,7 @@ public actor USBMonitor: Monitor {
             await context.notify(
                 USBEvent.disconnected.rawValue,
                 subject: device.name,
-                title: device.isHub ? "USB Hub Disconnected" : "USB Device Disconnected",
+                title: device.isHub ? "USB Hub/Dock Disconnection" : "USB Disconnection",
                 body: await context.body([
                     .always(device.name),
                     .field(USBField.vendor.rawValue, vendorDetail(device))

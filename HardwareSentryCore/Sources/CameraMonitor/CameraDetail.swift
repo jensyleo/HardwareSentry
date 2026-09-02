@@ -73,6 +73,16 @@ public enum CameraField: String, CaseIterable {
 }
 
 extension CameraField {
+    /// Four are on: what a camera is attached by, how big it can shoot, whether it is an
+    /// iPhone standing in as a webcam, and whether auto-framing is on. Those are the
+    /// answers to "which camera is this and what is it doing"; the rest are specification.
+    var shownByDefault: Bool {
+        switch self {
+        case .transport, .maxResolution, .continuityCamera, .deskView, .centerStage: return true
+        default: return false
+        }
+    }
+
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
         switch self {

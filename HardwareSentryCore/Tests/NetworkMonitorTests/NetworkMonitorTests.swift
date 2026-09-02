@@ -145,7 +145,7 @@ struct NetworkMonitorTests {
             "NetworkLinkUp": true,
             "NetworkLinkDown": true,
             "PrimaryInterfaceChanged": false,
-            "NetworkDHCPRenewed": false,
+            "NetworkDHCPLeaseRenewed": false,
             "NetworkHostnameChanged": false,
             "IPAddressChange": true
         ])
@@ -292,12 +292,12 @@ struct NetworkMonitorFieldTests {
         SSID:\tCasa
         BSSID:\taa:bb:cc:dd:ee:ff
         Channel:\t5 GHz, channel 44 (80 MHz)
-        Standard:\tWi-Fi 6 (802.11ax)
+        Wi-Fi Generation:\tWi-Fi 6 (802.11ax)
         Security:\tWPA3
         Signal:\t-47 dBm (excellent)
         Quality:\t45 dB signal-to-noise
-        Rate:\t867 Mbps
-        Country:\tES
+        Link Rate:\t867 Mbps
+        Regulatory country/region:\tES
         Interface:\ten0
         """)
     }
@@ -442,7 +442,7 @@ struct NetworkMonitorDHCPHostnameTests {
             .dhcpLeaseSnapshot(["en0": Date(timeIntervalSince1970: 2000)])
         ])
         #expect(events.count == 1)
-        #expect(events.first?.name == "NetworkDHCPRenewed")
+        #expect(events.first?.name == "NetworkDHCPLeaseRenewed")
         #expect(events.first?.subject == "en0")
     }
 

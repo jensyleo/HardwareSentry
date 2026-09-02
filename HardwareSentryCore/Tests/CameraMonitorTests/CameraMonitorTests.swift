@@ -195,18 +195,26 @@ struct CameraMonitorFieldTests {
         Transport:\tContinuity
         Manufacturer:\tApple Inc.
         Position:\tBack
-        Max Resolution:\t1920 × 1080
-        Max Frame Rate:\t60 fps
+        Max resolution:\t1920 × 1080
+        Max frame rate:\t60 fps
         Continuity Camera:\tYes
         Center Stage:\tActive
-        System Preferred:\tYes
-        Linked:\tDesk View Camera
+        System Preferred Camera:\tYes
+        Linked devices:\tDesk View Camera
         """)
     }
 
-    @Test("every detail line is off out of the box, so the connect message stays one line")
-    func allFieldsAreOffByDefault() async {
-        #expect(CameraMonitor.fields.allSatisfy { !$0.shownByDefault })
+    @Test("out of the box the message says which camera it is and what it can do")
+    func defaultFieldsAreTheIdentifyingOnes() async {
+        // Not everything: how it attaches, how big it shoots, whether it is an iPhone
+        // standing in as a webcam, and whether auto-framing is on. The rest is
+        // specification somebody can turn on if they want it.
+        let defaults = Set(CameraMonitor.fields.filter(\.shownByDefault).map(\.name))
+        #expect(defaults == [
+            CameraField.transport.rawValue, CameraField.maxResolution.rawValue,
+            CameraField.continuityCamera.rawValue, CameraField.deskView.rawValue,
+            CameraField.centerStage.rawValue
+        ])
         #expect(CameraMonitor.fields.count == CameraField.allCases.count)
 
         let body = await body(.connected(uid: "cam-1", name: "iPhone Camera", detail: Self.iPhone), allowing: [])
@@ -215,7 +223,7 @@ struct CameraMonitorFieldTests {
 
     @Test("a capability the camera does not have is not reported as absent")
     func absentCapabilitiesAreSilent() async {
-        // The iPhone above is not a Desk View camera, and no "Desk View: No" line appears
+        // The iPhone above is not a Desk View camera, and no "Desk View companion: No" line appears
         // for it above. Same for an ordinary webcam with nothing special at all.
         let webcam = CameraDetail(transport: "Built-in", manufacturer: "Apple Inc.")
         let body = await body(

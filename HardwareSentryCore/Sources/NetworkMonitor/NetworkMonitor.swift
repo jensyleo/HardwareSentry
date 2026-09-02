@@ -75,12 +75,12 @@ public actor NetworkMonitor: Monitor {
                     .always("Joined network.\nSSID:\t\(ssid)"),
                     .field(NetworkField.bssid.rawValue, "BSSID", detail?.bssid),
                     .field(NetworkField.channel.rawValue, "Channel", detail?.channel),
-                    .field(NetworkField.generation.rawValue, "Standard", detail?.generation),
+                    .field(NetworkField.generation.rawValue, "Wi-Fi Generation", detail?.generation),
                     .field(NetworkField.security.rawValue, "Security", detail?.security),
                     .field(NetworkField.signal.rawValue, "Signal", detail?.rssiNote),
                     .field(NetworkField.quality.rawValue, "Quality", detail?.qualityNote),
-                    .field(NetworkField.transmitRate.rawValue, "Rate", detail?.rateNote),
-                    .field(NetworkField.countryCode.rawValue, "Country", detail?.countryCode),
+                    .field(NetworkField.transmitRate.rawValue, "Link Rate", detail?.rateNote),
+                    .field(NetworkField.countryCode.rawValue, "Regulatory country/region", detail?.countryCode),
                     .field(NetworkField.wifiInterface.rawValue, "Interface", detail?.interfaceName)
                 ]),
                 icon: .asset("Network-Wifi-4", in: .module)

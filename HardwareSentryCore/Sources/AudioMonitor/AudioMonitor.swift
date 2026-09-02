@@ -88,9 +88,9 @@ public actor AudioMonitor: Monitor {
             }
             await refreshMicNotifications()
         case .midiDeviceAdded(let name):
-            await context.notify(AudioEvent.midiDeviceAdded.rawValue, subject: name, title: "MIDI Device Added", body: name, icon: .asset("AudioMonitor-Icon", in: .module))
+            await context.notify(AudioEvent.midiDeviceAdded.rawValue, subject: name, title: "MIDI Device Connected", body: name, icon: .asset("AudioMonitor-Icon", in: .module))
         case .midiDeviceRemoved(let name):
-            await context.notify(AudioEvent.midiDeviceRemoved.rawValue, subject: name, title: "MIDI Device Removed", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
+            await context.notify(AudioEvent.midiDeviceRemoved.rawValue, subject: name, title: "MIDI Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
         }
     }
 
@@ -122,7 +122,7 @@ public actor AudioMonitor: Monitor {
                 title: "Audio Device Connected",
                 body: await context.body([
                     .always(device.name),
-                    .field(AudioField.transport.rawValue, "Connection", device.transport.label)
+                    .field(AudioField.transport.rawValue, "Transport", device.transport.label)
                 ]),
                 icon: .asset("AudioMonitor-Icon", in: .module)
             )
@@ -146,7 +146,7 @@ public actor AudioMonitor: Monitor {
         await context.notify(
             kind == .output ? AudioEvent.defaultOutputChanged.rawValue : AudioEvent.defaultInputChanged.rawValue,
             subject: kind == .output ? "DefaultOutput" : "DefaultInput",
-            title: kind == .output ? "Default Output Changed" : "Default Input Changed",
+            title: kind == .output ? "Default Audio Output Changed" : "Default Audio Input Changed",
             body: name,
             icon: .asset("AudioMonitor-Icon", in: .module)
         )

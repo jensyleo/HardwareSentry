@@ -15,7 +15,7 @@ public enum NetworkEvent: String, NotificationEventKey {
     case linkUp = "NetworkLinkUp"
     case linkDown = "NetworkLinkDown"
     case primaryInterfaceChanged = "PrimaryInterfaceChanged"
-    case dhcpRenewed = "NetworkDHCPRenewed"
+    case dhcpRenewed = "NetworkDHCPLeaseRenewed"
     case hostnameChanged = "NetworkHostnameChanged"
     case ipAddressChanged = "IPAddressChange"
 

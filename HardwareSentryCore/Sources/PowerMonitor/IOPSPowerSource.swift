@@ -87,9 +87,19 @@ private final class Watcher: @unchecked Sendable {
         if let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] {
             for entry in list {
                 guard let description = IOPSGetPowerSourceDescription(blob, entry)?.takeUnretainedValue() as? [String: AnyObject] else { continue }
-                if let value = description[kIOPSCurrentCapacityKey as String] as? Int {
-                    percentage = max(percentage ?? 0, value)
-                }
+                // A source that is not physically there reports stale numbers; asking it
+                // for a charge level gives an answer about nothing.
+                guard description[kIOPSIsPresentKey as String] as? Bool == true else { continue }
+                // Worked out as a fraction of the source's own maximum rather than read
+                // straight from CurrentCapacity: the internal battery happens to report a
+                // max of 100, so the raw value looks like a percentage — but a UPS reports
+                // milliamp-hours, and the raw value there is a four-digit number that
+                // would be shown as a charge level of "4200%".
+                guard let current = description[kIOPSCurrentCapacityKey as String] as? Double,
+                      let maximum = description[kIOPSMaxCapacityKey as String] as? Double,
+                      maximum > 0
+                else { continue }
+                percentage = max(percentage ?? 0, Int((current / maximum * 100).rounded()))
             }
         }
 
