@@ -95,11 +95,18 @@ public actor BluetoothMonitor: Monitor {
                     .field(BluetoothField.address.rawValue, "Address", detail?.address),
                     .field(BluetoothField.paired.rawValue, "Paired", detail?.pairedNote),
                     .field(BluetoothField.signal.rawValue, "Signal", detail?.rssiNote),
+                    .field(BluetoothField.battery.rawValue, "Battery", detail?.batteryNote),
                     .field(BluetoothField.linkType.rawValue, "Link type", detail?.linkType),
                     .field(BluetoothField.initiator.rawValue, "Initiated by", detail?.initiatorNote),
                     .field(BluetoothField.services.rawValue, "Services", detail?.services),
                     .field(BluetoothField.favorite.rawValue, "Favourite", detail?.favoriteNote),
-                    .field(BluetoothField.lastSeen.rawValue, "Last used", detail?.lastSeen.map(Self.describe(lastSeen:)))
+                    .field(BluetoothField.lastSeen.rawValue, "Last used", detail?.lastSeen.map(Self.describe(lastSeen:))),
+                    .field(BluetoothField.encryption.rawValue, "Encryption", detail?.encryption),
+                    .field(BluetoothField.serviceClass.rawValue, "Service classes", detail?.serviceClasses),
+                    .field(BluetoothField.identity.rawValue, "Identity", detail?.identityNote),
+                    .field(BluetoothField.handsFree.rawValue, "Hands-free", detail?.handsFreeFeatures),
+                    .field(BluetoothField.hidDetail.rawValue, "HID", detail?.hidDetail),
+                    .field(BluetoothField.linkDiagnostics.rawValue, "Link", detail?.linkDiagnosticsNote)
                 ]),
                 icon: .asset(kind?.iconBaseName ?? "Bluetooth-On", in: .module)
             )

@@ -214,7 +214,13 @@ struct BluetoothMonitorFieldTests {
     @Test("out of the box the message says what kind of thing connected, and how strong")
     func kindAndSignalAreOnByDefault() async {
         let defaults = Set(BluetoothMonitor.fields.filter(\.shownByDefault).map(\.name))
-        #expect(defaults == [BluetoothField.kind.rawValue, BluetoothField.signal.rawValue])
+        // Three, as the original has them: what kind of thing it is, how strong the link
+        // is, and how much battery is left.
+        #expect(defaults == [
+            BluetoothField.kind.rawValue,
+            BluetoothField.signal.rawValue,
+            BluetoothField.battery.rawValue
+        ])
 
         let body = await body(
             .classicConnected(name: "WH-1000XM4", kind: .headphones, detail: Self.headphones),
@@ -502,5 +508,79 @@ struct BluetoothSignalNotificationTests {
             ["aa": BluetoothSignalReading(name: "Magic Mouse", rssi: -78)]
         ])
         #expect(events.isEmpty)
+    }
+}
+
+@Suite("BluetoothDetail · the seven fields the original had and this did not")
+struct BluetoothExtraFieldTests {
+    @Test("service class bits are read as the categories the device claims")
+    func serviceClasses() {
+        // A headset claiming Audio and Telephony is saying it can carry a call as well
+        // as music — its own claim, rather than a guess from its name.
+        let headset: UInt32 = (1 << 21) | (1 << 22)
+        #expect(BluetoothDetail.describeServiceClasses(headset) == "Audio, Telephony")
+
+        let keyboard: UInt32 = 1 << 23
+        #expect(BluetoothDetail.describeServiceClasses(keyboard) == "Information")
+
+        // A device that claims nothing gets no line rather than an empty one.
+        #expect(BluetoothDetail.describeServiceClasses(0) == nil)
+        // A real keyboard's Class of Device. Bit 13 is set on it — "limited discoverable
+        // mode" — and is deliberately not reported: it describes how the device
+        // advertises itself, not anything it can do, so it would put a line nobody can
+        // act on into most notifications.
+        #expect(BluetoothDetail.describeServiceClasses(0x2540) == nil)
+    }
+
+    @Test("hands-free features are read from the profile's own bitmask")
+    func handsFreeFeatures() {
+        let airpods = (1 << 2) | (1 << 8)   // voice recognition, wideband speech
+        #expect(BluetoothDetail.describeHandsFreeFeatures(airpods) == "Voice recognition, Wideband speech")
+        #expect(BluetoothDetail.describeHandsFreeFeatures(0) == nil)
+    }
+
+    @Test("the identity line says which registry the vendor number belongs to")
+    func identityNote() {
+        // Without the source the number is unlookupable: the Bluetooth SIG and the USB-IF
+        // number vendors separately, so the same figure is two different companies.
+        let apple = BluetoothDetail(
+            vendorID: 0x004C, productID: 0x0269,
+            productVersion: "1.2.3", vendorIDSource: "Bluetooth SIG"
+        )
+        #expect(apple.identityNote == "VID 0x004C / PID 0x0269 v1.2.3 (Bluetooth SIG)")
+
+        // A device that published only half of it says nothing rather than half a line.
+        #expect(BluetoothDetail(vendorID: 0x004C).identityNote == nil)
+        #expect(BluetoothDetail().identityNote == nil)
+    }
+
+    @Test("the two radio numbers are one line, since neither means much alone")
+    func linkDiagnostics() {
+        #expect(BluetoothDetail(linkQuality: 200, transmitPower: 4).linkDiagnosticsNote == "Quality 200/255 · Tx 4 dBm")
+        #expect(BluetoothDetail(linkQuality: 200).linkDiagnosticsNote == "Quality 200/255")
+        #expect(BluetoothDetail().linkDiagnosticsNote == nil)
+    }
+
+    @Test("a battery level is shown as a percentage, and absent when nothing published one")
+    func batteryNote() {
+        #expect(BluetoothDetail(batteryPercent: 27).batteryNote == "27%")
+        #expect(BluetoothDetail().batteryNote == nil)
+    }
+
+    @Test("addresses are matched whatever punctuation they were written with")
+    func addressNormalisation() {
+        // The registry writes one style and IOBluetooth another, and a lookup that missed
+        // on a hyphen would report no battery for a device that publishes one.
+        #expect(BluetoothAccessoryBattery.normalise("d0-c0-50-c3-25-7a") == "d0c050c3257a")
+        #expect(BluetoothAccessoryBattery.normalise("D0:C0:50:C3:25:7A") == "d0c050c3257a")
+        #expect(BluetoothAccessoryBattery.normalise(" fc-a5-c8-0c-97-1b ") == "fca5c80c971b")
+    }
+
+    @Test("every field it can add is declared for preferences to find")
+    func fieldsAreDeclared() {
+        #expect(Set(BluetoothMonitor.fields.map(\.name)) == Set(BluetoothField.allCases.map(\.rawValue)))
+        // The original's fifteen: this now offers the same set, with favourite and last
+        // used split into two where the original keeps them in one key.
+        #expect(BluetoothField.allCases.count == 16)
     }
 }

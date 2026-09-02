@@ -128,7 +128,7 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, @unchecked Send
                 major: UInt32(device.deviceClassMajor),
                 minor: UInt32(device.deviceClassMinor)
             ),
-            detail: BluetoothDetail(device: device)
+            detail: BluetoothDetail(device: device, batteryLevels: BluetoothAccessoryBattery.levelsByAddress())
         ))
     }
 

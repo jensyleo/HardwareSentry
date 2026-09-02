@@ -25,6 +25,28 @@ public struct BluetoothDetail: Sendable, Equatable {
     public let isFavorite: Bool
     /// When it was last used, for a device that has been seen before.
     public let lastSeen: Date?
+    /// How full the accessory's battery is, for the Apple accessories macOS publishes it
+    /// for. Nil for everything else, which is most Bluetooth devices.
+    public let batteryPercent: Int?
+    /// "Encrypted (AES-CCM)", "Not encrypted" — whether the link itself is protected.
+    public let encryption: String?
+    /// The broad things the device's Class of Device record claims it does: "Audio",
+    /// "Rendering", "Telephony".
+    public let serviceClasses: String?
+    /// Vendor and product identifiers from the device's own PnP record.
+    public let vendorID: Int?
+    public let productID: Int?
+    public let productVersion: String?
+    /// Which registry the vendor ID belongs to — the two are numbered separately, so the
+    /// same number means two different companies depending on which.
+    public let vendorIDSource: String?
+    /// What a hands-free device says it can do — "Voice recognition, Wideband speech".
+    public let handsFreeFeatures: String?
+    /// A keyboard or mouse's own description of itself, from its HID record.
+    public let hidDetail: String?
+    /// The radio's own numbers for this link, for when a connection is misbehaving.
+    public let linkQuality: Int?
+    public let transmitPower: Int?
 
     public init(
         kind: BluetoothDeviceKind? = nil,
@@ -35,7 +57,18 @@ public struct BluetoothDetail: Sendable, Equatable {
         isIncoming: Bool = false,
         services: String? = nil,
         isFavorite: Bool = false,
-        lastSeen: Date? = nil
+        lastSeen: Date? = nil,
+        batteryPercent: Int? = nil,
+        encryption: String? = nil,
+        serviceClasses: String? = nil,
+        vendorID: Int? = nil,
+        productID: Int? = nil,
+        productVersion: String? = nil,
+        vendorIDSource: String? = nil,
+        handsFreeFeatures: String? = nil,
+        hidDetail: String? = nil,
+        linkQuality: Int? = nil,
+        transmitPower: Int? = nil
     ) {
         self.kind = kind
         self.address = address
@@ -46,6 +79,40 @@ public struct BluetoothDetail: Sendable, Equatable {
         self.services = services
         self.isFavorite = isFavorite
         self.lastSeen = lastSeen
+        self.batteryPercent = batteryPercent
+        self.encryption = encryption
+        self.serviceClasses = serviceClasses
+        self.vendorID = vendorID
+        self.productID = productID
+        self.productVersion = productVersion
+        self.vendorIDSource = vendorIDSource
+        self.handsFreeFeatures = handsFreeFeatures
+        self.hidDetail = hidDetail
+        self.linkQuality = linkQuality
+        self.transmitPower = transmitPower
+    }
+
+    var batteryNote: String? { batteryPercent.map { "\($0)%" } }
+
+    /// Vendor, product and version as one line, in hex as well as decimal because that is
+    /// how every specification sheet and every other tool prints them.
+    var identityNote: String? {
+        guard let vendorID, let productID else { return nil }
+        var note = String(format: "VID 0x%04X / PID 0x%04X", vendorID, productID)
+        if let productVersion { note += " v\(productVersion)" }
+        // Only when it is known: the Bluetooth SIG and the USB-IF number vendors
+        // separately, so the same figure means two different companies depending on
+        // which registry it came from.
+        if let vendorIDSource { note += " (\(vendorIDSource))" }
+        return note
+    }
+
+    /// The two radio numbers together, since neither means much alone.
+    var linkDiagnosticsNote: String? {
+        var parts: [String] = []
+        if let linkQuality { parts.append("Quality \(linkQuality)/255") }
+        if let transmitPower { parts.append("Tx \(transmitPower) dBm") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     var kindNote: String? { kind?.label }
@@ -88,6 +155,13 @@ public enum BluetoothField: String, CaseIterable {
     case services = "Services"
     case favorite = "Favorite"
     case lastSeen = "LastSeen"
+    case battery = "Battery"
+    case encryption = "Encryption"
+    case serviceClass = "ServiceClass"
+    case identity = "Identity"
+    case handsFree = "HandsFree"
+    case hidDetail = "HIDDetail"
+    case linkDiagnostics = "LinkDiagnostics"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
@@ -101,6 +175,13 @@ public enum BluetoothField: String, CaseIterable {
         case .services: return "Bluetooth profiles it offers"
         case .favorite: return "Marked as a favourite"
         case .lastSeen: return "When it was last used"
+        case .battery: return "Battery level (Apple accessories: Magic Mouse/Keyboard/Trackpad)"
+        case .encryption: return "Link encryption state"
+        case .serviceClass: return "Service class bits (Audio/Telephony/Rendering/etc.)"
+        case .identity: return "Vendor/product ID and version (PnP record)"
+        case .handsFree: return "Hands-free features"
+        case .hidDetail: return "HID detail (keyboards, mice)"
+        case .linkDiagnostics: return "Link diagnostics (quality, transmit power)"
         }
     }
 
@@ -108,12 +189,18 @@ public enum BluetoothField: String, CaseIterable {
     /// WH-1000XM4" into something you can read without knowing your own gadgets by model
     /// number; the signal is on because it is the answer to "why does this keep cutting
     /// out", and the original has it on too. The rest are for people who want them.
-    var shownByDefault: Bool { self == .kind || self == .signal }
+    var shownByDefault: Bool {
+        // Three, as the original has them: what kind of thing it is, how strong the link
+        // is, and — for the accessories macOS publishes it for — how much battery is
+        // left, which is the one that stops a keyboard dying mid-sentence.
+        [.kind, .signal, .battery].contains(self)
+    }
 
     /// Which heading this line sits under, matching the event groups.
     var group: String {
         self == .signal ? BluetoothMonitor.Group.signal : BluetoothMonitor.Group.device
     }
+
 }
 
 public extension BluetoothDeviceKind {
