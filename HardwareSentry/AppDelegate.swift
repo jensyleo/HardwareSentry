@@ -78,7 +78,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             phase: .launching
         )
 
-        registry = MonitorRegistry(dispatcher: dispatcher, preferences: preferences)
+        registry = MonitorRegistry(
+            dispatcher: dispatcher,
+            preferences: preferences,
+            announcesWhatIsAlreadyThere: preferences.announcesWhatIsAlreadyThere
+        )
         eventSettings = EventSettingsModel(preferences: preferences, registry: registry)
         trackAppearanceChanges()
         trackIconOverrideChanges()

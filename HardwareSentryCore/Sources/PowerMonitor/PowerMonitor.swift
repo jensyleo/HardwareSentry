@@ -74,11 +74,28 @@ public actor PowerMonitor: Monitor {
         let isFull = snapshot.kind == .ac && (snapshot.percentage ?? 0) >= 100
 
         guard let previousKind = lastKind else {
-            // First sighting — baseline only. Reaching 100% before this app ever saw the
-            // battery isn't a transition worth announcing, only a later one is.
             lastKind = snapshot.kind
+            // Remembered either way, so a battery that was already full when this started
+            // is never announced as having just reached full. Reaching 100% before this
+            // app ever saw the battery is not a transition; only a later one is.
             announcedFullyCharged = isFull
             lastWarnState = snapshot.isLowBatteryWarning
+
+            // "On AC Power" / "On Battery Power" at launch is the one piece of state worth
+            // stating outright rather than waiting for it to change — it is the answer to
+            // "what is this machine running on right now", which is the question the
+            // module exists for. Said without a "from → to" line, because nothing changed.
+            if context.announcesWhatIsAlreadyThere {
+                await context.notify(
+                    PowerEvent.sourceChanged.rawValue,
+                    subject: "Source",
+                    title: "On \(Self.localizedName(for: snapshot.kind))",
+                    body: await context.body([
+                        .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
+                    ]),
+                    icon: .asset(Self.iconName(for: snapshot), in: .module)
+                )
+            }
             return
         }
 

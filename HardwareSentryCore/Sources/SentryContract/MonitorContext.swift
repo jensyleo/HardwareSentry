@@ -49,6 +49,12 @@ public struct MonitorContext: Sendable {
         return kept.joined(separator: "\n")
     }
 
+    /// Whether one optional field is wanted, for the rare monitor that needs to know
+    /// before it builds a line rather than while `body(_:)` is filtering them.
+    public func isFieldEnabled(_ name: String) async -> Bool {
+        await preferences.isFieldEnabled(name, in: category)
+    }
+
     /// Raises a notification, already stamped with the monitor's own category so it
     /// cannot accidentally speak for another module.
     public func notify(

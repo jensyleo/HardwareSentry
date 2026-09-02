@@ -1,3 +1,4 @@
+import CoreLocation
 import CoreWLAN
 import Foundation
 import Network
@@ -65,11 +66,16 @@ extension SystemNetworkSource {
 }
 private let globalIPv4Key = "State:/Network/Global/IPv4"
 
-private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
+private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegate, @unchecked Sendable {
     private let continuation: AsyncStream<NetworkSourceEvent>.Continuation
     private var pathMonitor: NWPathMonitor?
     private var dynamicStore: SCDynamicStore?
     private var runLoopSource: CFRunLoopSource?
+    /// Reading the SSID at all — not just the BSSID — has required Location authorization
+    /// since macOS 10.14; without it `CWInterface.ssid()` silently returns nil, which is
+    /// indistinguishable from not being on a network at all. Requesting authorization is
+    /// all this needs: the location itself is never read, only the permission it unlocks.
+    private var locationManager: CLLocationManager?
 
     init(continuation: AsyncStream<NetworkSourceEvent>.Continuation) {
         self.continuation = continuation
@@ -79,6 +85,50 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
         startReachability()
         startDynamicStore()
         startWiFi()
+        pollForAddressesAtLaunch()
+        // Sweeps the already-joined network itself, once it knows whether it is allowed
+        // to name it — either immediately below (already granted from a previous launch)
+        // or later, in `locationManagerDidChangeAuthorization`, once someone answers the
+        // prompt this triggers.
+        startLocationAuthorization()
+    }
+
+    /// Requests Location authorization if this is the first time, or if it was already
+    /// granted from a previous launch. Only the authorization is used; nothing here ever
+    /// asks for an actual location.
+    private func startLocationAuthorization() {
+        // On the main queue on purpose: `CLLocationManager` delivers its callbacks to the
+        // run loop it was created on, and one created on a queue without a run loop never
+        // shows the permission prompt and never calls back — it simply does nothing, which
+        // is indistinguishable from permission having been refused.
+        DispatchQueue.main.async { [self] in
+            let manager = CLLocationManager()
+            manager.delegate = self
+            locationManager = manager
+            requestOrSweep(manager)
+        }
+    }
+
+    private func requestOrSweep(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorized, .authorizedAlways:
+            // Already granted from a previous launch — nothing to request, so the sweep
+            // that could not run until now runs immediately.
+            announceAlreadyJoinedWiFi()
+        default:
+            // Refused, or restricted. The SSID cannot be read at all, so there is nothing
+            // to sweep and nothing worth asking twice for.
+            break
+        }
+    }
+
+    /// Fires once Location access is granted or denied. Only the transition into being
+    /// granted matters here: a network already joined could not be named in the sweep that
+    /// ran before permission existed, so it is announced again now that it can be.
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard manager.authorizationStatus == .authorized || manager.authorizationStatus == .authorizedAlways else { return }
         announceAlreadyJoinedWiFi()
     }
 
@@ -97,6 +147,7 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .defaultMode) }
         CWWiFiClient.shared().delegate = nil
         try? CWWiFiClient.shared().stopMonitoringAllEvents()
+        locationManager?.delegate = nil
         continuation.finish()
     }
 
@@ -175,7 +226,31 @@ private final class Watcher: NSObject, CWEventDelegate, @unchecked Sendable {
 
         let system = SCDynamicStoreCopyValue(dynamicStore, computerNameKey as CFString) as? [String: AnyObject]
         continuation.yield(.computerNameSnapshot(system?[kSCPropSystemComputerName as String] as? String))
+
+        emitAddresses()
     }
+
+    private func emitAddresses() {
+        let friendly = SystemNetworkSource.friendlyInterfaceNames()
+        continuation.yield(.ipAddressSnapshot(.current(friendlyNames: friendly)))
+    }
+
+    /// Addresses do not exist the instant the application launches: DHCP is usually still
+    /// negotiating, so reading once at t=0 reliably finds nothing and reports "no
+    /// connection" on a machine that is about to have one. Re-read every couple of seconds
+    /// until something shows up, then stop.
+    private func pollForAddressesAtLaunch(elapsed: TimeInterval = 0) {
+        guard elapsed <= Self.addressPollTimeout else { return }
+        emitAddresses()
+        guard !IPAddressReport.current().hasAddresses else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.addressPollInterval) { [weak self] in
+            self?.pollForAddressesAtLaunch(elapsed: elapsed + Self.addressPollInterval)
+        }
+    }
+
+    private static let addressPollInterval: TimeInterval = 2
+    private static let addressPollTimeout: TimeInterval = 15
 
 
     // MARK: Wi-Fi (CoreWLAN)

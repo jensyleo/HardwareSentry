@@ -28,11 +28,23 @@ import VolumeMonitor
 public actor MonitorRegistry {
     private let dispatcher: NotificationDispatcher
     private let preferences: NotificationPreferencesStore
+    private let announcesWhatIsAlreadyThere: Bool
     private var monitors: [any Monitor] = []
 
-    public init(dispatcher: NotificationDispatcher, preferences: NotificationPreferencesStore) {
+    /// Whether monitors announce what they find already there when they start.
+    ///
+    /// One switch for the whole application rather than one per module, because it is one
+    /// decision: either launching tells you what this machine has plugged into it, or it
+    /// stays quiet until something changes. On by default — a hardware notifier that says
+    /// nothing when it starts looks like one that failed to start.
+    public init(
+        dispatcher: NotificationDispatcher,
+        preferences: NotificationPreferencesStore,
+        announcesWhatIsAlreadyThere: Bool = true
+    ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
+        self.announcesWhatIsAlreadyThere = announcesWhatIsAlreadyThere
     }
 
     /// Builds every monitor. Each is handed only what it needs, and never a way to reach
@@ -41,55 +53,55 @@ public actor MonitorRegistry {
         monitors = [
             USBMonitor(
                 source: IOKitUSBDeviceSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             ThermalMonitor(
                 source: SystemThermalStateSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             GamepadMonitor(
                 source: GameControllerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             ThunderboltMonitor(
                 source: IOKitThunderboltDeviceSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             CameraMonitor(
                 source: AVFoundationCameraSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             DisplayMonitor(
                 source: CoreGraphicsDisplaySource(),
-                context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             PrinterMonitor(
                 source: CUPSPrinterSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             BluetoothMonitor(
                 source: IOBluetoothSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             AudioMonitor(
                 source: CoreAudioSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             PowerMonitor(
                 source: IOPSPowerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             NetworkMonitor(
                 source: SystemNetworkSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             ),
             ScannerMonitor(
                 source: BonjourScannerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ScannerMonitor.category, preferences: preferences)
+                context: MonitorContext(dispatcher: dispatcher, category: ScannerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
             )
         ]
     }

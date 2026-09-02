@@ -22,6 +22,9 @@ public enum NetworkSourceEvent: Sendable, Equatable {
     /// The name set in System Settings › General › Sharing — not the same as the "AirDrop
     /// & Handoff"-style Bonjour name, and not the same as a DNS hostname.
     case computerNameSnapshot(String?)
+    /// Every address the machine currently holds — not a delta. The monitor decides
+    /// whether what would actually be shown has changed.
+    case ipAddressSnapshot(IPAddressReport)
 }
 
 public protocol NetworkSource: Sendable {

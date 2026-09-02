@@ -16,7 +16,8 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module)),
         .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module)),
         .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module))
+        .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = NetworkField.allCases.map {
@@ -35,6 +36,11 @@ public actor NetworkMonitor: Monitor {
     private var knownLeaseStarts: [String: Date] = [:]
     private var hasLeaseBaseline = false
     private var lastKnownComputerName: String?
+    /// What the IP message last actually said. Compared as text rather than as addresses,
+    /// because that is what decides whether re-showing it would tell anyone anything new:
+    /// an address changing behind a switched-off IPv6 line changes nothing visible.
+    private var lastShownIPBody: String?
+    private var hadIPAddresses = false
 
     public init(source: any NetworkSource, context: MonitorContext) {
         self.source = source
@@ -89,6 +95,8 @@ public actor NetworkMonitor: Monitor {
             await handleDHCPLeaseSnapshot(leases)
         case .computerNameSnapshot(let name):
             await handleComputerName(name)
+        case .ipAddressSnapshot(let report):
+            await handleIPAddresses(report)
         }
     }
 
@@ -174,6 +182,35 @@ public actor NetworkMonitor: Monitor {
             NetworkEvent.hostnameChanged.rawValue, subject: "ComputerName",
             title: "Computer Name Changed", body: "\(previous) → \(name)",
             icon: .asset("Network-Generic-On", in: .module)
+        )
+    }
+
+    /// One message for the whole machine, not one per interface: addresses arrive
+    /// together — DHCP finishing hands out an IPv4 and one or more IPv6 addresses in the
+    /// same breath — and a banner each would be one event told four times.
+    private func handleIPAddresses(_ report: IPAddressReport) async {
+        let showIPv6 = await context.isFieldEnabled(NetworkField.ipv6.rawValue)
+        let body = report.body(showIPv6: showIPv6)
+        let hasAddresses = report.hasAddresses
+
+        // A launch with no connection at all, or a release already reported. Either way
+        // there is nothing to say and nothing has changed since the last time it was said.
+        if !hasAddresses, !hadIPAddresses { return }
+        // Addresses are up but the visible text is identical — re-showing it would be the
+        // same message twice.
+        if hasAddresses, body == lastShownIPBody { return }
+
+        hadIPAddresses = hasAddresses
+        lastShownIPBody = hasAddresses ? body : nil
+
+        await context.notify(
+            NetworkEvent.ipAddressChanged.rawValue,
+            subject: "IPAddresses",
+            title: "IP Addresses Updated",
+            body: hasAddresses ? (body.isEmpty ? "IP address updated" : body) : "IP address released",
+            // A machine holding only self-assigned addresses has an address and no
+            // connection; the icon should not read as success.
+            icon: .asset(report.hasRoutableAddress ? "Network-Generic-On" : "Network-Generic-Off", in: .module)
         )
     }
 

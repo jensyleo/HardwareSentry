@@ -19,6 +19,11 @@ targets:
       path: HardwareSentry/Info.plist
       properties:
         NSBluetoothAlwaysUsageDescription: "HardwareSentry watches for Bluetooth devices connecting and disconnecting, and for the Bluetooth radio's own state, so it can notify you about them."
+        # Reading the Wi-Fi network's own name (SSID) has required Location authorization
+        # since macOS 10.14, regardless of sandboxing — the location itself is never read,
+        # only the permission it unlocks.
+        NSLocationUsageDescription: "HardwareSentry uses Location access only to read the name of the Wi-Fi network you join, so it can notify you about it. Your location is never read or stored."
+        NSLocationWhenInUseUsageDescription: "HardwareSentry uses Location access only to read the name of the Wi-Fi network you join, so it can notify you about it. Your location is never read or stored."
         # Placeholder while the app's own icon is designed: HG4MAC's own icon, kept as a
         # local file in this repo rather than referenced from HG4MAC's — no cross-repo
         # dependency, and it stops being needed the moment the real icon lands.

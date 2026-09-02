@@ -143,6 +143,8 @@ public enum NetworkField: String, CaseIterable {
     case constrained = "Constrained"
     case ipProtocols = "IPProtocols"
     case dns = "DNS"
+    // IP addresses
+    case ipv6 = "IPv6"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
@@ -161,6 +163,7 @@ public enum NetworkField: String, CaseIterable {
         case .constrained: return "Low Data Mode is on"
         case .ipProtocols: return "IPv4 / IPv6"
         case .dns: return "Warn when the path has no DNS"
+        case .ipv6: return "Include IPv6 addresses"
         }
     }
 
@@ -168,6 +171,6 @@ public enum NetworkField: String, CaseIterable {
     /// know; the DNS warning is on because it only ever appears when something is wrong,
     /// so it costs nothing when everything works.
     var shownByDefault: Bool {
-        self == .signal || self == .channel || self == .dns
+        self == .signal || self == .channel || self == .dns || self == .ipv6
     }
 }

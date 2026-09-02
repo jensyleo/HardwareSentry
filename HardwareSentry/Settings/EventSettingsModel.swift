@@ -40,6 +40,22 @@ final class EventSettingsModel {
     // Each read touches `revision` so that a view rendering it is re-rendered when
     // anything here is written.
 
+    /// Whether launching the application announces what is already plugged in.
+    ///
+    /// Takes effect at the next launch, not this one: the announcement happens as each
+    /// monitor starts, and by the time anyone can reach this switch that has already
+    /// happened. Said plainly in the settings rather than left to be discovered.
+    var announcesWhatIsAlreadyThere: Bool {
+        get {
+            _ = revision
+            return preferences.announcesWhatIsAlreadyThere
+        }
+        set {
+            preferences.announcesWhatIsAlreadyThere = newValue
+            revision += 1
+        }
+    }
+
     func isEnabled(_ category: NotificationCategory) -> Bool {
         _ = revision
         return preferences.isEnabled(category)

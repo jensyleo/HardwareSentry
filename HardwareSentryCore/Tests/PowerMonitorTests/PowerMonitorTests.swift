@@ -35,7 +35,13 @@ struct PowerMonitorTests {
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = PowerMonitor(
             source: ScriptedPowerSource(script: script),
-            context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category)
+            context: MonitorContext(
+                dispatcher: dispatcher,
+                category: PowerMonitor.category,
+                // These exercise transitions, so the startup announcement is switched off:
+                // with it on, every count below would include the opening "On AC Power".
+                announcesWhatIsAlreadyThere: false
+            )
         )
 
         await monitor.start()

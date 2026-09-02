@@ -125,6 +125,16 @@ private struct ModuleDetail: View {
             }
 
             Section {
+                Toggle("Announce what is already connected at launch", isOn: Binding(
+                    get: { model.announcesWhatIsAlreadyThere },
+                    set: { model.announcesWhatIsAlreadyThere = $0 }
+                ))
+                Text("Takes effect the next time the application starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 HStack {
                     // Separate from "Restore Defaults" on purpose: someone who has spent
                     // time picking icons should not lose them by switching a notification

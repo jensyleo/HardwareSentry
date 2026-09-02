@@ -146,7 +146,8 @@ struct NetworkMonitorTests {
             "NetworkLinkDown": true,
             "PrimaryInterfaceChanged": false,
             "NetworkDHCPRenewed": false,
-            "NetworkHostnameChanged": false
+            "NetworkHostnameChanged": false,
+            "IPAddressChange": true
         ])
     }
 
@@ -269,7 +270,10 @@ struct NetworkMonitorFieldTests {
     @Test("out of the box, joining a network says the channel and the signal")
     func defaultsAreChannelSignalAndTheDNSWarning() async {
         let defaults = Set(NetworkMonitor.fields.filter(\.shownByDefault).map(\.name))
-        #expect(defaults == [NetworkField.signal.rawValue, NetworkField.channel.rawValue, NetworkField.dns.rawValue])
+        #expect(defaults == [
+            NetworkField.signal.rawValue, NetworkField.channel.rawValue,
+            NetworkField.dns.rawValue, NetworkField.ipv6.rawValue
+        ])
 
         let bodies = await bodies([.wifiConnected(ssid: "Casa", detail: Self.wifi)], expecting: 1, allowing: defaults)
         #expect(bodies.first == "Joined network.\nSSID:\tCasa\nChannel:\t5 GHz, channel 44 (80 MHz)\nSignal:\t-47 dBm (excellent)")
@@ -463,5 +467,141 @@ struct NetworkMonitorDHCPHostnameTests {
         #expect(events.count == 1)
         #expect(events.first?.name == "NetworkHostnameChanged")
         #expect(events.first?.body == "Jensy's Mac → Office Mac")
+    }
+}
+
+@Suite("IPAddressReport")
+struct IPAddressReportTests {
+    private static let wifi = InterfaceAddresses(
+        bsdName: "en0", friendlyName: "Wi-Fi",
+        ipv4: ["192.168.1.42"], ipv6: ["fe80::1c9d", "2a02:9000::5"]
+    )
+
+    @Test("addresses read one line each, named the way System Settings names them")
+    func bodyListsEachAddress() {
+        let report = IPAddressReport(interfaces: [Self.wifi])
+        #expect(report.body() == """
+        Wi-Fi — IPv4:\t192.168.1.42
+        Wi-Fi — IPv6:\t2a02:9000::5
+        Wi-Fi — IPv6:\tfe80::1c9d
+        """)
+    }
+
+    @Test("switching IPv6 off leaves only the IPv4 lines")
+    func ipv6CanBeLeftOut() {
+        #expect(IPAddressReport(interfaces: [Self.wifi]).body(showIPv6: false) == "Wi-Fi — IPv4:\t192.168.1.42")
+    }
+
+    @Test("interfaces read in a stable order, so an unchanged message looks unchanged")
+    func orderIsStable() {
+        // getifaddrs does not promise an order; an unstable one would make the dedup
+        // below think the message changed every time it was read.
+        let a = InterfaceAddresses(bsdName: "en1", ipv4: ["10.0.0.2"])
+        let b = InterfaceAddresses(bsdName: "en0", ipv4: ["10.0.0.1"])
+        #expect(IPAddressReport(interfaces: [a, b]).body() == IPAddressReport(interfaces: [b, a]).body())
+    }
+
+    @Test("an interface with no friendly name falls back to its BSD name")
+    func bsdNameIsTheFallback() {
+        let report = IPAddressReport(interfaces: [InterfaceAddresses(bsdName: "utun4", ipv4: ["10.8.0.2"])])
+        #expect(report.body() == "utun4 — IPv4:\t10.8.0.2")
+    }
+
+    @Test("a self-assigned address is marked as such")
+    func selfAssignedIsMarked() {
+        // 169.254.x.x is what an interface falls back to when DHCP never answered: an
+        // address, and no connection. Saying so is the difference between the message
+        // reading as success and reading as the truth.
+        let report = IPAddressReport(interfaces: [InterfaceAddresses(bsdName: "en0", ipv4: ["169.254.13.7"])])
+        #expect(report.body().contains("(self-assigned)"))
+        #expect(!report.hasRoutableAddress)
+        #expect(report.hasAddresses)
+    }
+
+    @Test("a link-local IPv6 address alone is not a working connection either")
+    func linkLocalV6IsNotRoutable() {
+        let report = IPAddressReport(interfaces: [InterfaceAddresses(bsdName: "en0", ipv6: ["fe80::1"])])
+        #expect(!report.hasRoutableAddress)
+    }
+
+    @Test("nothing at all is nothing, not an empty success")
+    func emptyReportHasNoAddresses() {
+        #expect(!IPAddressReport(interfaces: []).hasAddresses)
+        #expect(!IPAddressReport(interfaces: [InterfaceAddresses(bsdName: "en0")]).hasAddresses)
+    }
+}
+
+@Suite("NetworkMonitor IP addresses")
+struct NetworkMonitorIPTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    private static let connected = IPAddressReport(interfaces: [
+        InterfaceAddresses(bsdName: "en0", friendlyName: "Wi-Fi", ipv4: ["192.168.1.42"])
+    ])
+
+    @Test("the addresses the machine already holds are announced once")
+    func addressesAreAnnounced() async {
+        let events = await run([.ipAddressSnapshot(Self.connected)], expecting: 1)
+        #expect(events.count == 1)
+        #expect(events.first?.name == "IPAddressChange")
+        #expect(events.first?.title == "IP Addresses Updated")
+        #expect(events.first?.body == "Wi-Fi — IPv4:\t192.168.1.42")
+    }
+
+    @Test("all the machine's addresses arrive as one message, not one per interface")
+    func addressesAreCoalesced() async {
+        // DHCP finishing hands out several addresses in the same breath; a banner each
+        // would be one event told four times.
+        let many = IPAddressReport(interfaces: [
+            InterfaceAddresses(bsdName: "en0", friendlyName: "Wi-Fi", ipv4: ["192.168.1.42"], ipv6: ["2a02::5"]),
+            InterfaceAddresses(bsdName: "en5", friendlyName: "Thunderbolt Bridge", ipv4: ["10.0.0.1"])
+        ])
+        let events = await run([.ipAddressSnapshot(many)], expecting: 1)
+        #expect(events.count == 1)
+        #expect(events.first?.body.split(separator: "\n").count == 3)
+    }
+
+    @Test("re-reading the same addresses says nothing")
+    func unchangedAddressesAreSilent() async {
+        let events = await run(
+            [.ipAddressSnapshot(Self.connected), .ipAddressSnapshot(Self.connected)],
+            expecting: 1
+        )
+        #expect(events.count == 1)
+    }
+
+    @Test("launching with no connection at all says nothing")
+    func noAddressesAtLaunchIsSilent() async {
+        // The startup poll reads before DHCP has finished; reporting "released" then would
+        // announce a loss that never happened.
+        let events = await run([.ipAddressSnapshot(IPAddressReport(interfaces: []))], expecting: 0)
+        #expect(events.isEmpty)
+    }
+
+    @Test("losing every address is announced as a release, once")
+    func releaseIsAnnouncedOnce() async {
+        let events = await run([
+            .ipAddressSnapshot(Self.connected),
+            .ipAddressSnapshot(IPAddressReport(interfaces: [])),
+            .ipAddressSnapshot(IPAddressReport(interfaces: []))
+        ], expecting: 2)
+
+        #expect(events.count == 2)
+        #expect(events[1].body == "IP address released")
     }
 }
