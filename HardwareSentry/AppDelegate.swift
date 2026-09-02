@@ -37,6 +37,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task {
             await registerEventDefaults()
+            // Before the monitors start, and before anything opens the settings window.
+            //
+            // This is where the performance preset is put into force. It used to happen
+            // when the Notifications tab first appeared, which meant a Mac that launched
+            // and was never asked for its settings ran every module regardless of what
+            // the preset said — the choice was recorded, shown back correctly, and
+            // ignored. Defaults have to be registered first, so "All elements" can put
+            // each module back to what it declared rather than to nothing.
+            await eventSettings.load()
             await registry.start()
             await settleAfterStartupSweep()
         }

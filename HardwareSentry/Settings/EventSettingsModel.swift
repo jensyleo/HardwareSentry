@@ -42,6 +42,14 @@ final class EventSettingsModel {
 
     func load() async {
         modules = await registry.describe()
+        // The stored choice is put into force here, not only when somebody clicks it.
+        //
+        // Without this the presets were a label and nothing more: choosing "Minimal
+        // elements" wrote the choice down, and the next launch read it back, showed it
+        // selected, and ran every module anyway. A preset that describes the application
+        // rather than deciding it is worse than no preset, because it says something
+        // untrue every time the window is opened.
+        applyPerformanceMode()
     }
 
     // MARK: - Reading and writing
@@ -167,21 +175,33 @@ final class EventSettingsModel {
     func setPerformanceMode(_ mode: PerformanceMode) {
         let previous = performanceMode
         if previous == .custom, mode != .custom {
+            // Captured on the way out, which is the original's own fix: applying a preset
+            // overwrites the same switches, so without a copy taken first, Custom →
+            // Minimal → Custom silently loses the arrangement somebody built by hand.
             let disabled = modules.filter { !isEnabled($0.category) }.map(\.category.rawValue)
             defaults.set(disabled, forKey: Self.customSnapshotKey)
         }
 
         defaults.set(mode.rawValue, forKey: Self.performanceModeKey)
+        applyPerformanceMode(restoringCustom: mode == .custom)
+    }
 
-        switch mode {
+    /// Puts the stored mode into force.
+    ///
+    /// - Parameter restoringCustom: whether a return to Custom should bring back the
+    ///   arrangement that was saved on the way out. True when somebody has just chosen
+    ///   Custom; false at launch, where the switches on disk already *are* the custom
+    ///   arrangement and re-applying an older snapshot over them would undo whatever has
+    ///   been changed since.
+    private func applyPerformanceMode(restoringCustom: Bool = false) {
+        switch performanceMode {
         case .custom:
-            // Back to what was there before a preset was tried. Nothing stored means
-            // nothing to restore, and the switches are left exactly as they are.
-            if let disabled = defaults.array(forKey: Self.customSnapshotKey) as? [String] {
-                let off = Set(disabled)
-                for module in modules {
-                    preferences.setEnabled(!off.contains(module.category.rawValue), for: module.category)
-                }
+            guard restoringCustom,
+                  let disabled = defaults.array(forKey: Self.customSnapshotKey) as? [String]
+            else { break }
+            let off = Set(disabled)
+            for module in modules {
+                preferences.setEnabled(!off.contains(module.category.rawValue), for: module.category)
             }
         case .all:
             // Each module back to what it declared, rather than all switched on: Scanner
@@ -191,7 +211,7 @@ final class EventSettingsModel {
                 preferences.reset(module.category)
             }
         case .minimal, .recommended:
-            guard let wanted = mode.categories else { return }
+            guard let wanted = performanceMode.categories else { break }
             for module in modules {
                 preferences.setEnabled(wanted.contains(module.category.rawValue), for: module.category)
             }
