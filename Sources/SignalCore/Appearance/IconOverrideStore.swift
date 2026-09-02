@@ -35,6 +35,16 @@ public final class IconOverrideStore {
         overrides = loaded
     }
 
+    /// The name an override is filed under when it belongs to the module itself rather
+    /// than to one of its notifications.
+    ///
+    /// A reserved name rather than a second store: a module's icon is chosen in the same
+    /// place, saved in the same file, exported in the same profile and reset by the same
+    /// button as its notifications' icons, so making it a different kind of thing would be
+    /// three mechanisms doing one job. No monitor can collide with it — every event this
+    /// application raises is named after what happened, and nothing "happened" here.
+    public static let moduleIconEvent = "__module__"
+
     public func override(for event: String, in category: NotificationCategory) -> IconOverride? {
         overrides[event, in: category]
     }
