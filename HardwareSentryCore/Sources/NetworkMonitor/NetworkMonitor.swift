@@ -38,7 +38,7 @@ public actor NetworkMonitor: Monitor {
     private var lastKnownComputerName: String?
     private var lastKnownGlobalState: NetworkGlobalState?
     private var lastKnownWiFiRadioOn: Bool?
-    private var signalWatcher = WiFiSignalWatcher()
+    private var signalWatcher: WiFiSignalWatcher
     /// The network and the access point last announced as joined.
     ///
     /// Both halves matter. CoreWLAN reports its SSID-changed event more than once for a
@@ -51,11 +51,13 @@ public actor NetworkMonitor: Monitor {
     /// an address changing behind a switched-off IPv6 line changes nothing visible.
     private var lastShownIPBody: String?
     private var lastIPReport: IPAddressReport?
+    private var knownPromiscuous: Set<String>?
     private var hadIPAddresses = false
 
-    public init(source: any NetworkSource, context: MonitorContext) {
+    public init(source: any NetworkSource, context: MonitorContext, signalCooldown: TimeInterval = 10) {
         self.source = source
         self.context = context
+        self.signalWatcher = WiFiSignalWatcher(cooldown: signalCooldown)
     }
 
     public func start() async {
@@ -98,6 +100,7 @@ public actor NetworkMonitor: Monitor {
                 body: await context.body([
                     .always("Joined network.\nSSID:\t\(ssid)"),
                     .field(NetworkField.bssid.rawValue, "BSSID", detail?.bssid),
+                    .field(NetworkField.band.rawValue, "Band", detail?.band),
                     .field(NetworkField.channel.rawValue, "Channel", detail?.channel),
                     .field(NetworkField.generation.rawValue, "Wi-Fi Generation", detail?.generation),
                     .field(NetworkField.security.rawValue, "Security", detail?.security),
@@ -105,7 +108,10 @@ public actor NetworkMonitor: Monitor {
                     .field(NetworkField.quality.rawValue, "Quality", detail?.qualityNote),
                     .field(NetworkField.transmitRate.rawValue, "Link Rate", detail?.rateNote),
                     .field(NetworkField.countryCode.rawValue, "Regulatory country/region", detail?.countryCode),
-                    .field(NetworkField.wifiInterface.rawValue, "Interface", detail?.interfaceName)
+                    .field(NetworkField.wifiInterface.rawValue, "Interface", detail?.interfaceName),
+                    .field(NetworkField.transmitPower.rawValue, "Transmit power", detail?.transmitPowerNote),
+                    .field(NetworkField.wifiHardwareAddress.rawValue, "Wi-Fi hardware address", detail?.hardwareAddress),
+                    .field(NetworkField.interfaceMode.rawValue, "Interface mode", detail?.interfaceMode)
                 ]),
                 icon: .asset("Network-Wifi-4", in: .module)
             )
@@ -134,6 +140,8 @@ public actor NetworkMonitor: Monitor {
             await handleGlobalState(state)
         case .wifiRadioPower(let isOn):
             await handleWiFiRadioPower(isOn)
+        case .promiscuousSnapshot(let interfaces):
+            await handlePromiscuous(interfaces)
         case .wifiSignal(let rssi, let ssid):
             await handleWiFiSignal(rssi: rssi, ssid: ssid)
         }
@@ -368,6 +376,24 @@ public actor NetworkMonitor: Monitor {
             body: [ssid, change.summary].compactMap { $0 }.joined(separator: "\n"),
             icon: .asset(change.level.iconName, in: .module)
         )
+    }
+
+    /// Says when an interface starts capturing every packet on its network.
+    ///
+    /// Only ever reported on the way in. Something switching an interface into promiscuous
+    /// mode is worth knowing about; it switching back out is housekeeping, and pairing the
+    /// two would make the notification a running commentary on whatever tool is running.
+    private func handlePromiscuous(_ interfaces: Set<String>) async {
+        defer { knownPromiscuous = interfaces }
+        guard let previous = knownPromiscuous else { return }
+
+        for interfaceName in interfaces.subtracting(previous).sorted() {
+            await context.notify(
+                NetworkEvent.promiscuousModeChanged.rawValue, subject: interfaceName,
+                title: "Promiscuous Mode Enabled", body: interfaceName,
+                icon: .asset("Network-Interface-On", in: .module)
+            )
+        }
     }
 
     private func handleWiFiRadioPower(_ isOn: Bool) async {

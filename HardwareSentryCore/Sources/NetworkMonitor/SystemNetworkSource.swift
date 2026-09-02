@@ -11,7 +11,31 @@ import SystemConfiguration
 /// it can run without a real network event. Everything worth reasoning about lives in
 /// `NetworkMonitor`, behind `NetworkSource`.
 public struct SystemNetworkSource: NetworkSource {
-    public init() {}
+    /// How often to read the Wi-Fi signal, and how long to wait between saying anything
+    /// about it.
+    ///
+    /// Configurable because the right answer depends on what somebody wants from it: on a
+    /// desk where the signal never moves, checking every twelve seconds is wasted work;
+    /// carrying a laptop around a building, a minute is too slow to be useful. Clamped
+    /// rather than trusted — a stored zero would spin, and a stored hour would look broken.
+    public struct SignalPolling: Sendable, Equatable {
+        public var interval: TimeInterval
+        public var cooldown: TimeInterval
+
+        public static let intervalRange: ClosedRange<TimeInterval> = 5...60
+        public static let cooldownRange: ClosedRange<TimeInterval> = 0...60
+
+        public init(interval: TimeInterval = 12, cooldown: TimeInterval = 10) {
+            self.interval = interval.clamped(to: Self.intervalRange)
+            self.cooldown = cooldown.clamped(to: Self.cooldownRange)
+        }
+    }
+
+    private let signalPolling: SignalPolling
+
+    public init(signalPolling: SignalPolling = SignalPolling()) {
+        self.signalPolling = signalPolling
+    }
 
     /// "State:/Network/Interface/en0/Link" → "en0".
     ///
@@ -34,7 +58,7 @@ public struct SystemNetworkSource: NetworkSource {
 
     public func changes() -> AsyncStream<NetworkSourceEvent> {
         AsyncStream { continuation in
-            let watcher = Watcher(continuation: continuation)
+            let watcher = Watcher(continuation: continuation, signalPolling: signalPolling)
             continuation.onTermination = { _ in watcher.stop() }
             watcher.start()
         }
@@ -85,8 +109,14 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     private var interfaceKinds = InterfaceKindCache()
     private var signalPollTask: Task<Void, Never>?
 
-    init(continuation: AsyncStream<NetworkSourceEvent>.Continuation) {
+    private let signalPolling: SystemNetworkSource.SignalPolling
+
+    init(
+        continuation: AsyncStream<NetworkSourceEvent>.Continuation,
+        signalPolling: SystemNetworkSource.SignalPolling = .init()
+    ) {
         self.continuation = continuation
+        self.signalPolling = signalPolling
     }
 
     func start() {
@@ -374,6 +404,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         emitWiFiRadioPower()
         startWiFiRadioPoll()
         startWiFiSignalPoll()
+        emitPromiscuousInterfaces()
     }
 
     /// Reads the radio's power and reports it.
@@ -409,11 +440,33 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     private func startWiFiSignalPoll() {
         signalPollTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(12))
+                try? await Task.sleep(for: .seconds(self?.signalPolling.interval ?? 12))
                 guard !Task.isCancelled else { return }
-                await MainActor.run { self?.emitWiFiSignal() }
+                await MainActor.run {
+                    self?.emitWiFiSignal()
+                    self?.emitPromiscuousInterfaces()
+                }
             }
         }
+    }
+
+    /// Reads which interfaces are in promiscuous mode.
+    ///
+    /// No notification exists for this flag, so it has to be asked for. Rolled into the
+    /// signal poll rather than given a timer of its own: both are cheap reads on the same
+    /// cadence, and one timer is one thing to reason about.
+    private func emitPromiscuousInterfaces() {
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return }
+        defer { freeifaddrs(head) }
+
+        var capturing: Set<String> = []
+        for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            let interface = pointer.pointee
+            guard (interface.ifa_flags & UInt32(IFF_PROMISC)) != 0 else { continue }
+            capturing.insert(String(cString: interface.ifa_name))
+        }
+        continuation.yield(.promiscuousSnapshot(capturing))
     }
 
     private func emitWiFiSignal() {
@@ -452,5 +505,13 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
                 continuation.yield(.wifiDisconnected(ssid: leftNetwork))
             }
         }
+    }
+}
+
+private extension Comparable {
+    /// Brought back into range rather than trusted. A stored interval of zero would spin,
+    /// and one of an hour would look like the feature was broken.
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

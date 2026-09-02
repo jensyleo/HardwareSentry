@@ -26,6 +26,8 @@ public enum NetworkSourceEvent: Sendable, Equatable {
     /// A fresh signal reading for the joined network, from the poll. The monitor decides
     /// whether it is worth saying anything about.
     case wifiSignal(rssi: Int, ssid: String?)
+    /// Every interface currently in promiscuous mode — not a delta.
+    case promiscuousSnapshot(Set<String>)
     /// Whether the Wi-Fi radio itself is powered on, independent of any network.
     case wifiRadioPower(isOn: Bool)
     /// The name set in System Settings › General › Sharing — not the same as the "AirDrop

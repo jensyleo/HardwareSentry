@@ -8,6 +8,11 @@ public struct WiFiDetail: Sendable, Equatable {
     /// offered rather than removed so it works for anyone who grants it by hand.
     public let bssid: String?
     /// "5 GHz, channel 44 (80 MHz)".
+    /// "5 GHz" on its own. Kept apart from the channel because they answer different
+    /// questions: the band is about interference and range, the channel about which slot
+    /// inside it — and somebody watching for a 2.4 GHz fallback wants only the first.
+    public let band: String?
+    /// "channel 44 (80 MHz)".
     public let channel: String?
     /// "Wi-Fi 6 (802.11ax)" rather than the raw mode name.
     public let generation: String?
@@ -19,9 +24,16 @@ public struct WiFiDetail: Sendable, Equatable {
     public let transmitRate: Double?
     public let countryCode: String?
     public let interfaceName: String?
+    /// How hard the radio is transmitting, in dBm.
+    public let transmitPower: Int?
+    /// The Wi-Fi card's own hardware address, as distinct from the access point's.
+    public let hardwareAddress: String?
+    /// "Station (normal client)", "Host AP (Internet Sharing)", "Ad-hoc (IBSS)".
+    public let interfaceMode: String?
 
     public init(
         bssid: String? = nil,
+        band: String? = nil,
         channel: String? = nil,
         generation: String? = nil,
         security: String? = nil,
@@ -29,9 +41,13 @@ public struct WiFiDetail: Sendable, Equatable {
         noise: Int? = nil,
         transmitRate: Double? = nil,
         countryCode: String? = nil,
-        interfaceName: String? = nil
+        interfaceName: String? = nil,
+        transmitPower: Int? = nil,
+        hardwareAddress: String? = nil,
+        interfaceMode: String? = nil
     ) {
         self.bssid = bssid
+        self.band = band
         self.channel = channel
         self.generation = generation
         self.security = security
@@ -40,6 +56,15 @@ public struct WiFiDetail: Sendable, Equatable {
         self.transmitRate = transmitRate
         self.countryCode = countryCode
         self.interfaceName = interfaceName
+        self.transmitPower = transmitPower
+        self.hardwareAddress = hardwareAddress
+        self.interfaceMode = interfaceMode
+    }
+
+    var transmitPowerNote: String? {
+        // Zero is the interface declining to answer, not a radio that is silent.
+        guard let transmitPower, transmitPower != 0 else { return nil }
+        return "\(transmitPower) dBm"
     }
 
     var rssiNote: String? {
@@ -129,6 +154,7 @@ public struct NetworkPathDetail: Sendable, Equatable {
 public enum NetworkField: String, CaseIterable {
     // Wi-Fi
     case bssid = "BSSID"
+    case band = "Band"
     case channel = "Channel"
     case generation = "WiFiGeneration"
     case security = "Security"
@@ -137,6 +163,9 @@ public enum NetworkField: String, CaseIterable {
     case transmitRate = "TransmitRate"
     case countryCode = "CountryCode"
     case wifiInterface = "WiFiInterface"
+    case transmitPower = "TransmitPower"
+    case wifiHardwareAddress = "WiFiHardwareAddress"
+    case interfaceMode = "InterfaceMode"
     // Reachability
     case pathInterface = "PathInterface"
     case expensive = "Expensive"
@@ -160,7 +189,8 @@ public enum NetworkField: String, CaseIterable {
     var settingsTitle: String {
         switch self {
         case .bssid: return "Access point address (needs Location access)"
-        case .channel: return "Band and channel"
+        case .band: return "Band (2.4/5/6 GHz)"
+        case .channel: return "Channel number and width"
         case .generation: return "Wi-Fi generation"
         case .security: return "Security"
         case .signal: return "Signal strength"
@@ -168,6 +198,9 @@ public enum NetworkField: String, CaseIterable {
         case .transmitRate: return "Negotiated rate"
         case .countryCode: return "Country code"
         case .wifiInterface: return "Which Wi-Fi interface"
+        case .transmitPower: return "Transmit power"
+        case .wifiHardwareAddress: return "Wi-Fi hardware address"
+        case .interfaceMode: return "Interface mode (Station/IBSS/Host AP)"
         case .pathInterface: return "Which connection carries the traffic"
         case .expensive: return "Connection is billed by usage"
         case .constrained: return "Low Data Mode is on"
@@ -190,6 +223,6 @@ public enum NetworkField: String, CaseIterable {
     /// know; the DNS warning is on because it only ever appears when something is wrong,
     /// so it costs nothing when everything works.
     var shownByDefault: Bool {
-        [.signal, .channel, .dns, .ipv6, .linkSpeed, .linkMode, .gateway, .previousAddress].contains(self)
+        [.signal, .band, .channel, .dns, .ipv6, .linkSpeed, .linkMode, .gateway, .previousAddress].contains(self)
     }
 }

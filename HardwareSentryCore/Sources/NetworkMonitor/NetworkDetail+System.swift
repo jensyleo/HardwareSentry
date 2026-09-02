@@ -12,6 +12,7 @@ extension WiFiDetail {
     init(interface: CWInterface) {
         self.init(
             bssid: interface.bssid(),
+            band: interface.wlanChannel().map(Self.describe(band:)),
             channel: interface.wlanChannel().map(Self.describe(channel:)),
             generation: Self.describe(phyMode: interface.activePHYMode()),
             security: Self.describe(security: interface.security()),
@@ -19,19 +20,35 @@ extension WiFiDetail {
             noise: interface.noiseMeasurement(),
             transmitRate: interface.transmitRate(),
             countryCode: interface.countryCode(),
-            interfaceName: interface.interfaceName
+            interfaceName: interface.interfaceName,
+            transmitPower: interface.transmitPower(),
+            hardwareAddress: interface.hardwareAddress(),
+            interfaceMode: Self.describe(mode: interface.interfaceMode())
         )
     }
 
-    private static func describe(channel: CWChannel) -> String {
-        let band: String
+    private static func describe(band channel: CWChannel) -> String {
         switch channel.channelBand {
-        case .band2GHz: band = "2.4 GHz"
-        case .band5GHz: band = "5 GHz"
-        case .band6GHz: band = "6 GHz"
-        default: band = "unknown band"
+        case .band2GHz: return "2.4 GHz"
+        case .band5GHz: return "5 GHz"
+        case .band6GHz: return "6 GHz"
+        default: return "unknown band"
         }
+    }
 
+    private static func describe(mode: CWInterfaceMode) -> String? {
+        switch mode {
+        case .station: return "Station (normal client)"
+        case .IBSS: return "Ad-hoc (IBSS)"
+        case .hostAP: return "Host AP (Internet Sharing)"
+        // `.none` is a radio that is on but not doing anything, which is not a mode
+        // worth a line of its own.
+        case .none: return nil
+        @unknown default: return nil
+        }
+    }
+
+    private static func describe(channel: CWChannel) -> String {
         let width: String?
         switch channel.channelWidth {
         case .width20MHz: width = "20 MHz"
@@ -41,7 +58,7 @@ extension WiFiDetail {
         default: width = nil
         }
 
-        let base = "\(band), channel \(channel.channelNumber)"
+        let base = "channel \(channel.channelNumber)"
         return width.map { "\(base) (\($0))" } ?? base
     }
 

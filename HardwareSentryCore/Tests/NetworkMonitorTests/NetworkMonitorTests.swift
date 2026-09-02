@@ -236,7 +236,7 @@ struct NetworkPathDetailTests {
 struct NetworkMonitorFieldTests {
     private static let wifi = WiFiDetail(
         bssid: "aa:bb:cc:dd:ee:ff",
-        channel: "5 GHz, channel 44 (80 MHz)",
+        band: "5 GHz", channel: "channel 44 (80 MHz)",
         generation: "Wi-Fi 6 (802.11ax)",
         security: "WPA3",
         rssi: -47,
@@ -277,11 +277,12 @@ struct NetworkMonitorFieldTests {
             NetworkField.signal.rawValue, NetworkField.channel.rawValue,
             NetworkField.dns.rawValue, NetworkField.ipv6.rawValue,
             NetworkField.linkSpeed.rawValue, NetworkField.linkMode.rawValue,
-            NetworkField.gateway.rawValue, NetworkField.previousAddress.rawValue
+            NetworkField.gateway.rawValue, NetworkField.previousAddress.rawValue,
+            NetworkField.band.rawValue
         ])
 
         let bodies = await bodies([.wifiConnected(ssid: "Casa", detail: Self.wifi)], expecting: 1, allowing: defaults)
-        #expect(bodies.first == "Joined network.\nSSID:\tCasa\nChannel:\t5 GHz, channel 44 (80 MHz)\nSignal:\t-47 dBm (excellent)")
+        #expect(bodies.first == "Joined network.\nSSID:\tCasa\nBand:\t5 GHz\nChannel:\tchannel 44 (80 MHz)\nSignal:\t-47 dBm (excellent)")
     }
 
     @Test("with everything switched on, the Wi-Fi details read in the declared order")
@@ -296,7 +297,7 @@ struct NetworkMonitorFieldTests {
         Joined network.
         SSID:\tCasa
         BSSID:\taa:bb:cc:dd:ee:ff
-        Channel:\t5 GHz, channel 44 (80 MHz)
+        Band:\t5 GHz\nChannel:\tchannel 44 (80 MHz)
         Wi-Fi Generation:\tWi-Fi 6 (802.11ax)
         Security:\tWPA3
         Signal:\t-47 dBm (excellent)
@@ -311,14 +312,14 @@ struct NetworkMonitorFieldTests {
     func missingBSSIDIsJustAMissingLine() async {
         // macOS treats a BSSID as a location, because it is one, and this app does not ask
         // for that permission — so in practice this is the usual case, not the odd one.
-        let noBSSID = WiFiDetail(channel: "2.4 GHz, channel 6 (20 MHz)", rssi: -65)
+        let noBSSID = WiFiDetail(band: "2.4 GHz", channel: "channel 6 (20 MHz)", rssi: -65)
         let bodies = await bodies(
             [.wifiConnected(ssid: "Casa", detail: noBSSID)],
             expecting: 1,
             allowing: Set(NetworkField.allCases.map(\.rawValue))
         )
 
-        #expect(bodies.first == "Joined network.\nSSID:\tCasa\nChannel:\t2.4 GHz, channel 6 (20 MHz)\nSignal:\t-65 dBm (fair)")
+        #expect(bodies.first == "Joined network.\nSSID:\tCasa\nBand:\t2.4 GHz\nChannel:\tchannel 6 (20 MHz)\nSignal:\t-65 dBm (fair)")
     }
 
     @Test("the Internet coming back says how it came back")
@@ -1282,5 +1283,89 @@ struct IPAddressDetailTests {
         let body = after.body(detail: detail, previous: before)
 
         #expect(body.contains("→ 169.254.10.20/16  (self-assigned)"))
+    }
+}
+
+@Suite("Signal polling preferences")
+struct SignalPollingTests {
+    @Test("the defaults are the original's figures")
+    func defaultsMatchTheOriginal() {
+        let polling = SystemNetworkSource.SignalPolling()
+        #expect(polling.interval == 12)
+        #expect(polling.cooldown == 10)
+    }
+
+    @Test("a stored interval outside what makes sense is brought back into range")
+    func intervalsAreClamped() {
+        // A zero would spin; an hour would look like the feature was broken.
+        #expect(SystemNetworkSource.SignalPolling(interval: 0).interval == 5)
+        #expect(SystemNetworkSource.SignalPolling(interval: 3600).interval == 60)
+    }
+
+    @Test("a cooldown of zero is a real choice and is kept")
+    func zeroCooldownIsAllowed() {
+        // Unlike the interval, zero means something here: report every level change with
+        // no holding back.
+        #expect(SystemNetworkSource.SignalPolling(cooldown: 0).cooldown == 0)
+        #expect(SystemNetworkSource.SignalPolling(cooldown: -5).cooldown == 0)
+        #expect(SystemNetworkSource.SignalPolling(cooldown: 999).cooldown == 60)
+    }
+}
+
+@Suite("Promiscuous mode")
+struct PromiscuousModeTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("an interface already capturing at launch is not announced")
+    func firstReadingIsSilent() async {
+        #expect(await run([.promiscuousSnapshot(["en0"])], expecting: 0).isEmpty)
+    }
+
+    @Test("an interface starting to capture packets is announced")
+    func startingCaptureIsAnnounced() async {
+        let events = await run([
+            .promiscuousSnapshot([]),
+            .promiscuousSnapshot(["en0"])
+        ], expecting: 1)
+
+        #expect(events.first?.name == "NetworkPromiscuousModeChanged")
+        #expect(events.first?.title == "Promiscuous Mode Enabled")
+        #expect(events.first?.body == "en0")
+    }
+
+    @Test("stopping is not announced, so the notice is not a running commentary")
+    func stoppingIsSilent() async {
+        // Something switching an interface into capture mode is worth knowing; it
+        // switching back out is housekeeping.
+        let events = await run([
+            .promiscuousSnapshot(["en0"]),
+            .promiscuousSnapshot([])
+        ], expecting: 0)
+        #expect(events.isEmpty)
+    }
+
+    @Test("two interfaces starting at once are announced separately and in a stable order")
+    func multipleInterfacesEachGetANotice() async {
+        let events = await run([
+            .promiscuousSnapshot([]),
+            .promiscuousSnapshot(["en0", "en5"])
+        ], expecting: 2)
+
+        #expect(events.map(\.subject) == ["en0", "en5"])
     }
 }
