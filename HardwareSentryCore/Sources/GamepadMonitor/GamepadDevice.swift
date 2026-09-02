@@ -22,7 +22,15 @@ public struct GamepadDetail: Sendable, Equatable {
     public let hasTouchpad: Bool
     public let hasMotionSensors: Bool
     /// Which actuators can rumble, in words — nil when the controller has none.
+    /// Which parts of the controller can buzz, in words. Nil when it has no haptics.
     public let hapticLocations: String?
+
+    /// Whether it has haptics at all, as its own line.
+    ///
+    /// Separate from the localities on purpose, and the original keeps them apart too: a
+    /// controller can report haptics without naming a single place — which reads as "no
+    /// haptics" if the only line available is the list of places.
+    var hapticsNote: String? { hapticLocations == nil ? nil : "Yes" }
     /// Physically docked to this Mac rather than connected wirelessly.
     public let isAttachedToDevice: Bool?
     public let lightColor: String?
@@ -74,7 +82,10 @@ public enum GamepadField: String, CaseIterable {
     case adaptiveTriggers = "AdaptiveTriggers"
     case touchpad = "Touchpad"
     case motion = "Motion"
+    /// Whether it has haptics at all.
     case haptics = "Haptics"
+    /// Which parts of it can buzz — handles, triggers.
+    case hapticLocalities = "HapticLocalities"
     case attached = "Attached"
     case lightColor = "LightColor"
     case elitePaddles = "ElitePaddles"

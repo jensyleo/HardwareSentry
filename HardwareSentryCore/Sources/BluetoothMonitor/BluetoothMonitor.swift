@@ -25,6 +25,11 @@ public actor BluetoothMonitor: Monitor {
         .init(name: BluetoothEvent.signalGood.rawValue, title: BluetoothSignalLevel.good.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.good.iconName, in: .module), group: Group.signal),
         .init(name: BluetoothEvent.signalFair.rawValue, title: BluetoothSignalLevel.fair.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.fair.iconName, in: .module), group: Group.signal),
         .init(name: BluetoothEvent.signalWeak.rawValue, title: BluetoothSignalLevel.weak.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.weak.iconName, in: .module), group: Group.signal),
+        // Off by default, as in the original: a BLE accessory is discovered as already
+        // connected rather than connecting, so this fires for whatever is on the desk
+        // every time the radio comes back — which is not an event anybody caused.
+        .init(name: BluetoothEvent.leConnected.rawValue, title: "Low Energy accessory found", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.leDisconnected.rawValue, title: "Low Energy accessory gone", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
         .init(name: BluetoothEvent.signalNone.rawValue, title: BluetoothSignalLevel.lost.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.lost.iconName, in: .module), group: Group.signal)
     ]
 
@@ -145,6 +150,29 @@ public actor BluetoothMonitor: Monitor {
 
         case .signalSnapshot(let readings):
             await handleSignalSnapshot(readings)
+
+        case .bleConnected(let name, let detail):
+            await context.notify(
+                BluetoothEvent.leConnected.rawValue,
+                subject: name,
+                title: "Bluetooth LE Accessory",
+                body: await context.body([
+                    .always(name),
+                    .field(BluetoothField.battery.rawValue, "Battery", detail.batteryNote),
+                    .field(BluetoothField.identity.rawValue, "Identity", detail.identityNote),
+                    .field(BluetoothField.address.rawValue, "Serial", detail.serialNumber)
+                ]),
+                icon: .asset("Bluetooth-On", in: .module)
+            )
+
+        case .bleDisconnected(let name):
+            await context.notify(
+                BluetoothEvent.leDisconnected.rawValue,
+                subject: name,
+                title: "Bluetooth LE Accessory Disconnected",
+                body: name,
+                icon: .asset("Bluetooth-Off", in: .module)
+            )
         }
     }
 

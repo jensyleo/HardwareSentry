@@ -19,6 +19,9 @@ public enum BluetoothEvent: String, NotificationEventKey, CaseIterable {
     case signalFair = "BluetoothSignalFair"
     case signalGood = "BluetoothSignalGood"
     case signalExcellent = "BluetoothSignalExcellent"
+    /// A Bluetooth Low Energy accessory answered about itself, or went away.
+    case leConnected = "BluetoothLEConnected"
+    case leDisconnected = "BluetoothLEDisconnected"
 
     public static let category: NotificationCategory = "Bluetooth"
 }

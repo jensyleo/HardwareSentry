@@ -95,6 +95,13 @@ public enum BluetoothSourceEvent: Sendable, Equatable {
     /// A snapshot rather than a delta, and polled: IOBluetooth has no push notification
     /// for RSSI moving, and a reading is only meaningful while the device is connected.
     case signalSnapshot([String: BluetoothSignalReading])
+    /// A Bluetooth Low Energy accessory answered about itself.
+    ///
+    /// Separate from the classic connect: a BLE accessory is not "connected" to the Mac
+    /// in the classic sense, it is discovered as already connected to the system and then
+    /// asked, over its own GATT link, what it is.
+    case bleConnected(name: String, detail: BLEAccessoryDetail)
+    case bleDisconnected(name: String)
 }
 
 public protocol BluetoothSource: Sendable {
@@ -110,5 +117,64 @@ public struct BluetoothSignalReading: Sendable, Equatable {
     public init(name: String, rssi: Int) {
         self.name = name
         self.rssi = rssi
+    }
+}
+
+/// What a Bluetooth Low Energy accessory said about itself over GATT.
+///
+/// From the two services the Bluetooth SIG standardised for exactly this — Device
+/// Information (0x180A) and Battery (0x180F) — so these are the same numbers on every
+/// vendor's hardware rather than something read from one manufacturer's private service.
+public struct BLEAccessoryDetail: Sendable, Equatable {
+    public let manufacturer: String?
+    public let model: String?
+    public let serialNumber: String?
+    public let firmwareVersion: String?
+    public let hardwareVersion: String?
+    public let softwareVersion: String?
+    public let batteryPercent: Int?
+
+    public init(
+        manufacturer: String? = nil,
+        model: String? = nil,
+        serialNumber: String? = nil,
+        firmwareVersion: String? = nil,
+        hardwareVersion: String? = nil,
+        softwareVersion: String? = nil,
+        batteryPercent: Int? = nil
+    ) {
+        self.manufacturer = manufacturer
+        self.model = model
+        self.serialNumber = serialNumber
+        self.firmwareVersion = firmwareVersion
+        self.hardwareVersion = hardwareVersion
+        self.softwareVersion = softwareVersion
+        self.batteryPercent = batteryPercent
+    }
+
+    /// Whether the accessory answered anything at all.
+    ///
+    /// Some do not: a BLE device is free to advertise the Device Information service and
+    /// implement none of its characteristics. Reporting that as a connection with an
+    /// empty body would be announcing a shrug.
+    public var isEmpty: Bool {
+        manufacturer == nil && model == nil && serialNumber == nil
+            && firmwareVersion == nil && hardwareVersion == nil
+            && softwareVersion == nil && batteryPercent == nil
+    }
+
+    var batteryNote: String? { batteryPercent.map { "\($0)%" } }
+
+    /// Maker, model and firmware as one line — the three that together say which thing
+    /// this is, where three separate lines would say it three times over.
+    var identityNote: String? {
+        var parts: [String] = []
+        if let manufacturer { parts.append(manufacturer) }
+        // Left out when it just repeats the maker, which several accessories do.
+        if let model, model != manufacturer { parts.append(model) }
+        if let firmwareVersion { parts.append("fw \(firmwareVersion)") }
+        if let hardwareVersion { parts.append("hw \(hardwareVersion)") }
+        if let softwareVersion { parts.append("sw \(softwareVersion)") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

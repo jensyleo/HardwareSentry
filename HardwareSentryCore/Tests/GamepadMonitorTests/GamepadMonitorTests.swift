@@ -186,6 +186,7 @@ struct GamepadMonitorFieldTests {
         Adaptive Triggers:\tYes
         Touchpad:\tYes
         Motion Sensors:\tYes
+        Haptics:\tYes
         Haptic Actuators:\tHandles, Triggers
         Lightbar Color:\tR255 G0 B0
         """)

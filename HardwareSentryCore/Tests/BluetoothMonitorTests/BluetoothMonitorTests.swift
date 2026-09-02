@@ -114,7 +114,9 @@ struct BluetoothMonitorTests {
             "BluetoothSignalGood": false,
             "BluetoothSignalFair": false,
             "BluetoothSignalWeak": false,
-            "BluetoothSignalNone": false
+            "BluetoothSignalNone": false,
+            "BluetoothLEConnected": false,
+            "BluetoothLEDisconnected": false
         ])
     }
 
@@ -582,5 +584,78 @@ struct BluetoothExtraFieldTests {
         // The original's fifteen: this now offers the same set, with favourite and last
         // used split into two where the original keeps them in one key.
         #expect(BluetoothField.allCases.count == 16)
+    }
+}
+
+@Suite("BluetoothMonitor · Low Energy accessories")
+struct BLEAccessoryTests {
+    private func run(_ script: [BluetoothSourceEvent]) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = BluetoothMonitor(
+            source: ScriptedBluetoothSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: BluetoothMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events.filter { $0.name.hasPrefix("BluetoothLE") }
+    }
+
+    @Test("an accessory that answered is reported with what it said")
+    func answeringAccessoryIsReported() async {
+        let events = await run([.bleConnected(
+            name: "MX Master 3",
+            detail: BLEAccessoryDetail(
+                manufacturer: "Logitech",
+                model: "MX Master 3",
+                firmwareVersion: "12.01",
+                batteryPercent: 64
+            )
+        )])
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == BluetoothEvent.leConnected.rawValue)
+        #expect(events.first?.subject == "MX Master 3")
+        #expect(events.first?.body.contains("Battery:\t64%") == true)
+        #expect(events.first?.body.contains("Logitech · MX Master 3 · fw 12.01") == true)
+    }
+
+    @Test("a model that just repeats the maker is not said twice")
+    func repeatedModelIsDropped() {
+        let detail = BLEAccessoryDetail(manufacturer: "Apple", model: "Apple", firmwareVersion: "1.0")
+        #expect(detail.identityNote == "Apple · fw 1.0")
+    }
+
+    @Test("an accessory that advertised the service and implements none of it says nothing")
+    func emptyAnswerIsNotAConnection() async {
+        // A BLE device is free to advertise Device Information and implement no
+        // characteristic of it. Reporting that would be announcing a shrug.
+        #expect(BLEAccessoryDetail().isEmpty)
+        let events = await run([.bleConnected(name: "Mystery", detail: BLEAccessoryDetail())])
+        // The monitor still reports it — the source is what refuses to send an empty one,
+        // so this checks the body is at least honest rather than a name and blank lines.
+        #expect(events.first?.body == "Mystery")
+    }
+
+    @Test("an accessory going away is its own notification")
+    func disconnection() async {
+        let events = await run([.bleDisconnected(name: "MX Master 3")])
+        #expect(events.count == 1)
+        #expect(events.first?.name == BluetoothEvent.leDisconnected.rawValue)
+        #expect(events.first?.title == "Bluetooth LE Accessory Disconnected")
+    }
+
+    @Test("both are off by default, as in the original")
+    func offByDefault() {
+        let byName = Dictionary(uniqueKeysWithValues: BluetoothMonitor.events.map { ($0.name, $0.enabledByDefault) })
+        // A BLE accessory is discovered as already connected rather than connecting, so
+        // this fires for whatever is on the desk every time the radio comes back — which
+        // is not an event anybody caused.
+        #expect(byName[BluetoothEvent.leConnected.rawValue] == false)
+        #expect(byName[BluetoothEvent.leDisconnected.rawValue] == false)
     }
 }

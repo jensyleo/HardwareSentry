@@ -37,7 +37,8 @@ public actor GamepadMonitor: Monitor {
         .init(name: GamepadField.adaptiveTriggers.rawValue, title: "Has adaptive triggers", shownByDefault: true),
         .init(name: GamepadField.touchpad.rawValue, title: "Has a touchpad", shownByDefault: false),
         .init(name: GamepadField.motion.rawValue, title: "Has motion sensors", shownByDefault: false),
-        .init(name: GamepadField.haptics.rawValue, title: "Haptic locations", shownByDefault: false),
+        .init(name: GamepadField.haptics.rawValue, title: "Has haptics", shownByDefault: false),
+        .init(name: GamepadField.hapticLocalities.rawValue, title: "Haptic locations", shownByDefault: false),
         .init(name: GamepadField.elitePaddles.rawValue, title: "Has rear paddles", shownByDefault: false),
         .init(name: GamepadField.lightColor.rawValue, title: "Light colour", shownByDefault: false)
     ]
@@ -85,7 +86,8 @@ public actor GamepadMonitor: Monitor {
                 .field(GamepadField.adaptiveTriggers.rawValue, "Adaptive Triggers", detail?.adaptiveTriggersNote),
                 .field(GamepadField.touchpad.rawValue, "Touchpad", detail?.touchpadNote),
                 .field(GamepadField.motion.rawValue, "Motion Sensors", detail?.motionNote),
-                .field(GamepadField.haptics.rawValue, "Haptic Actuators", detail?.hapticLocations),
+                .field(GamepadField.haptics.rawValue, "Haptics", detail?.hapticsNote),
+                .field(GamepadField.hapticLocalities.rawValue, "Haptic Actuators", detail?.hapticLocations),
                 .field(GamepadField.elitePaddles.rawValue, "Elite Paddles", detail?.elitePaddlesNote),
                 .field(GamepadField.lightColor.rawValue, "Lightbar Color", detail?.lightColor)
             ]),
