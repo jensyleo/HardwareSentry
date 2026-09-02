@@ -89,15 +89,26 @@ struct USBMonitorTests {
     func vendorIsMentioned() async {
         let events = await run([.attached(USBDevice(name: "Cruzer", vendorName: "SanDisk"))])
 
-        #expect(events.first?.body == "Cruzer\nSanDisk")
+        #expect(events.first?.body == "Cruzer\nManufacturer:\tSanDisk")
     }
 
-    @Test("a vendor that only repeats the name is left out")
-    func redundantVendorOmitted() {
-        #expect(USBMonitor.vendorDetail(USBDevice(name: "SanDisk", vendorName: "SanDisk")) == nil)
-        #expect(USBMonitor.vendorDetail(USBDevice(name: "Cruzer", vendorName: "")) == nil)
-        #expect(USBMonitor.vendorDetail(USBDevice(name: "Cruzer", vendorName: nil)) == nil)
-        #expect(USBMonitor.vendorDetail(USBDevice(name: "Cruzer", vendorName: "SanDisk")) == "SanDisk")
+    @Test("a manufacturer line that only repeats the name is left out")
+    func redundantManufacturerOmitted() {
+        #expect(USBMonitor.manufacturerDetail(USBDevice(name: "SanDisk", vendorName: "SanDisk")) == nil)
+        #expect(USBMonitor.manufacturerDetail(USBDevice(name: "Cruzer", vendorName: "")) == nil)
+        #expect(USBMonitor.manufacturerDetail(USBDevice(name: "Cruzer", vendorName: nil)) == nil)
+        #expect(USBMonitor.manufacturerDetail(USBDevice(name: "Cruzer", vendorName: "SanDisk")) == "SanDisk")
+    }
+
+    @Test("the manufacturer and the product name read as one line")
+    func manufacturerAndProductCombine() {
+        // Either alone is half an answer: "SanDisk" does not say which product, and
+        // "Ultra Fit" does not say who made it.
+        let device = USBDevice(
+            name: "Cruzer", vendorName: "SanDisk",
+            detail: USBDeviceDetail(productName: "Ultra Fit")
+        )
+        #expect(USBMonitor.manufacturerDetail(device) == "SanDisk Ultra Fit")
     }
 
     @Test("every event it can raise is declared for preferences to find")
@@ -226,5 +237,102 @@ struct USBClassNameTests {
                 #expect(device.className != nil, "class 0x\(String(code, radix: 16)) has an icon but no name")
             }
         }
+    }
+}
+
+@Suite("USB device detail")
+struct USBDeviceDetailTests {
+    @Test("the vendor and product IDs read as the hex pair everyone quotes")
+    func vidPidIsHex() {
+        #expect(USBDeviceDetail(vendorID: 0x0781, productID: 0x5583).vidPidNote == "0781:5583")
+        // Both halves or neither: half an identifier identifies nothing.
+        #expect(USBDeviceDetail(vendorID: 0x0781).vidPidNote == nil)
+    }
+
+    @Test("the speed reads as the generation people recognise")
+    func speedIsNamed() {
+        #expect(USBDeviceDetail(speedCode: 2).speedNote == "USB 2.0 (High Speed)")
+        #expect(USBDeviceDetail(speedCode: 5).speedNote == "USB 3.2 Gen 2x2 (SuperSpeed+, 20 Gb/s)")
+        #expect(USBDeviceDetail(speedCode: 99).speedNote == nil)
+    }
+
+    @Test("a device drawing more than its port can give is warned about")
+    func excessivePowerIsFlagged() {
+        // This is the explanation for a drive that keeps dropping out, and nothing else
+        // in macOS says so — which is why the line is on by default.
+        let hungry = USBDeviceDetail(requiredCurrent: 900, availableCurrent: 500)
+        #expect(hungry.powerNote == "900mA / 500mA available ⚠️ exceeds available")
+
+        let fine = USBDeviceDetail(requiredCurrent: 200, availableCurrent: 500)
+        #expect(fine.powerNote == "200mA / 500mA available")
+    }
+
+    @Test("a device whose port did not say what it offers still reports its own draw")
+    func powerWithoutAvailable() {
+        #expect(USBDeviceDetail(requiredCurrent: 500).powerNote == "500mA")
+        #expect(USBDeviceDetail().powerNote == nil)
+    }
+
+    @Test("the refusal warning only ever appears when the port refused")
+    func failedPowerIsPresentOnly() {
+        // Telling somebody their device got the power it asked for is not news.
+        #expect(USBDeviceDetail(requestedMoreThanAvailable: true).failedPowerNote != nil)
+        #expect(USBDeviceDetail(requestedMoreThanAvailable: false).failedPowerNote == nil)
+    }
+
+    @Test("the storage medium says whether the disk inside spins")
+    func mediumIsTranslated() {
+        #expect(USBDeviceDetail(mediumType: "Solid State").mediumNote == "SSD / Flash")
+        #expect(USBDeviceDetail(mediumType: "Rotational").mediumNote == "HDD (rotational)")
+        // A device that is not storage at all has no medium to report.
+        #expect(USBDeviceDetail(mediumType: nil).mediumNote == nil)
+        #expect(USBDeviceDetail(mediumType: "Something Else").mediumNote == nil)
+    }
+
+    @Test("version words are read as the decimal halves they encode")
+    func bcdVersionsAreDecoded() {
+        // 0x0210 is version 2.10, not 528 — reading it as a plain number is meaningless.
+        #expect(USBDeviceDetail(releaseVersion: 0x0210).firmwareNote == "2.10")
+        #expect(USBDeviceDetail(specVersion: 0x0320).specVersionNote == "3.20")
+        #expect(USBDeviceDetail(specVersion: 0x0200).specVersionNote == "2.00")
+    }
+
+    @Test("the port location reads as the hex the system uses")
+    func locationIsHex() {
+        #expect(USBDeviceDetail(locationID: 0x14300000).locationNote == "0x14300000")
+    }
+
+    @Test("the port line gathers whichever parts are known")
+    func portLineIsBuiltFromParts() {
+        #expect(USBDeviceDetail(isPortRemovable: true, connectorType: 3).portNote == "removable, connector type code 3")
+        #expect(USBDeviceDetail(isPortRemovable: false).portNote == "built-in")
+        #expect(USBDeviceDetail(connectorType: 0).portNote == "connector type code 0")
+        #expect(USBDeviceDetail().portNote == nil)
+    }
+
+    @Test("arriving over a Thunderbolt tunnel is present-only")
+    func tunnelIsPresentOnly() {
+        #expect(USBDeviceDetail(isTunnelled: true).tunnelNote == "USB4/Thunderbolt tunnel")
+        #expect(USBDeviceDetail(isTunnelled: false).tunnelNote == nil)
+    }
+}
+
+@Suite("USB bus names")
+struct USBBusNameTests {
+    @Test("the Mac's own controllers are given names for people")
+    func rootHubsAreRenamed() {
+        // "XHCI Root Hub SS Simulation" is a name from the driver, not one for a
+        // notification about the machine's own hardware.
+        #expect(IOKitUSBDeviceSource.friendlyBusName("XHCI Root Hub SS Simulation") == "USB 3.0 Bus")
+        #expect(IOKitUSBDeviceSource.friendlyBusName("XHCI Root Hub USB 2.0 Simulation") == "USB 2.0 Bus")
+        #expect(IOKitUSBDeviceSource.friendlyBusName("EHCI Root Hub Simulation") == "USB 2.0 Bus")
+        #expect(IOKitUSBDeviceSource.friendlyBusName("OHCI Root Hub Simulation") == "USB Bus")
+        #expect(IOKitUSBDeviceSource.friendlyBusName("UHCI Root Hub Simulation") == "USB Bus")
+    }
+
+    @Test("a real device's name is left exactly as it is")
+    func realDevicesAreUntouched() {
+        #expect(IOKitUSBDeviceSource.friendlyBusName("SanDisk Cruzer") == "SanDisk Cruzer")
+        #expect(IOKitUSBDeviceSource.friendlyBusName("") == "")
     }
 }
