@@ -75,11 +75,15 @@ public struct WiFiDetail: Sendable, Equatable {
         return "\(rssi) dBm (\(Self.strength(rssi)))"
     }
 
-    /// Signal minus noise: the number that actually predicts whether the connection will
-    /// be any good, and the one neither figure gives on its own.
+    /// The noise floor with the signal-to-noise ratio worked out beside it.
+    ///
+    /// Both, the way the original puts it: the ratio is the number that predicts whether
+    /// the connection will be any good, and the floor is what explains a bad one — a
+    /// strong signal in a noisy room and a weak one in a quiet room look the same until
+    /// you can see both.
     var qualityNote: String? {
         guard let rssi, let noise, rssi != 0, noise != 0 else { return nil }
-        return "\(rssi - noise) dB signal-to-noise"
+        return "\(noise) dBm (SNR: \(rssi - noise) dB)"
     }
 
     var rateNote: String? {
@@ -163,6 +167,7 @@ public struct NetworkPathDetail: Sendable, Equatable {
 /// The optional details this monitor can add.
 public enum NetworkField: String, CaseIterable {
     // Wi-Fi
+    case ssid = "SSID"
     case bssid = "BSSID"
     case band = "Band"
     case channel = "Channel"
@@ -183,11 +188,18 @@ public enum NetworkField: String, CaseIterable {
     case ipProtocols = "IPProtocols"
     case dns = "DNS"
     // Wired links
+    /// The interface's BSD name on a link notification.
+    case linkInterface = "LinkInterface"
     case linkSpeed = "Speed"
     case linkMode = "Mode"
     case linkNegotiated = "Negotiated"
     // IP addresses
+    case ipv4 = "IPv4"
     case ipv6 = "IPv6"
+    /// The "(non-routable)" note on a self-assigned 169.254 address.
+    case nonRoutableTag = "NonRoutableTag"
+    /// "Wi-Fi" rather than "en0".
+    case friendlyNames = "FriendlyNames"
     case gateway = "Gateway"
     case ipConfigMethod = "IPConfigMethod"
     case mtu = "MTU"
@@ -197,17 +209,20 @@ public enum NetworkField: String, CaseIterable {
     case dhcpLease = "DHCPLease"
     case baudrate = "Baudrate"
     case decodedType = "DecodedType"
+    /// Whether the Wi-Fi interface's own carrier counts as a link event.
+    case allLinks = "AllLinks"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
         switch self {
-        case .bssid: return "Access point address (needs Location access)"
+        case .ssid: return "SSID (network name)"
+        case .bssid: return "BSSID (access point address)"
         case .band: return "Band (2.4/5/6 GHz)"
         case .channel: return "Channel number and width"
         case .generation: return "Wi-Fi generation"
         case .security: return "Security"
         case .signal: return "Signal strength"
-        case .quality: return "Signal-to-noise"
+        case .quality: return "Noise floor + SNR"
         case .transmitRate: return "Negotiated rate"
         case .countryCode: return "Country code"
         case .wifiInterface: return "Which Wi-Fi interface"
@@ -219,10 +234,14 @@ public enum NetworkField: String, CaseIterable {
         case .constrained: return "Low Data Mode is on"
         case .ipProtocols: return "IPv4 / IPv6"
         case .dns: return "Warn when the path has no DNS"
-        case .linkSpeed: return "Negotiated speed"
-        case .linkMode: return "Duplex mode"
-        case .linkNegotiated: return "Warn when slower than the port supports"
-        case .ipv6: return "Include IPv6 addresses"
+        case .linkInterface: return "Interface name (en0, en5…)"
+        case .linkSpeed: return "Speed"
+        case .linkMode: return "Mode / duplex"
+        case .linkNegotiated: return "Max supported speed (if higher than negotiated)"
+        case .ipv4: return "IPv4 address"
+        case .ipv6: return "IPv6 address"
+        case .nonRoutableTag: return "\"(non-routable)\" tag on self-assigned addresses"
+        case .friendlyNames: return "Use friendly interface names (vs. en0/en5…)"
         case .gateway: return "Gateway"
         case .ipConfigMethod: return "How the address was assigned"
         case .mtu: return "MTU"
@@ -232,6 +251,7 @@ public enum NetworkField: String, CaseIterable {
         case .dhcpLease: return "DHCP lease detail (start, expiry, server)"
         case .baudrate: return "Line rate (interfaces without Ethernet media)"
         case .decodedType: return "Decoded interface type"
+        case .allLinks: return "Also report Wi-Fi's own link and AWDL/AirDrop events"
         }
     }
 
@@ -240,19 +260,18 @@ public enum NetworkField: String, CaseIterable {
     /// list of thirty.
     var group: String {
         switch self {
-        case .bssid, .band, .channel, .generation, .security, .countryCode,
-             .wifiInterface, .transmitPower, .wifiHardwareAddress, .interfaceMode:
+        case .ssid, .bssid, .band, .channel, .generation, .security, .countryCode,
+             .wifiInterface, .transmitPower, .wifiHardwareAddress, .interfaceMode,
+             .signal, .quality, .transmitRate, .allLinks:
             return NetworkMonitor.Group.wifi
-        case .signal, .quality, .transmitRate:
-            return NetworkMonitor.Group.signal
-        case .linkSpeed, .linkMode, .linkNegotiated, .baudrate, .decodedType:
+        case .linkInterface, .linkSpeed, .linkMode, .linkNegotiated:
             return NetworkMonitor.Group.wired
-        case .pathInterface, .expensive, .constrained, .ipProtocols, .dns:
+        case .pathInterface, .expensive, .constrained, .ipProtocols, .dns,
+             .baudrate, .decodedType:
             return NetworkMonitor.Group.internet
-        case .ipv6, .gateway, .ipConfigMethod, .mtu, .macAddress, .previousAddress, .dhcpLease:
+        case .ipv4, .ipv6, .gateway, .ipConfigMethod, .mtu, .macAddress, .previousAddress,
+             .dhcpLease, .nonRoutableTag, .friendlyNames, .dnsSearchDomains:
             return NetworkMonitor.Group.addresses
-        case .dnsSearchDomains:
-            return NetworkMonitor.Group.system
         }
     }
 
@@ -260,6 +279,18 @@ public enum NetworkField: String, CaseIterable {
     /// know; the DNS warning is on because it only ever appears when something is wrong,
     /// so it costs nothing when everything works.
     var shownByDefault: Bool {
-        [.signal, .band, .channel, .dns, .ipv6, .linkSpeed, .linkMode, .gateway, .previousAddress].contains(self)
+        [
+            // IP — the original's set.
+            .ipv4, .ipv6, .gateway, .nonRoutableTag, .friendlyNames, .previousAddress, .dnsSearchDomains,
+            // Ethernet.
+            .linkInterface, .linkSpeed, .linkMode,
+            // Wi-Fi. The original has all of its Wi-Fi lines on; the two extra ones here
+            // (the signal reading itself, and the DNS warning) follow the same rule,
+            // being either the answer to "how good is this connection" or a line that
+            // only appears when something is wrong.
+            .ssid, .bssid, .band, .generation, .security, .transmitRate, .channel,
+            .quality, .countryCode, .transmitPower, .wifiHardwareAddress, .interfaceMode,
+            .signal, .dns
+        ].contains(self)
     }
 }

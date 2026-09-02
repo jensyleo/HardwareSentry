@@ -34,6 +34,8 @@ public actor MonitorRegistry {
     private let powerHealthStore: any PowerHealthStore
     private let volumeLowSpacePercent: Double
     private let scannerStatusInterval: Duration
+    private let networkSignalPolling: SystemNetworkSource.SignalPolling
+    private let networkSignalCooldown: TimeInterval
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -50,7 +52,9 @@ public actor MonitorRegistry {
         powerHealthCheck: PowerHealthCheckSettings = PowerHealthCheckSettings(),
         powerHealthStore: any PowerHealthStore = UserDefaultsPowerHealthStore(),
         volumeLowSpacePercent: Double = 5,
-        scannerStatusInterval: Duration = .seconds(10)
+        scannerStatusInterval: Duration = .seconds(10),
+        networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
+        networkSignalCooldown: TimeInterval = 10
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
@@ -60,6 +64,8 @@ public actor MonitorRegistry {
         self.powerHealthStore = powerHealthStore
         self.volumeLowSpacePercent = volumeLowSpacePercent
         self.scannerStatusInterval = scannerStatusInterval
+        self.networkSignalPolling = networkSignalPolling
+        self.networkSignalCooldown = networkSignalCooldown
     }
 
     /// Passes changed tuning to the monitors that care about it, without rebuilding them.
@@ -143,8 +149,9 @@ public actor MonitorRegistry {
                 healthStore: powerHealthStore
             ),
             NetworkMonitor(
-                source: SystemNetworkSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                source: SystemNetworkSource(signalPolling: networkSignalPolling),
+                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                signalCooldown: networkSignalCooldown
             ),
             ScannerMonitor(
                 source: BonjourScannerSource(),

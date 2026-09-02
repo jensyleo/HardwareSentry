@@ -27,7 +27,9 @@ final class MonitorTuningModel {
             Self.healthEnabledKey: true,
             Self.healthDaysKey: 7.0,
             Self.lowSpacePercentKey: 5.0,
-            Self.scannerStatusSecondsKey: 10.0
+            Self.scannerStatusSecondsKey: 10.0,
+            Self.wifiSignalSecondsKey: 12.0,
+            Self.wifiSignalCooldownKey: 10.0
         ])
 
         // Assigned here rather than through the observers below, which do not fire during
@@ -39,6 +41,8 @@ final class MonitorTuningModel {
         healthCheckDays = defaults.double(forKey: Self.healthDaysKey)
         lowSpacePercent = defaults.double(forKey: Self.lowSpacePercentKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
+        wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
+        wifiSignalCooldownSeconds = defaults.double(forKey: Self.wifiSignalCooldownKey)
     }
 
     var repeatsPowerStatus: Bool {
@@ -77,6 +81,17 @@ final class MonitorTuningModel {
 
     var scannerStatusInterval: Duration { .seconds(scannerStatusSeconds) }
 
+    /// How often the Wi-Fi signal is read, and how long to leave between saying anything
+    /// about it. Both read at launch: they are handed to the source and the monitor when
+    /// those are built.
+    var wifiSignalSeconds: Double {
+        didSet { defaults.set(wifiSignalSeconds, forKey: Self.wifiSignalSecondsKey) }
+    }
+
+    var wifiSignalCooldownSeconds: Double {
+        didSet { defaults.set(wifiSignalCooldownSeconds, forKey: Self.wifiSignalCooldownKey) }
+    }
+
     /// When the battery was last looked at, for the line under the "Check Now" button.
     /// Read fresh each time rather than observed: it changes once a week.
     var lastBatteryCheck: Date? {
@@ -104,4 +119,6 @@ final class MonitorTuningModel {
     private static let healthDaysKey = "Power.HealthCheckDays"
     private static let lowSpacePercentKey = "Volume.LowSpacePercent"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
+    private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"
+    private static let wifiSignalCooldownKey = "Network.WifiSignalCooldownSeconds"
 }

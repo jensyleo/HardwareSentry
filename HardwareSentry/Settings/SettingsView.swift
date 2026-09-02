@@ -25,7 +25,7 @@ struct SettingsView: View {
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
             HistoryView(store: history)

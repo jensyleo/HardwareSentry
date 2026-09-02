@@ -107,6 +107,16 @@ public struct IPAddressReport: Sendable, Equatable {
     /// rather than this deciding for them.
     public struct Detail: Sendable, Equatable {
         public var ipv6 = true
+        /// IPv4 addresses. Switchable like the rest — a Mac on an IPv6-only network has
+        /// nothing to say here, and somebody who only cares about IPv6 should be able to
+        /// say so.
+        public var ipv4 = true
+        /// The note that marks a 169.254 address as one macOS gave itself when nothing
+        /// answered. Without it the address looks like any other, which is the one case
+        /// where "you have an address" is misleading rather than reassuring.
+        public var nonRoutableTag = true
+        /// "Wi-Fi" and "USB 10/100/1000 LAN" rather than "en0" and "en5".
+        public var friendlyNames = true
         public var gateway = false
         public var configurationMethod = false
         public var mtu = false
@@ -126,24 +136,25 @@ public struct IPAddressReport: Sendable, Equatable {
 
         for interface in interfaces.sorted(by: { $0.bsdName < $1.bsdName }) {
             let before = previous?.interfaces.first { $0.bsdName == interface.bsdName }
+            let name = detail.friendlyNames ? interface.displayName : interface.bsdName
 
-            for address in interface.ipv4.sorted() {
-                let tag = Self.isSelfAssigned(address) ? "  (self-assigned)" : ""
+            for address in interface.ipv4.sorted() where detail.ipv4 {
+                let tag = detail.nonRoutableTag && Self.isSelfAssigned(address) ? "  (self-assigned)" : ""
                 // Only the case where exactly one address replaced exactly one other:
                 // "192.168.1.5 → 192.168.1.9" is useful, while pairing up two arbitrary
                 // lists would be guessing at which replaced which.
                 if detail.previousAddress,
                    let was = before?.ipv4.sorted(), was.count == 1, interface.ipv4.count == 1,
                    was[0] != address {
-                    lines.append("\(interface.displayName) — IPv4:\t\(was[0]) → \(address)\(tag)")
+                    lines.append("\(name) — IPv4:\t\(was[0]) → \(address)\(tag)")
                 } else {
-                    lines.append("\(interface.displayName) — IPv4:\t\(address)\(tag)")
+                    lines.append("\(name) — IPv4:\t\(address)\(tag)")
                 }
             }
 
             if detail.ipv6 {
                 for address in interface.ipv6.sorted() {
-                    lines.append("\(interface.displayName) — IPv6:\t\(address)")
+                    lines.append("\(name) — IPv6:\t\(address)")
                 }
             }
 

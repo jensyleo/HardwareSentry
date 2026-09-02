@@ -16,39 +16,31 @@ public actor NetworkMonitor: Monitor {
     public static let icon: NotificationIcon = .asset("Network-Generic-On", in: .module)
 
     public static let events: [MonitorEventDescription] = [
-        // Wi-Fi and wired are one module because they are one subsystem, not because
-        // anybody thinks of them as one topic — so they read as separate lists.
-        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiRadioOn.rawValue, title: "Wi-Fi radio turned on", icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiRadioOff.rawValue, title: "Wi-Fi radio turned off", icon: .asset("Network-Wifi-Radio-Off", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiHostAPModeChanged.rawValue, title: "Internet Sharing started/stopped", enabledByDefault: false, icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
-
-        // One row per bar, the way the original has it.
-        .init(name: NetworkEvent.wifiSignalExcellent.rawValue, title: WiFiSignalLevel.excellent.settingsTitle, icon: .asset(WiFiSignalLevel.excellent.iconName, in: .module), group: Group.signal),
-        .init(name: NetworkEvent.wifiSignalGood.rawValue, title: WiFiSignalLevel.good.settingsTitle, icon: .asset(WiFiSignalLevel.good.iconName, in: .module), group: Group.signal),
-        .init(name: NetworkEvent.wifiSignalFair.rawValue, title: WiFiSignalLevel.fair.settingsTitle, icon: .asset(WiFiSignalLevel.fair.iconName, in: .module), group: Group.signal),
-        .init(name: NetworkEvent.wifiSignalWeak.rawValue, title: WiFiSignalLevel.weak.settingsTitle, icon: .asset(WiFiSignalLevel.weak.iconName, in: .module), group: Group.signal),
-        .init(name: NetworkEvent.wifiSignalNone.rawValue, title: WiFiSignalLevel.none.settingsTitle, icon: .asset(WiFiSignalLevel.none.iconName, in: .module), group: Group.signal),
-
+        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
+        .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
+        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module), group: Group.addresses),
         .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
         .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module), group: Group.wired),
         .init(name: NetworkEvent.linkSpeedChanged.rawValue, title: "Link speed or duplex changed", enabledByDefault: false, icon: .asset("Network-Ethernet-Speed", in: .module), group: Group.wired),
         .init(name: NetworkEvent.adapterDetaching.rawValue, title: "Network adapter unplugged", icon: .asset("Network-Interface-Off", in: .module), group: Group.wired),
         .init(name: NetworkEvent.bondMemberStatusChanged.rawValue, title: "Bonded link member changed", enabledByDefault: false, icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
-
+        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiRadioOn.rawValue, title: "Wi-Fi radio turned on", icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiRadioOff.rawValue, title: "Wi-Fi radio turned off", icon: .asset("Network-Wifi-Radio-Off", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiHostAPModeChanged.rawValue, title: "Internet Sharing started/stopped", enabledByDefault: false, icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiSignalExcellent.rawValue, title: WiFiSignalLevel.excellent.settingsTitle, icon: .asset(WiFiSignalLevel.excellent.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalGood.rawValue, title: WiFiSignalLevel.good.settingsTitle, icon: .asset(WiFiSignalLevel.good.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalFair.rawValue, title: WiFiSignalLevel.fair.settingsTitle, icon: .asset(WiFiSignalLevel.fair.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalWeak.rawValue, title: WiFiSignalLevel.weak.settingsTitle, icon: .asset(WiFiSignalLevel.weak.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalNone.rawValue, title: WiFiSignalLevel.none.settingsTitle, icon: .asset(WiFiSignalLevel.none.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.vpnConnected.rawValue, title: "VPN connected", icon: .asset("Network-VPN-On", in: .module), group: Group.vpn),
+        .init(name: NetworkEvent.vpnDisconnected.rawValue, title: "VPN disconnected", icon: .asset("Network-VPN-Off", in: .module), group: Group.vpn),
         .init(name: NetworkEvent.reachabilityChanged.rawValue, title: "Internet reachability changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
         .init(name: NetworkEvent.pathStatusChanged.rawValue, title: "Network path status changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
         .init(name: NetworkEvent.pathExpensiveChanged.rawValue, title: "Connection became metered/unmetered", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
         .init(name: NetworkEvent.pathConstrainedChanged.rawValue, title: "Low Data Mode turned on/off", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
         .init(name: NetworkEvent.pathQualityChanged.rawValue, title: "Network path became usable/blocked", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
-        .init(name: NetworkEvent.vpnConnected.rawValue, title: "VPN connected", icon: .asset("Network-VPN-On", in: .module), group: Group.internet),
-        .init(name: NetworkEvent.vpnDisconnected.rawValue, title: "VPN disconnected", icon: .asset("Network-VPN-Off", in: .module), group: Group.internet),
-
-        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
-        .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
-        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module), group: Group.addresses),
-
         .init(name: NetworkEvent.dnsServersChanged.rawValue, title: "DNS servers changed", enabledByDefault: false, icon: .asset("Network-DNS-On", in: .module), group: Group.system),
         .init(name: NetworkEvent.proxyConfigChanged.rawValue, title: "Proxy configuration changed", enabledByDefault: false, icon: .asset("Network-Proxy-On", in: .module), group: Group.system),
         .init(name: NetworkEvent.locationChanged.rawValue, title: "Network location changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
@@ -59,13 +51,16 @@ public actor NetworkMonitor: Monitor {
 
     /// The headings its rows sit under. Named once so an event and the field that goes
     /// with it cannot drift into two differently-spelled groups that render as two.
+    /// The original's own six, in the original's order, so somebody moving between the
+    /// two applications finds the same tabs in the same places.
     enum Group {
+        static let addresses = "IP"
+        static let wired = "Ethernet"
         static let wifi = "Wi-Fi"
-        static let signal = "Wi-Fi signal strength"
-        static let wired = "Wired and other links"
-        static let internet = "Internet and VPN"
-        static let addresses = "Addresses"
-        static let system = "System configuration"
+        static let signal = "Wi-Fi"
+        static let vpn = "VPN"
+        static let internet = "Other"
+        static let system = "Other"
     }
 
     public static let fields: [MonitorFieldDescription] = NetworkField.allCases.map {
@@ -162,7 +157,8 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.wifiConnected.rawValue, subject: ssid,
                 title: "AirPort Connected",
                 body: await context.body([
-                    .always("Joined network.\nSSID:\t\(ssid)"),
+                    .always("Joined network."),
+                    .field(NetworkField.ssid.rawValue, "SSID", ssid),
                     .field(NetworkField.bssid.rawValue, "BSSID", detail?.bssid),
                     .field(NetworkField.band.rawValue, "Band", detail?.band),
                     .field(NetworkField.channel.rawValue, "Channel", detail?.channel),
@@ -266,8 +262,22 @@ public actor NetworkMonitor: Monitor {
             }
         }
 
+        // Off by default, and the original's default too. The Wi-Fi interface's carrier
+        // coming up is the same event as joining a network, which "AirPort Connected"
+        // already reports in full — so reporting it again as "Wi-Fi Link Up / Interface:
+        // en0" is the same news twice, and the second telling is the one that says
+        // nothing. AWDL (AirDrop, Handoff, Continuity) is worse: it flaps constantly in
+        // the background and nobody plugged anything in.
+        let reportsWiFiLinks = await context.isFieldEnabled(NetworkField.allLinks.rawValue)
+
         for (interfaceName, state) in links {
             let was = knownLinks[interfaceName]
+
+            guard state.kind != .wifi || reportsWiFiLinks else {
+                // Still remembered, so switching the option on later compares against
+                // what is actually there rather than announcing every link afresh.
+                continue
+            }
 
             // A VPN tunnel coming up is its own kind of news, not a link event: nobody
             // plugged anything in, and "utun4 Link Up" says nothing a person can use.
@@ -293,7 +303,7 @@ public actor NetworkMonitor: Monitor {
                     NetworkEvent.linkUp.rawValue, subject: interfaceName,
                     title: "\(state.kind.label) Link Up",
                     body: await context.body([
-                        .always("Interface:\t\(interfaceName)"),
+                        .field(NetworkField.linkInterface.rawValue, "Interface", interfaceName),
                         .field(NetworkField.linkSpeed.rawValue, "Speed", state.media?.speed),
                         .field(NetworkField.linkMode.rawValue, "Mode", state.media?.mode),
                         .field(NetworkField.linkNegotiated.rawValue, "Negotiated", state.media?.negotiatedNote)
@@ -356,7 +366,10 @@ public actor NetworkMonitor: Monitor {
     /// same breath — and a banner each would be one event told four times.
     private func handleIPAddresses(_ report: IPAddressReport) async {
         var detail = IPAddressReport.Detail()
+        detail.ipv4 = await context.isFieldEnabled(NetworkField.ipv4.rawValue)
         detail.ipv6 = await context.isFieldEnabled(NetworkField.ipv6.rawValue)
+        detail.nonRoutableTag = await context.isFieldEnabled(NetworkField.nonRoutableTag.rawValue)
+        detail.friendlyNames = await context.isFieldEnabled(NetworkField.friendlyNames.rawValue)
         detail.gateway = await context.isFieldEnabled(NetworkField.gateway.rawValue)
         detail.configurationMethod = await context.isFieldEnabled(NetworkField.ipConfigMethod.rawValue)
         detail.mtu = await context.isFieldEnabled(NetworkField.mtu.rawValue)

@@ -16,6 +16,7 @@ import SwiftUI
 struct EventSettingsView: View {
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
+    @Bindable var tuning: MonitorTuningModel
 
     @State private var selection: String?
     /// Which of the selected module's tabs is showing, by name.
@@ -42,7 +43,7 @@ struct EventSettingsView: View {
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, pane: $pane)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, pane: $pane)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -174,6 +175,7 @@ private struct ModuleDetail: View {
     let module: MonitorDescription
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
+    @Bindable var tuning: MonitorTuningModel
     @Binding var pane: String
 
     private var titles: [String] { ModulePane.titles(for: module) }
@@ -220,10 +222,38 @@ private struct ModuleDetail: View {
             .rows ?? []
 
         return Form {
+            // A tab that is about something other than a list of lines — how often to
+            // look, or a paragraph explaining how the detection works — says so here,
+            // above its fields.
+            if let note = ModuleNotes.note(for: module.category, group: title) {
+                Section {
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if module.category.rawValue == "Network", title == "Wi-Fi" {
+                Section {
+                    slider(
+                        "Wi-Fi signal check interval",
+                        value: $tuning.wifiSignalSeconds,
+                        range: 5...60,
+                        caption: "How often the Wi-Fi signal strength is checked (5–60 s)."
+                    )
+                    slider(
+                        "Minimum time between signal-change notices",
+                        value: $tuning.wifiSignalCooldownSeconds,
+                        range: 0...60,
+                        caption: "Prevents repeat notices if the signal hovers at a threshold (0–60 s, 0 = off)."
+                    )
+                }
+            }
+
             if fields.isEmpty {
                 Section {
-                    Text("Nothing optional to add to these messages. Whether each one arrives is a checkbox beside its icon, on the Icons tab.")
-                        .font(.caption)
+                    Text("No additional fields yet.")
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -260,6 +290,28 @@ private struct ModuleDetail: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// A labelled slider with its own explanation under it, the way the original lays
+    /// these out.
+    private func slider(
+        _ title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        caption: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.headline)
+            HStack {
+                Slider(value: value, in: range, step: 1)
+                Text("\(Int(value.wrappedValue)) s")
+                    .monospacedDigit()
+                    .frame(width: 40, alignment: .trailing)
+            }
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Icons
@@ -345,5 +397,24 @@ private struct ModuleDetail: View {
             get: { model.isShown(field, in: category) },
             set: { model.setShown($0, for: field, in: category) }
         )
+    }
+}
+
+
+/// The paragraphs some tabs carry instead of, or as well as, a list of switches.
+///
+/// Kept here rather than in the monitors: a monitor declares what it can say and what it
+/// can be asked, and how a settings screen explains a detection technique to somebody
+/// reading it is not the same kind of fact.
+enum ModuleNotes {
+    static func note(for category: NotificationCategory, group: String) -> String? {
+        switch (category.rawValue, group) {
+        case ("Network", "VPN"):
+            return """
+            Detected through utun/ppp/ipsec virtual interfaces, which is what most VPN             clients use, including macOS's own. It is a heuristic: a few system features             that are not VPNs use a utun interface too. Whether these arrive is a             checkbox beside "VPN connected" and "VPN disconnected" on the Icons tab.
+            """
+        default:
+            return nil
+        }
     }
 }

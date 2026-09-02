@@ -209,7 +209,7 @@ struct WiFiDetailTests {
 
     @Test("signal-to-noise is worked out, since neither figure gives it alone")
     func qualityCombinesTheTwoReadings() {
-        #expect(WiFiDetail(rssi: -55, noise: -92).qualityNote == "37 dB signal-to-noise")
+        #expect(WiFiDetail(rssi: -55, noise: -92).qualityNote == "-92 dBm (SNR: 37 dB)")
     }
 
     @Test("a missing noise reading means no quality line rather than a wrong one")
@@ -289,22 +289,37 @@ struct NetworkMonitorFieldTests {
         return await delivery.events.map(\.body)
     }
 
-    @Test("out of the box, joining a network says the channel and the signal")
-    func defaultsAreChannelSignalAndTheDNSWarning() async {
+    @Test("out of the box the defaults are the original's, tab by tab")
+    func defaultsMatchTheOriginal() async {
         let defaults = Set(NetworkMonitor.fields.filter(\.shownByDefault).map(\.name))
-        // Per notification: the Wi-Fi ones here, the wired link's speed and mode on a
-        // link notice, IPv6 addresses on an address notice, and the DNS warning. Each is
-        // on because it answers the question the notification it belongs to raises.
+
+        // Everything the original ships on, and nothing it ships off. Checked as a set
+        // rather than by eye, because "the same functionality" is exactly the promise
+        // this module kept quietly breaking.
         #expect(defaults == [
-            NetworkField.signal.rawValue, NetworkField.channel.rawValue,
-            NetworkField.dns.rawValue, NetworkField.ipv6.rawValue,
-            NetworkField.linkSpeed.rawValue, NetworkField.linkMode.rawValue,
-            NetworkField.gateway.rawValue, NetworkField.previousAddress.rawValue,
-            NetworkField.band.rawValue
+            // IP
+            "IPv4", "IPv6", "Gateway", "NonRoutableTag", "FriendlyNames",
+            "PreviousAddress", "DNSSearchDomains",
+            // Ethernet
+            "LinkInterface", "Speed", "Mode",
+            // Wi-Fi
+            "SSID", "BSSID", "Band", "WiFiGeneration", "Security", "TransmitRate",
+            "Channel", "SignalQuality", "CountryCode", "TransmitPower",
+            "WiFiHardwareAddress", "InterfaceMode",
+            // Two the original does not have: the signal reading itself, and a warning
+            // that only ever appears when the path has no DNS at all.
+            "Signal", "DNS"
         ])
 
-        let bodies = await bodies([.wifiConnected(ssid: "Casa", detail: Self.wifi)], expecting: 1, allowing: defaults)
-        #expect(bodies.first == "Joined network.\nSSID:\tCasa\nBand:\t5 GHz\nChannel:\tchannel 44 (80 MHz)\nSignal:\t-47 dBm (excellent)")
+        // The ones the original ships off stay off.
+        #expect(!defaults.contains(NetworkField.allLinks.rawValue))
+        #expect(!defaults.contains(NetworkField.mtu.rawValue))
+        #expect(!defaults.contains(NetworkField.macAddress.rawValue))
+        #expect(!defaults.contains(NetworkField.ipConfigMethod.rawValue))
+        #expect(!defaults.contains(NetworkField.dhcpLease.rawValue))
+        #expect(!defaults.contains(NetworkField.baudrate.rawValue))
+        #expect(!defaults.contains(NetworkField.decodedType.rawValue))
+        #expect(!defaults.contains(NetworkField.linkNegotiated.rawValue))
     }
 
     @Test("with everything switched on, the Wi-Fi details read in the declared order")
@@ -323,7 +338,7 @@ struct NetworkMonitorFieldTests {
         Wi-Fi Generation:\tWi-Fi 6 (802.11ax)
         Security:\tWPA3
         Signal:\t-47 dBm (excellent)
-        Quality:\t45 dB signal-to-noise
+        Quality:\t-92 dBm (SNR: 45 dB)
         Link Rate:\t867 Mbps
         Regulatory country/region:\tES
         Interface:\ten0
@@ -1864,10 +1879,8 @@ struct MonitorGroupTests {
         )
 
         let titles = description.eventGroups.map(\.title)
-        #expect(titles == [
-            "Wi-Fi", "Wi-Fi signal strength", "Wired and other links",
-            "Internet and VPN", "Addresses", "System configuration"
-        ])
+        // The original's own six, in the original's order.
+        #expect(titles == ["IP", "Ethernet", "Wi-Fi", "VPN", "Other"])
         // Every event lands in exactly one group, and none of them is left unnamed.
         #expect(description.eventGroups.flatMap(\.rows).count == NetworkMonitor.events.count)
         #expect(description.eventGroups.allSatisfy { $0.title != nil })
@@ -1985,7 +1998,9 @@ struct WiFiSignalParityTests {
         // The regression this fixes: grouping the events put a Wi-Fi one first, and the
         // whole of networking started wearing a Wi-Fi icon in the module list.
         #expect(NetworkMonitor.icon == .asset("Network-Generic-On", in: .module))
-        #expect(NetworkMonitor.icon != NetworkMonitor.events.first?.icon)
+        // Specifically not a Wi-Fi one, which is what it became when grouping put a Wi-Fi
+        // event first and the list took the first event's artwork.
+        #expect(NetworkMonitor.icon != .asset("Network-Wifi-4", in: .module))
     }
 }
 
