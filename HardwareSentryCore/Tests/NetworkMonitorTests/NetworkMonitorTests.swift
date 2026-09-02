@@ -276,7 +276,8 @@ struct NetworkMonitorFieldTests {
         #expect(defaults == [
             NetworkField.signal.rawValue, NetworkField.channel.rawValue,
             NetworkField.dns.rawValue, NetworkField.ipv6.rawValue,
-            NetworkField.linkSpeed.rawValue, NetworkField.linkMode.rawValue
+            NetworkField.linkSpeed.rawValue, NetworkField.linkMode.rawValue,
+            NetworkField.gateway.rawValue, NetworkField.previousAddress.rawValue
         ])
 
         let bodies = await bodies([.wifiConnected(ssid: "Casa", detail: Self.wifi)], expecting: 1, allowing: defaults)
@@ -493,7 +494,9 @@ struct IPAddressReportTests {
 
     @Test("switching IPv6 off leaves only the IPv4 lines")
     func ipv6CanBeLeftOut() {
-        #expect(IPAddressReport(interfaces: [Self.wifi]).body(showIPv6: false) == "Wi-Fi — IPv4:\t192.168.1.42")
+        var detail = IPAddressReport.Detail()
+        detail.ipv6 = false
+        #expect(IPAddressReport(interfaces: [Self.wifi]).body(detail: detail) == "Wi-Fi — IPv4:\t192.168.1.42")
     }
 
     @Test("interfaces read in a stable order, so an unchanged message looks unchanged")
@@ -1166,5 +1169,118 @@ struct WiFiJoinDedupTests {
 
         #expect(events.filter { $0.name == "AirportConnected" }.count == 2)
         #expect(events.contains { $0.name == "AirportDisconnected" })
+    }
+}
+
+@Suite("IP address detail lines")
+struct IPAddressDetailTests {
+    private func report(
+        ipv4: [String] = ["192.168.1.42/24"],
+        gateway: String? = "192.168.1.1",
+        method: String? = "DHCP",
+        mtu: Int? = 1500,
+        mac: String? = "a4:83:e7:1c:9d:5b",
+        searchDomains: [String] = ["example.local"]
+    ) -> IPAddressReport {
+        IPAddressReport(
+            interfaces: [InterfaceAddresses(
+                bsdName: "en0", friendlyName: "Wi-Fi",
+                ipv4: ipv4, ipv6: ["2001:db8::1"],
+                gateway: gateway, configurationMethod: method, mtu: mtu, macAddress: mac
+            )],
+            dnsSearchDomains: searchDomains
+        )
+    }
+
+    private var everything: IPAddressReport.Detail {
+        var detail = IPAddressReport.Detail()
+        detail.gateway = true
+        detail.configurationMethod = true
+        detail.mtu = true
+        detail.macAddress = true
+        detail.searchDomains = true
+        return detail
+    }
+
+    @Test("with nothing extra switched on, only the addresses appear")
+    func addressesOnlyByDefault() {
+        let body = report().body()
+        #expect(body == "Wi-Fi — IPv4:\t192.168.1.42/24\nWi-Fi — IPv6:\t2001:db8::1")
+    }
+
+    @Test("the extras sit under the addresses they describe")
+    func extrasFollowTheirAddresses() {
+        let body = report().body(detail: everything)
+        #expect(body == """
+        Wi-Fi — IPv4:\t192.168.1.42/24
+        Wi-Fi — IPv6:\t2001:db8::1
+        Gateway:\t192.168.1.1
+        IP config method:\tDHCP
+        MTU:\t1500
+        MAC address:\ta4:83:e7:1c:9d:5b
+        DNS search domains:\texample.local
+        """)
+    }
+
+    @Test("an interface with no address says nothing about its gateway")
+    func addresslessInterfacesStaySilent() {
+        // There is nothing worth saying about the gateway of an interface that is not on
+        // a network.
+        let bare = IPAddressReport(interfaces: [InterfaceAddresses(
+            bsdName: "en5", ipv4: [], ipv6: [], gateway: "10.0.0.1", mtu: 1500
+        )])
+        #expect(bare.body(detail: everything).isEmpty)
+    }
+
+    @Test("search domains appear once, not under every interface")
+    func searchDomainsAppearOnce() {
+        // They are a property of the machine's resolver, not of any one interface.
+        let twoInterfaces = IPAddressReport(
+            interfaces: [
+                InterfaceAddresses(bsdName: "en0", ipv4: ["10.0.0.2/24"]),
+                InterfaceAddresses(bsdName: "en5", ipv4: ["10.0.1.2/24"])
+            ],
+            dnsSearchDomains: ["example.local"]
+        )
+        let occurrences = twoInterfaces.body(detail: everything)
+            .components(separatedBy: "DNS search domains:").count - 1
+        #expect(occurrences == 1)
+    }
+
+    @Test("an address replacing exactly one other shows what it replaced")
+    func previousAddressIsShown() {
+        var detail = IPAddressReport.Detail()
+        detail.previousAddress = true
+
+        let before = report(ipv4: ["192.168.1.5/24"])
+        let after = report(ipv4: ["192.168.1.9/24"])
+        let body = after.body(detail: detail, previous: before)
+
+        #expect(body.contains("Wi-Fi — IPv4:\t192.168.1.5/24 → 192.168.1.9/24"))
+    }
+
+    @Test("an interface holding several addresses is not guessed at")
+    func multipleAddressesAreNotPaired() {
+        // Pairing up two arbitrary lists would be inventing which address replaced which.
+        var detail = IPAddressReport.Detail()
+        detail.previousAddress = true
+
+        let before = report(ipv4: ["10.0.0.2/24", "10.0.0.3/24"])
+        let after = report(ipv4: ["10.0.0.4/24", "10.0.0.5/24"])
+        #expect(!after.body(detail: detail, previous: before).contains("→"))
+    }
+
+    @Test("a self-assigned address is still tagged when it replaced another")
+    func selfAssignedTagSurvivesTheArrow() {
+        // The tag is the point of the line: an interface that fell back to 169.254 has an
+        // address and no connection.
+        var detail = IPAddressReport.Detail()
+        detail.previousAddress = true
+
+        let before = report(ipv4: ["192.168.1.5/24"])
+        let after = report(ipv4: ["169.254.10.20/16"])
+        let body = after.body(detail: detail, previous: before)
+
+        #expect(body.contains("→ 169.254.10.20/16  (self-assigned)"))
     }
 }

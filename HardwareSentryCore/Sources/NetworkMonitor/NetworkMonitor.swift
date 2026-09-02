@@ -50,6 +50,7 @@ public actor NetworkMonitor: Monitor {
     /// because that is what decides whether re-showing it would tell anyone anything new:
     /// an address changing behind a switched-off IPv6 line changes nothing visible.
     private var lastShownIPBody: String?
+    private var lastIPReport: IPAddressReport?
     private var hadIPAddresses = false
 
     public init(source: any NetworkSource, context: MonitorContext) {
@@ -263,8 +264,17 @@ public actor NetworkMonitor: Monitor {
     /// together — DHCP finishing hands out an IPv4 and one or more IPv6 addresses in the
     /// same breath — and a banner each would be one event told four times.
     private func handleIPAddresses(_ report: IPAddressReport) async {
-        let showIPv6 = await context.isFieldEnabled(NetworkField.ipv6.rawValue)
-        let body = report.body(showIPv6: showIPv6)
+        var detail = IPAddressReport.Detail()
+        detail.ipv6 = await context.isFieldEnabled(NetworkField.ipv6.rawValue)
+        detail.gateway = await context.isFieldEnabled(NetworkField.gateway.rawValue)
+        detail.configurationMethod = await context.isFieldEnabled(NetworkField.ipConfigMethod.rawValue)
+        detail.mtu = await context.isFieldEnabled(NetworkField.mtu.rawValue)
+        detail.macAddress = await context.isFieldEnabled(NetworkField.macAddress.rawValue)
+        detail.searchDomains = await context.isFieldEnabled(NetworkField.dnsSearchDomains.rawValue)
+        detail.previousAddress = await context.isFieldEnabled(NetworkField.previousAddress.rawValue)
+
+        let body = report.body(detail: detail, previous: lastIPReport)
+        defer { lastIPReport = report }
         let hasAddresses = report.hasAddresses
 
         // A launch with no connection at all, or a release already reported. Either way

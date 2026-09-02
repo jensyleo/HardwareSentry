@@ -10,12 +10,34 @@ public struct InterfaceAddresses: Sendable, Equatable {
     /// how big the network is, which is half of what an address means.
     public let ipv4: [String]
     public let ipv6: [String]
+    /// The router this interface sends everything else through.
+    public let gateway: String?
+    /// "DHCP", "Manual", "BOOTP" — how the address was arrived at. Worth knowing when an
+    /// address is not what you expected: a manual one will not change on its own.
+    public let configurationMethod: String?
+    /// The largest packet the interface will carry.
+    public let mtu: Int?
+    /// The interface's own hardware address.
+    public let macAddress: String?
 
-    public init(bsdName: String, friendlyName: String? = nil, ipv4: [String] = [], ipv6: [String] = []) {
+    public init(
+        bsdName: String,
+        friendlyName: String? = nil,
+        ipv4: [String] = [],
+        ipv6: [String] = [],
+        gateway: String? = nil,
+        configurationMethod: String? = nil,
+        mtu: Int? = nil,
+        macAddress: String? = nil
+    ) {
         self.bsdName = bsdName
         self.friendlyName = friendlyName
         self.ipv4 = ipv4
         self.ipv6 = ipv6
+        self.gateway = gateway
+        self.configurationMethod = configurationMethod
+        self.mtu = mtu
+        self.macAddress = macAddress
     }
 
     var displayName: String { friendlyName ?? bsdName }
@@ -29,9 +51,13 @@ public struct InterfaceAddresses: Sendable, Equatable {
 /// breath — and a separate banner for each would be the same event told four times.
 public struct IPAddressReport: Sendable, Equatable {
     public let interfaces: [InterfaceAddresses]
+    /// The suffixes the resolver appends to a bare name. Machine-wide, not per interface,
+    /// so it appears once at the end rather than repeated under each.
+    public let dnsSearchDomains: [String]
 
-    public init(interfaces: [InterfaceAddresses]) {
+    public init(interfaces: [InterfaceAddresses], dnsSearchDomains: [String] = []) {
         self.interfaces = interfaces
+        self.dnsSearchDomains = dnsSearchDomains
     }
 
     /// Whether the machine holds any address at all right now.
@@ -63,17 +89,67 @@ public struct IPAddressReport: Sendable, Equatable {
     /// Sorted by interface name so the same machine reads the same way every time — the
     /// order `getifaddrs` returns them in is not stable enough to show to a person, and an
     /// unstable order would make an unchanged message look changed.
-    public func body(showIPv6: Bool = true) -> String {
+    /// Which of the per-interface extras to include, so the caller's preferences decide
+    /// rather than this deciding for them.
+    public struct Detail: Sendable, Equatable {
+        public var ipv6 = true
+        public var gateway = false
+        public var configurationMethod = false
+        public var mtu = false
+        public var macAddress = false
+        public var searchDomains = false
+        /// The address an interface used to hold, when it has just changed.
+        public var previousAddress = false
+
+        public init() {}
+    }
+
+    public func body(detail: Detail = Detail(), previous: IPAddressReport? = nil) -> String {
         var lines: [String] = []
+
         for interface in interfaces.sorted(by: { $0.bsdName < $1.bsdName }) {
+            let before = previous?.interfaces.first { $0.bsdName == interface.bsdName }
+
             for address in interface.ipv4.sorted() {
                 let tag = Self.isSelfAssigned(address) ? "  (self-assigned)" : ""
-                lines.append("\(interface.displayName) — IPv4:\t\(address)\(tag)")
+                // Only the case where exactly one address replaced exactly one other:
+                // "192.168.1.5 → 192.168.1.9" is useful, while pairing up two arbitrary
+                // lists would be guessing at which replaced which.
+                if detail.previousAddress,
+                   let was = before?.ipv4.sorted(), was.count == 1, interface.ipv4.count == 1,
+                   was[0] != address {
+                    lines.append("\(interface.displayName) — IPv4:\t\(was[0]) → \(address)\(tag)")
+                } else {
+                    lines.append("\(interface.displayName) — IPv4:\t\(address)\(tag)")
+                }
             }
-            guard showIPv6 else { continue }
-            for address in interface.ipv6.sorted() {
-                lines.append("\(interface.displayName) — IPv6:\t\(address)")
+
+            if detail.ipv6 {
+                for address in interface.ipv6.sorted() {
+                    lines.append("\(interface.displayName) — IPv6:\t\(address)")
+                }
             }
+
+            // The per-interface extras sit under the addresses they describe, and only
+            // for interfaces that actually have one — an interface with no address has
+            // nothing worth saying about its gateway.
+            guard !interface.ipv4.isEmpty || !interface.ipv6.isEmpty else { continue }
+            if detail.gateway, let gateway = interface.gateway {
+                lines.append("Gateway:\t\(gateway)")
+            }
+            if detail.configurationMethod, let method = interface.configurationMethod {
+                lines.append("IP config method:\t\(method)")
+            }
+            if detail.mtu, let mtu = interface.mtu {
+                lines.append("MTU:\t\(mtu)")
+            }
+            if detail.macAddress, let mac = interface.macAddress {
+                lines.append("MAC address:\t\(mac)")
+            }
+        }
+
+        if detail.searchDomains, !dnsSearchDomains.isEmpty {
+            lines.append("DNS search domains:\t\(dnsSearchDomains.joined(separator: ", "))")
         }
         return lines.joined(separator: "\n")
     }

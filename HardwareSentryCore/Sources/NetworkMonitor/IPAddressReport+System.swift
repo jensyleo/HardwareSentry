@@ -11,13 +11,22 @@ import SystemConfiguration
 extension IPAddressReport {
     /// Only the interfaces a person would recognise, for the same reason link events are
     /// filtered: an address on AirDrop's own back channel is not news.
-    static func current(friendlyNames: [String: String] = [:]) -> IPAddressReport {
+    /// - Parameter perInterface: gateway, configuration method and search domains, which
+    ///   live in `SCDynamicStore` rather than in the kernel's address list — handed in so
+    ///   this stays one read of one thing.
+    static func current(
+        friendlyNames: [String: String] = [:],
+        perInterface: [String: ServiceDetail] = [:],
+        searchDomains: [String] = []
+    ) -> IPAddressReport {
         var head: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&head) == 0, let first = head else { return IPAddressReport(interfaces: []) }
         defer { freeifaddrs(head) }
 
         var ipv4: [String: [String]] = [:]
         var ipv6: [String: [String]] = [:]
+        var mtus: [String: Int] = [:]
+        var macAddresses: [String: String] = [:]
 
         for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
             let interface = pointer.pointee
@@ -28,6 +37,17 @@ extension IPAddressReport {
             guard (interface.ifa_flags & UInt32(IFF_UP)) != 0 else { continue }
 
             let family = addressPointer.pointee.sa_family
+
+            // The hardware address arrives as its own AF_LINK entry for the same
+            // interface, alongside the IP ones rather than inside them.
+            if family == UInt8(AF_LINK) {
+                if let mac = Self.hardwareAddress(of: addressPointer) { macAddresses[name] = mac }
+                if let data = interface.ifa_data {
+                    mtus[name] = Int(data.assumingMemoryBound(to: if_data.self).pointee.ifi_mtu)
+                }
+                continue
+            }
+
             guard family == UInt8(AF_INET) || family == UInt8(AF_INET6) else { continue }
             guard let text = Self.presentation(of: addressPointer, family: family) else { continue }
 
@@ -45,9 +65,13 @@ extension IPAddressReport {
                 bsdName: name,
                 friendlyName: friendlyNames[name],
                 ipv4: ipv4[name] ?? [],
-                ipv6: ipv6[name] ?? []
+                ipv6: ipv6[name] ?? [],
+                gateway: perInterface[name]?.gateway,
+                configurationMethod: perInterface[name]?.configurationMethod,
+                mtu: mtus[name],
+                macAddress: macAddresses[name]
             )
-        })
+        }, dnsSearchDomains: searchDomains)
     }
 
     /// The number of leading 1 bits in a netmask — 255.255.255.0 becomes 24.
@@ -71,6 +95,24 @@ extension IPAddressReport {
         // is already the line's own label, so repeating it inside the address is noise.
         return text.split(separator: "%").first.map(String.init) ?? text
     }
+
+    /// The six bytes of a link-layer address, as "a4:83:e7:1c:9d:5b".
+    private static func hardwareAddress(of pointer: UnsafeMutablePointer<sockaddr>) -> String? {
+        pointer.withMemoryRebound(to: sockaddr_dl.self, capacity: 1) { link in
+            let length = Int(link.pointee.sdl_alen)
+            guard length == 6 else { return nil }
+
+            // The address sits after the interface name inside the same variable-length
+            // field, which is why the name's length is the offset to start at.
+            return withUnsafeBytes(of: link.pointee.sdl_data) { bytes in
+                let start = Int(link.pointee.sdl_nlen)
+                guard start + length <= bytes.count else { return nil }
+                return (0..<length)
+                    .map { String(format: "%02x", bytes[start + $0]) }
+                    .joined(separator: ":")
+            }
+        }
+    }
 }
 
 extension SystemNetworkSource {
@@ -85,5 +127,16 @@ extension SystemNetworkSource {
             names[bsd] = friendly
         }
         return names
+    }
+}
+
+/// What `SCDynamicStore` knows about one interface's service that the kernel does not.
+public struct ServiceDetail: Sendable, Equatable {
+    public let gateway: String?
+    public let configurationMethod: String?
+
+    public init(gateway: String? = nil, configurationMethod: String? = nil) {
+        self.gateway = gateway
+        self.configurationMethod = configurationMethod
     }
 }

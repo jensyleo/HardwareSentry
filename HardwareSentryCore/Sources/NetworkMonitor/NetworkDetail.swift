@@ -149,6 +149,12 @@ public enum NetworkField: String, CaseIterable {
     case linkNegotiated = "Negotiated"
     // IP addresses
     case ipv6 = "IPv6"
+    case gateway = "Gateway"
+    case ipConfigMethod = "IPConfigMethod"
+    case mtu = "MTU"
+    case macAddress = "MACAddress"
+    case dnsSearchDomains = "DNSSearchDomains"
+    case previousAddress = "PreviousAddress"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
@@ -171,6 +177,12 @@ public enum NetworkField: String, CaseIterable {
         case .linkMode: return "Duplex mode"
         case .linkNegotiated: return "Warn when slower than the port supports"
         case .ipv6: return "Include IPv6 addresses"
+        case .gateway: return "Gateway"
+        case .ipConfigMethod: return "How the address was assigned"
+        case .mtu: return "MTU"
+        case .macAddress: return "Hardware (MAC) address"
+        case .dnsSearchDomains: return "DNS search domains"
+        case .previousAddress: return "Show the address it replaced"
         }
     }
 
@@ -178,6 +190,6 @@ public enum NetworkField: String, CaseIterable {
     /// know; the DNS warning is on because it only ever appears when something is wrong,
     /// so it costs nothing when everything works.
     var shownByDefault: Bool {
-        [.signal, .channel, .dns, .ipv6, .linkSpeed, .linkMode].contains(self)
+        [.signal, .channel, .dns, .ipv6, .linkSpeed, .linkMode, .gateway, .previousAddress].contains(self)
     }
 }

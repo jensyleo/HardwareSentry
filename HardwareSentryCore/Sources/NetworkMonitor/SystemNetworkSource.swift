@@ -255,9 +255,62 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         emitAddresses()
     }
 
+    /// How long a "the address went away" reading is held back.
+    ///
+    /// Losing an address is the last thing in the chain: the radio goes off, the network
+    /// is left, and only then does the address lapse. All three arrive at once and in no
+    /// fixed order, so without this the banners can read backwards — address gone, then
+    /// network left, then Wi-Fi off, which is the reverse of what happened.
+    private static let addressReleaseDelay = Duration.milliseconds(800)
+
     private func emitAddresses() {
-        let friendly = SystemNetworkSource.friendlyInterfaceNames()
-        continuation.yield(.ipAddressSnapshot(.current(friendlyNames: friendly)))
+        let report = IPAddressReport.current(
+            friendlyNames: SystemNetworkSource.friendlyInterfaceNames(),
+            perInterface: readServiceDetails(),
+            searchDomains: readSearchDomains()
+        )
+
+        guard report.hasAddresses else {
+            // Only the losing case waits. An address arriving is not caused by anything
+            // else this monitor reports, so delaying it would just make it late.
+            Task { [continuation] in
+                try? await Task.sleep(for: Self.addressReleaseDelay)
+                continuation.yield(.ipAddressSnapshot(report))
+            }
+            return
+        }
+        continuation.yield(.ipAddressSnapshot(report))
+    }
+
+    /// The gateway and configuration method for each interface that has a service.
+    ///
+    /// Both live under `State:/Network/Service/<id>/IPv4`, keyed by an opaque service ID
+    /// rather than by interface, so the interface name inside each one is what maps them
+    /// back. There is no per-interface key to read directly.
+    private func readServiceDetails() -> [String: ServiceDetail] {
+        guard let store = dynamicStore,
+              let keys = SCDynamicStoreCopyKeyList(store, "State:/Network/Service/[^/]+/IPv4" as CFString) as? [String]
+        else { return [:] }
+
+        var details: [String: ServiceDetail] = [:]
+        for key in keys {
+            guard let entry = SCDynamicStoreCopyValue(store, key as CFString) as? [String: AnyObject],
+                  let interfaceName = entry[kSCPropInterfaceName as String] as? String
+            else { continue }
+
+            details[interfaceName] = ServiceDetail(
+                gateway: entry[kSCPropNetIPv4Router as String] as? String,
+                configurationMethod: entry[kSCPropNetIPv4ConfigMethod as String] as? String
+            )
+        }
+        return details
+    }
+
+    private func readSearchDomains() -> [String] {
+        guard let store = dynamicStore,
+              let dns = SCDynamicStoreCopyValue(store, globalDNSKey as CFString) as? [String: AnyObject]
+        else { return [] }
+        return dns[kSCPropNetDNSSearchDomains as String] as? [String] ?? []
     }
 
     /// Addresses do not exist the instant the application launches: DHCP is usually still
