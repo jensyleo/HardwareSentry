@@ -16,8 +16,8 @@ public actor VolumeMonitor: Monitor {
     /// Configurable because what counts as "low" depends on the disk: five percent of a
     /// 4 TB drive is 200 GB, which is not low, while five percent of a 128 GB one is
     /// genuinely tight.
-    private let lowSpaceThresholdPercent: Double
-    private let lowSpaceRecoverPercent: Double
+    private var lowSpaceThresholdPercent: Double
+    private var lowSpaceRecoverPercent: Double
 
     public static let events: [MonitorEventDescription] = [
         .init(name: VolumeEvent.mounted.rawValue, title: "Volume mounted", icon: .asset("DisksVolumes-Mounted", in: .module)),
@@ -65,6 +65,17 @@ public actor VolumeMonitor: Monitor {
         // Five points above, so coming back means space was actually freed rather than a
         // file being written and deleted around the line.
         self.lowSpaceRecoverPercent = lowSpaceThresholdPercent + 5
+    }
+
+    /// Takes a changed threshold while running.
+    ///
+    /// The set of volumes already reported as low is deliberately left alone: raising the
+    /// threshold should not re-announce a volume that is already known to be low, and
+    /// lowering it should not announce recovery on a volume whose free space never moved.
+    /// Either way the next free-space reading settles it.
+    public func apply(lowSpaceThresholdPercent percent: Double) {
+        lowSpaceThresholdPercent = percent
+        lowSpaceRecoverPercent = percent + 5
     }
 
     /// The path and name an event is about, when it is about one volume.
@@ -183,7 +194,7 @@ public actor VolumeMonitor: Monitor {
             expectedUnmountExpiries[path] = Task { [unmountWaitNanoseconds] in
                 try? await Task.sleep(nanoseconds: unmountWaitNanoseconds)
                 guard !Task.isCancelled else { return }
-                await self.forgetExpectedUnmount(path)
+                self.forgetExpectedUnmount(path)
             }
 
         case .unmounted(let path, let name):

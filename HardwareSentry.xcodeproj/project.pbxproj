@@ -12,6 +12,7 @@
 		1945E63340C5FA7F3A28C418 /* EventIconPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */; };
 		206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */; };
 		33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */ = {isa = PBXBuildFile; productRef = 142F87B528848BC07D8EF1FE /* SentryContract */; };
+		48247C77EEC05F77535966EE /* MonitorTuningModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */; };
 		51CE2F48BEBB2DA79EE06525 /* HelpTopic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA18C113A3EA310D4D5067A2 /* HelpTopic.swift */; };
 		6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3BB57E267D9097497B67D5 /* SettingsView.swift */; };
 		80046909DBF1CE41414BDB05 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F12EAA9A55261D9EE07357 /* HistoryView.swift */; };
@@ -35,6 +36,7 @@
 		6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsModel.swift; sourceTree = "<group>"; };
 		71B3698948C459922312CF56 /* SettingsProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsProfile.swift; sourceTree = "<group>"; };
 		755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorTuningModel.swift; sourceTree = "<group>"; };
 		806C9A334783CD70AB34DA02 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		8435F26A20F9C35BB3AD1448 /* HardwareSentry.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HardwareSentry.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9760C652282756CC6EBD17A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -88,6 +90,7 @@
 				C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */,
 				6D0F1E3F48F27D6A0B52004A /* GeneralSettingsView.swift */,
 				19F12EAA9A55261D9EE07357 /* HistoryView.swift */,
+				7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */,
 				CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */,
 				71B3698948C459922312CF56 /* SettingsProfile.swift */,
 				6D3BB57E267D9097497B67D5 /* SettingsView.swift */,
@@ -216,6 +219,7 @@
 				51CE2F48BEBB2DA79EE06525 /* HelpTopic.swift in Sources */,
 				0BD5A290F3CFC773FA8F659F /* HelpView.swift in Sources */,
 				80046909DBF1CE41414BDB05 /* HistoryView.swift in Sources */,
+				48247C77EEC05F77535966EE /* MonitorTuningModel.swift in Sources */,
 				206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */,
 				BB98EC1CDD359930915A1A69 /* SettingsProfile.swift in Sources */,
 				6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */,

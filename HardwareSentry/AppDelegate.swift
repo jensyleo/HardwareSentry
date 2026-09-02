@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var history: NotificationHistoryStore!
     private(set) var iconOverrides: IconOverrideStore!
     private(set) var general: GeneralSettingsModel!
+    private(set) var tuning: MonitorTuningModel!
 
     /// Mirrors the General tab's icon choice for the menu bar scene, which needs a binding
     /// it can write to even though nothing ever writes back through it.
@@ -83,11 +84,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             phase: .launching
         )
 
+        let tuning = MonitorTuningModel()
+        self.tuning = tuning
         registry = MonitorRegistry(
             dispatcher: dispatcher,
             preferences: preferences,
-            announcesWhatIsAlreadyThere: preferences.announcesWhatIsAlreadyThere
+            announcesWhatIsAlreadyThere: preferences.announcesWhatIsAlreadyThere,
+            powerRefire: tuning.powerRefire,
+            powerHealthCheck: tuning.powerHealthCheck,
+            volumeLowSpacePercent: tuning.lowSpacePercent
         )
+        // Changed numbers reach the running monitors rather than waiting for a relaunch.
+        tuning.onChange = { [weak self] in
+            guard let self, let registry else { return }
+            Task {
+                await registry.apply(
+                    powerRefire: tuning.powerRefire,
+                    powerHealthCheck: tuning.powerHealthCheck,
+                    volumeLowSpacePercent: tuning.lowSpacePercent
+                )
+            }
+        }
         eventSettings = EventSettingsModel(preferences: preferences, registry: registry)
         general = GeneralSettingsModel(preferences: preferences, iconOverrides: iconOverrides)
         general.applyStoredIconVisibility()
@@ -96,6 +113,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trackAppearanceChanges()
         trackIconOverrideChanges()
 
+    }
+
+    /// Reads the battery's condition on demand, for the "Check Now" button.
+    func checkBatteryHealthNow() {
+        guard let registry else { return }
+        Task { await registry.checkBatteryHealthNow() }
     }
 
     /// Launching the application again while it is already running opens the settings.

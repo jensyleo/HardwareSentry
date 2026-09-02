@@ -73,6 +73,7 @@ extension WiFiDetail {
         case .mode11n: return "Wi-Fi 4 (802.11n)"
         case .mode11ac: return "Wi-Fi 5 (802.11ac)"
         case .mode11ax: return "Wi-Fi 6 (802.11ax)"
+        case .mode11be: return "Wi-Fi 7 (802.11be)"
         case .modeNone: return nil
         @unknown default: return nil
         }

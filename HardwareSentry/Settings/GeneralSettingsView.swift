@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 /// How the application presents itself, and how to keep a copy of every choice made in it.
 struct GeneralSettingsView: View {
     @Bindable var model: GeneralSettingsModel
+    @Bindable var tuning: MonitorTuningModel
+    /// Reads the battery now, rather than waiting for the next scheduled check.
+    let checkBatteryHealthNow: () -> Void
     @State private var message: String?
 
     var body: some View {
@@ -37,6 +40,56 @@ struct GeneralSettingsView: View {
                     set: { model.showsConnectedDevicesAtLaunch = $0 }
                 ))
                 Text("Takes effect the next time the application starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Power") {
+                Toggle("Repeat the power status periodically", isOn: $tuning.repeatsPowerStatus)
+                if tuning.repeatsPowerStatus {
+                    // Stepper rather than a slider: this is a number somebody has in mind
+                    // ("every fifteen minutes"), not one they want to find by feel.
+                    Stepper(
+                        "Every \(Int(tuning.refireMinutes)) minutes",
+                        value: $tuning.refireMinutes,
+                        in: 1...1440,
+                        step: 5
+                    )
+                    Toggle("Only while on battery", isOn: $tuning.refireOnlyOnBattery)
+                }
+
+                Toggle("Check the battery's health regularly", isOn: $tuning.checksBatteryHealth)
+                if tuning.checksBatteryHealth {
+                    Stepper(
+                        "Every \(Int(tuning.healthCheckDays)) days",
+                        value: $tuning.healthCheckDays,
+                        in: 1...365,
+                        step: 1
+                    )
+                    Text("Reports only when the reading has moved, so a battery that is holding up stays quiet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Button("Check Now", action: checkBatteryHealthNow)
+                    Spacer()
+                    if let last = tuning.lastBatteryCheck {
+                        Text("Last checked \(last.formatted(.relative(presentation: .named)))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section("Volumes") {
+                Stepper(
+                    "Warn when free space falls below \(Int(tuning.lowSpacePercent))%",
+                    value: $tuning.lowSpacePercent,
+                    in: 1...50,
+                    step: 1
+                )
+                Text("Recovery is announced five points higher, so a volume hovering around the line is not reported over and over.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -98,7 +98,9 @@ extension IPAddressReport {
             NI_NUMERICHOST
         ) == 0 else { return nil }
 
-        let text = String(cString: host)
+        // Trimmed at the terminator before decoding: the buffer is fixed-length, so the
+        // bytes past the address are zeroes that would otherwise become part of the string.
+        let text = String(decoding: host.prefix { $0 != 0 }.map(UInt8.init), as: UTF8.self)
         // IPv6 addresses come back with the scope appended ("fe80::1%en0"); the interface
         // is already the line's own label, so repeating it inside the address is noise.
         return text.split(separator: "%").first.map(String.init) ?? text

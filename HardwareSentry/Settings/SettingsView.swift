@@ -12,12 +12,14 @@ struct SettingsView: View {
     let history: NotificationHistoryStore
     let iconOverrides: IconOverrideStore
     let general: GeneralSettingsModel
+    let tuning: MonitorTuningModel
+    let checkBatteryHealthNow: () -> Void
 
     var body: some View {
         TabView {
             // First, and in this order, because it is the one tab about the application
             // itself rather than about the notifications it sends.
-            GeneralSettingsView(model: general)
+            GeneralSettingsView(model: general, tuning: tuning, checkBatteryHealthNow: checkBatteryHealthNow)
                 .tabItem { Label("General", systemImage: "gearshape") }
 
             BannerAppearanceView(store: appearance)

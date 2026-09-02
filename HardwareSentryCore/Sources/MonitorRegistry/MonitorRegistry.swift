@@ -29,6 +29,10 @@ public actor MonitorRegistry {
     private let dispatcher: NotificationDispatcher
     private let preferences: NotificationPreferencesStore
     private let announcesWhatIsAlreadyThere: Bool
+    private let powerRefire: PowerRefireSettings
+    private let powerHealthCheck: PowerHealthCheckSettings
+    private let powerHealthStore: any PowerHealthStore
+    private let volumeLowSpacePercent: Double
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -40,11 +44,47 @@ public actor MonitorRegistry {
     public init(
         dispatcher: NotificationDispatcher,
         preferences: NotificationPreferencesStore,
-        announcesWhatIsAlreadyThere: Bool = true
+        announcesWhatIsAlreadyThere: Bool = true,
+        powerRefire: PowerRefireSettings = .off,
+        powerHealthCheck: PowerHealthCheckSettings = PowerHealthCheckSettings(),
+        powerHealthStore: any PowerHealthStore = UserDefaultsPowerHealthStore(),
+        volumeLowSpacePercent: Double = 5
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
         self.announcesWhatIsAlreadyThere = announcesWhatIsAlreadyThere
+        self.powerRefire = powerRefire
+        self.powerHealthCheck = powerHealthCheck
+        self.powerHealthStore = powerHealthStore
+        self.volumeLowSpacePercent = volumeLowSpacePercent
+    }
+
+    /// Passes changed tuning to the monitors that care about it, without rebuilding them.
+    public func apply(
+        powerRefire: PowerRefireSettings,
+        powerHealthCheck: PowerHealthCheckSettings,
+        volumeLowSpacePercent: Double
+    ) async {
+        for monitor in monitors {
+            if let power = monitor as? PowerMonitor {
+                await power.apply(refire: powerRefire, healthCheck: powerHealthCheck)
+            }
+            if let volume = monitor as? VolumeMonitor {
+                await volume.apply(lowSpaceThresholdPercent: volumeLowSpacePercent)
+            }
+        }
+    }
+
+    /// Reads the battery's condition right now, whatever the schedule says.
+    ///
+    /// What the "Check Now" button calls. Reached by asking the assembled monitors rather
+    /// than by keeping a reference to the power monitor: this type's whole job is that
+    /// nothing outside it knows which monitors exist, and one button is not a reason to
+    /// give that up.
+    public func checkBatteryHealthNow() async {
+        for case let power as PowerMonitor in monitors {
+            await power.checkBatteryHealthNow(force: true)
+        }
     }
 
     /// Builds every monitor. Each is handed only what it needs, and never a way to reach
@@ -89,11 +129,15 @@ public actor MonitorRegistry {
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                lowSpaceThresholdPercent: volumeLowSpacePercent
             ),
             PowerMonitor(
                 source: IOPSPowerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                refire: powerRefire,
+                healthCheck: powerHealthCheck,
+                healthStore: powerHealthStore
             ),
             NetworkMonitor(
                 source: SystemNetworkSource(),

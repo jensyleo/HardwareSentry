@@ -16,25 +16,44 @@ public actor PowerMonitor: Monitor {
         .init(name: PowerEvent.systemWake.rawValue, title: "System woke up", enabledByDefault: false, icon: .asset("Power-AdapterChanged", in: .module)),
         .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) went to sleep", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module)),
         .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) woke up", enabledByDefault: false, icon: .asset("Power-AdapterChanged", in: .module)),
-        .init(name: PowerEvent.lowPowerModeChanged.rawValue, title: "Low Power Mode toggled", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module))
+        .init(name: PowerEvent.lowPowerModeChanged.rawValue, title: "Low Power Mode toggled", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module)),
+        .init(name: PowerEvent.adapterChanged.rawValue, title: "Power adapter changed", icon: .asset("Power-AdapterChanged", in: .module)),
+        .init(name: PowerEvent.batteryHealth.rawValue, title: "Battery health report", icon: .asset("Power-BatteryFailure", in: .module))
     ]
 
-    public static let fields: [MonitorFieldDescription] = [
-        .init(name: PowerField.chargeLevel.rawValue, title: "Charge level")
-    ]
+    public static let fields: [MonitorFieldDescription] = PowerField.allCases.map {
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+    }
 
     private let source: any PowerSource
     private let context: MonitorContext
+    private var refire: PowerRefireSettings
+    private var healthCheck: PowerHealthCheckSettings
+    private let healthStore: any PowerHealthStore
     private var watching: Task<Void, Never>?
+    private var refiring: Task<Void, Never>?
+    private var checkingHealth: Task<Void, Never>?
 
     private var lastKind: PowerSourceKind?
+    private var lastSnapshot: PowerSnapshot?
+    private var lastAdapter: PowerAdapterDetail?
+    private var sawFirstAdapter = false
     private var announcedFullyCharged = false
     private var lastWarnState = false
     private var lastLowPowerMode: Bool?
 
-    public init(source: any PowerSource, context: MonitorContext) {
+    public init(
+        source: any PowerSource,
+        context: MonitorContext,
+        refire: PowerRefireSettings = .off,
+        healthCheck: PowerHealthCheckSettings = PowerHealthCheckSettings(),
+        healthStore: any PowerHealthStore = EphemeralPowerHealthStore()
+    ) {
         self.source = source
         self.context = context
+        self.refire = refire
+        self.healthCheck = healthCheck
+        self.healthStore = healthStore
     }
 
     public func start() async {
@@ -46,11 +65,165 @@ public actor PowerMonitor: Monitor {
                 await self.handle(event)
             }
         }
+
+        startRefireTimer()
+        startHealthTimer()
     }
 
     public func stop() async {
         watching?.cancel()
         watching = nil
+        refiring?.cancel()
+        refiring = nil
+        checkingHealth?.cancel()
+        checkingHealth = nil
+    }
+
+    /// Takes a changed setting without restarting anything else.
+    ///
+    /// The alternative — rebuilding the monitors when a number changes — would replay the
+    /// whole "here is what is plugged in" announcement every time somebody dragged a
+    /// slider. Only the timers are affected by these, so only the timers are restarted.
+    public func apply(refire newRefire: PowerRefireSettings, healthCheck newHealthCheck: PowerHealthCheckSettings) async {
+        let wasRunning = watching != nil
+        refire = newRefire
+        healthCheck = newHealthCheck
+
+        refiring?.cancel()
+        refiring = nil
+        checkingHealth?.cancel()
+        checkingHealth = nil
+
+        guard wasRunning else { return }
+        startRefireTimer()
+        startHealthTimer()
+    }
+
+    // MARK: - Saying it again
+
+    private func startRefireTimer() {
+        guard refire.isEnabled, refiring == nil else { return }
+        refiring = Task { [interval = refire.interval] in
+            while !Task.isCancelled {
+                // Waits first: firing the moment the timer starts would double up with the
+                // launch announcement that has just gone out.
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled else { return }
+                await self.refireNow()
+            }
+        }
+    }
+
+    /// Says the current power status again, without pretending anything changed.
+    ///
+    /// Separated out and left reachable so a test can ask for the repeat directly instead
+    /// of waiting half an hour for the timer, and so the wording can be checked: the
+    /// "from → to" line is deliberately absent here, because nothing moved.
+    func refireNow() async {
+        guard let snapshot = lastSnapshot else { return }
+        if refire.onlyOnBattery, snapshot.kind == .ac { return }
+
+        await context.notify(
+            PowerEvent.sourceChanged.rawValue,
+            subject: "Source",
+            title: "On \(Self.localizedName(for: snapshot.kind))",
+            body: await body(for: snapshot),
+            icon: .asset(Self.iconName(for: snapshot), in: .module)
+        )
+    }
+
+    // MARK: - Battery health
+
+    private func startHealthTimer() {
+        guard healthCheck.isEnabled, checkingHealth == nil else { return }
+        checkingHealth = Task { [interval = healthCheck.interval, healthStore] in
+            // How long is left of the interval, not the whole of it: a Mac that is shut
+            // down every night would otherwise never reach a weekly check at all.
+            if let last = await healthStore.lastCheck() {
+                let elapsed = Duration.seconds(Date().timeIntervalSince(last))
+                if elapsed < interval { try? await Task.sleep(for: interval - elapsed) }
+            }
+
+            while !Task.isCancelled {
+                await self.checkBatteryHealthNow(force: false)
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: interval)
+            }
+        }
+    }
+
+    /// Reads the battery's condition and reports it if there is news.
+    ///
+    /// `force` is what the "Check Now" button asks for: an explicit check should always
+    /// answer, even when the answer is the same as last week — a button that appears to do
+    /// nothing is worse than a repeated message. The scheduled check stays quiet unless
+    /// the reading actually moved, because a weekly "your battery is still fine" is a
+    /// weekly interruption that teaches people to ignore the one that matters.
+    public func checkBatteryHealthNow(force: Bool) async {
+        guard let health = await source.readBatteryHealth(), !health.isEmpty else { return }
+
+        let now = Date()
+        let summary = Self.summary(of: health)
+        let previous = await healthStore.lastReportedSummary()
+
+        guard force || summary != previous else {
+            await healthStore.recordCheck(at: now)
+            return
+        }
+
+        await healthStore.record(summary: summary, at: now)
+        await context.notify(
+            PowerEvent.batteryHealth.rawValue,
+            subject: "BatteryHealth",
+            title: Self.healthTitle(for: health),
+            body: await context.body([
+                .field(PowerField.cycleCount.rawValue, "Cycles", health.cycleNote),
+                .field(PowerField.batteryHealthPercent.rawValue, "Health", health.healthNote),
+                .field(PowerField.batteryCondition.rawValue, "Condition", health.conditionNote),
+                .field(PowerField.batteryCondition.rawValue, "Overall", health.coarseNote),
+                .field(PowerField.batteryCapacity.rawValue, "Capacity", health.capacityNote),
+                .field(PowerField.batteryErrorMargin.rawValue, "Margin", health.errorMarginNote),
+                // Not gated by a field: a battery reporting a named fault or an internal
+                // failure is the whole reason this notification exists, and letting a
+                // preference hide it would hide the one thing nobody would choose to miss.
+                .always(health.failuresNote ?? ""),
+                .always(health.internalFailureNote ?? "")
+            ]),
+            icon: .asset(Self.healthIconName(for: health), in: .module),
+            priority: health.hasInternalFailure || !health.failureModes.isEmpty ? .high : .normal
+        )
+    }
+
+    /// A battery that wants attention says so in the title, where it will be read even if
+    /// the message body is collapsed.
+    private static func healthTitle(for health: BatteryHealthDetail) -> String {
+        if health.hasInternalFailure { return "Battery Failure" }
+        if !health.failureModes.isEmpty { return "Battery Needs Attention" }
+        if let condition = health.condition, condition.localizedCaseInsensitiveContains("service") {
+            return "Battery Service Recommended"
+        }
+        return "Battery Health"
+    }
+
+    private static func healthIconName(for health: BatteryHealthDetail) -> String {
+        health.hasInternalFailure || !health.failureModes.isEmpty || health.condition?.localizedCaseInsensitiveContains("service") == true
+            ? "Power-BatteryFailure"
+            : "Power-100"
+    }
+
+    /// What counts as "the same reading as last time".
+    ///
+    /// Capacity in mAh is left out on purpose: it drifts by a few milliamp-hours between
+    /// any two reads, so including it would make every scheduled check look like news.
+    static func summary(of health: BatteryHealthDetail) -> String {
+        [
+            health.cycleCount.map(String.init) ?? "-",
+            health.healthPercent.map(String.init) ?? "-",
+            health.condition ?? "-",
+            health.coarseHealth ?? "-",
+            health.failureModes.sorted().joined(separator: "|"),
+            health.hasInternalFailure ? "failed" : "ok"
+        ].joined(separator: "/")
     }
 
     private func handle(_ event: PowerSourceEvent) async {
@@ -67,10 +240,69 @@ public actor PowerMonitor: Monitor {
             await context.notify(PowerEvent.screensWake.rawValue, subject: "Screens", title: "Display(s) Woke Up", body: "", icon: .asset("Power-AdapterChanged", in: .module))
         case .lowPowerModeChanged(let enabled):
             await handleLowPowerMode(enabled)
+        case .adapter(let adapter):
+            await handleAdapter(adapter)
         }
     }
 
+    /// Everything a power message can say about the state it is describing.
+    ///
+    /// One builder for the launch announcement, the source change, the low-battery warning
+    /// and the repeat, so a field switched on appears on all four rather than on whichever
+    /// of them somebody remembered to wire it into.
+    private func body(for snapshot: PowerSnapshot, leading: [BodyLine] = []) async -> String {
+        var lines = leading
+        lines.append(.field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot)))
+
+        for detail in snapshot.sources {
+            // Read together rather than field by field: the three parts make one sentence
+            // ("Battery: Charging at 85%"), so they are assembled before the body filter
+            // sees them, using the same switches it would have applied.
+            let status = detail.statusLine(
+                showType: await context.isFieldEnabled(PowerField.sourceType.rawValue),
+                showState: await context.isFieldEnabled(PowerField.chargeState.rawValue),
+                showPercentage: await context.isFieldEnabled(PowerField.chargeLevel.rawValue)
+            )
+            lines.append(.always(status ?? ""))
+            lines.append(.field(PowerField.timeRemaining.rawValue, "Time", detail.timeNote))
+            lines.append(.field(PowerField.diagnostics.rawValue, "Detail", detail.diagnosticsNote))
+        }
+
+        return await context.body(lines)
+    }
+
+    private func handleAdapter(_ adapter: PowerAdapterDetail?) async {
+        defer { lastAdapter = adapter }
+
+        // The first reading is the baseline. Announcing it would mean saying "the adapter
+        // changed" about the adapter that was already plugged in when the application
+        // started — which is what the launch announcement is for, and it says it better.
+        guard sawFirstAdapter else {
+            sawFirstAdapter = true
+            return
+        }
+        guard adapter != lastAdapter else { return }
+
+        // An adapter being unplugged is already reported, as the switch to battery power;
+        // saying "no adapter" alongside it would be the same news twice.
+        guard let adapter else { return }
+
+        await context.notify(
+            PowerEvent.adapterChanged.rawValue,
+            subject: "Adapter",
+            title: "Power Adapter Changed",
+            body: await context.body([
+                .field(PowerField.adapterWattage.rawValue, "Adapter", adapter.wattageLabel),
+                .field(PowerField.adapterIdentity.rawValue, "Family", adapter.family),
+                .field(PowerField.adapterIdentity.rawValue, "ID", adapter.adapterID),
+                .field(PowerField.adapterIdentity.rawValue, "Serial", adapter.serialNumber)
+            ]),
+            icon: .asset("Power-AdapterChanged", in: .module)
+        )
+    }
+
     private func handleSnapshot(_ snapshot: PowerSnapshot) async {
+        lastSnapshot = snapshot
         let isFull = snapshot.kind == .ac && (snapshot.percentage ?? 0) >= 100
 
         guard let previousKind = lastKind else {
@@ -90,9 +322,7 @@ public actor PowerMonitor: Monitor {
                     PowerEvent.sourceChanged.rawValue,
                     subject: "Source",
                     title: "On \(Self.localizedName(for: snapshot.kind))",
-                    body: await context.body([
-                        .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
-                    ]),
+                    body: await body(for: snapshot),
                     icon: .asset(Self.iconName(for: snapshot), in: .module)
                 )
             }
@@ -108,7 +338,7 @@ public actor PowerMonitor: Monitor {
                 PowerEvent.fullyCharged.rawValue,
                 subject: "Battery",
                 title: "Battery Fully Charged",
-                body: "",
+                body: await body(for: snapshot),
                 icon: .asset("Power-Plugged", in: .module)
             )
         } else if !isFull {
@@ -125,10 +355,10 @@ public actor PowerMonitor: Monitor {
                 PowerEvent.lowBatteryWarning.rawValue,
                 subject: "Battery",
                 title: "Battery Low!",
-                body: await context.body([
-                    .always("Battery Low, Please plug the computer in now"),
-                    .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
-                ]),
+                body: await body(
+                    for: snapshot,
+                    leading: [.always("Battery Low, Please plug the computer in now")]
+                ),
                 icon: .asset(Self.iconName(for: snapshot), in: .module)
             )
         } else if changedKind {
@@ -136,10 +366,10 @@ public actor PowerMonitor: Monitor {
                 PowerEvent.sourceChanged.rawValue,
                 subject: "Source",
                 title: "On \(Self.localizedName(for: snapshot.kind))",
-                body: await context.body([
-                    .always("Source:\t\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))"),
-                    .field(PowerField.chargeLevel.rawValue, "Charge", Self.chargeDetail(snapshot))
-                ]),
+                body: await body(
+                    for: snapshot,
+                    leading: [.always("Source:\t\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))")]
+                ),
                 icon: .asset(Self.iconName(for: snapshot), in: .module)
             )
         }
