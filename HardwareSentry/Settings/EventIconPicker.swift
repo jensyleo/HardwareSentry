@@ -184,3 +184,93 @@ struct EventIconPicker: View {
             .joined(separator: " ")
     }
 }
+
+/// The same three choices as the picker's menu, as buttons you can see.
+///
+/// The menu is quicker once you know it is there; three labelled buttons say what is on
+/// offer without anyone having to click the icon to find out. Both act on the same stored
+/// override, so whichever route somebody takes, the other reflects it immediately.
+///
+/// "System" and "Custom" are the original's words, and they draw the line where it actually
+/// falls: a symbol that macOS draws and scales at any size, or a picture from a file that
+/// stays whatever it is.
+struct EventIconButtons: View {
+    let event: String
+    let category: NotificationCategory
+    @Bindable var store: IconOverrideStore
+
+    @State private var isAskingForSymbol = false
+    @State private var typedSymbol = ""
+
+    private var current: IconOverride? { store.override(for: event, in: category) }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button("Custom", action: chooseFile)
+                .help("Use a picture from a file")
+
+            Button("System") {
+                typedSymbol = if case .symbol(let name) = current { name } else { "" }
+                isAskingForSymbol = true
+            }
+            .help("Use one of the system's own symbols, by name")
+            .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
+                symbolEntry
+            }
+
+            Button("Reset") { store.setOverride(nil, for: event, in: category) }
+                // Nothing to undo when the icon is already the one the module ships with,
+                // and a button that does nothing is worse than one that is plainly unavailable.
+                .disabled(current == nil)
+                .help("Back to this notification's own icon")
+        }
+        .controlSize(.small)
+        .buttonStyle(.bordered)
+    }
+
+    private var symbolEntry: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SF Symbol name").font(.headline)
+            HStack {
+                TextField("bolt.fill", text: $typedSymbol)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+                    .onSubmit(commitTypedSymbol)
+                if !typedSymbol.isEmpty {
+                    Image(systemName: NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil
+                          ? typedSymbol : "questionmark.square.dashed")
+                }
+            }
+            Text("Any symbol name from Apple's SF Symbols application.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Cancel") { isAskingForSymbol = false }
+                Button("Use It", action: commitTypedSymbol)
+                    .keyboardShortcut(.defaultAction)
+                    // A name that resolves to nothing would be a setting that silently
+                    // does nothing, so it cannot be committed in the first place.
+                    .disabled(NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) == nil)
+            }
+        }
+        .padding()
+    }
+
+    private func commitTypedSymbol() {
+        guard NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil else { return }
+        store.setOverride(.symbol(typedSymbol), for: event, in: category)
+        isAskingForSymbol = false
+    }
+
+    private func chooseFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.prompt = "Use as Icon"
+        panel.message = "Choose an image for this notification."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        store.setOverride(.file(url.path), for: event, in: category)
+    }
+}

@@ -36,7 +36,7 @@ struct EventSettingsView: View {
     private var splitView: some View {
         NavigationSplitView {
             List(model.modules, selection: $selection) { module in
-                ModuleRow(module: module, model: model)
+                ModuleRow(module: module, model: model, iconOverrides: iconOverrides)
                     .tag(module.id)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
@@ -108,10 +108,11 @@ private struct PerformancePicker: View {
 private struct ModuleRow: View {
     let module: MonitorDescription
     @Bindable var model: EventSettingsModel
+    @Bindable var iconOverrides: IconOverrideStore
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(nsImage: Self.icon(for: module))
+            Image(nsImage: Self.icon(for: module, overrides: iconOverrides))
             Text(module.category.rawValue)
             Spacer()
             // The module's own switch, here rather than duplicated on the panel: two
@@ -127,11 +128,20 @@ private struct ModuleRow: View {
         .opacity(model.isEnabled(module.category) ? 1 : 0.55)
     }
 
-    /// What the module says it looks like — its first event's artwork unless it named
-    /// something better, which a module covering several unrelated things has to.
+    /// Whatever was chosen for this module, or what the module says it looks like — its
+    /// first event's artwork unless it named something better, which a module covering
+    /// several unrelated things has to.
     @MainActor
-    private static func icon(for module: MonitorDescription) -> NSImage {
-        module.icon.image(side: 18)
+    private static func icon(for module: MonitorDescription, overrides: IconOverrideStore) -> NSImage {
+        // An override is a symbol name or a path; both become artwork the same way the
+        // dispatcher resolves them when a notification fires.
+        let chosen: NSImage? = switch overrides.override(for: IconOverrideStore.moduleIconEvent, in: module.category) {
+        case .symbol(let name): NotificationIcon.symbol(name).image(side: 18)
+        case .file(let path): NSImage(contentsOfFile: path)?.resized(toFit: 18)
+        case nil: nil
+        }
+        return chosen
+            ?? module.icon.image(side: 18)
             ?? NSImage(systemSymbolName: "square.dashed", accessibilityDescription: nil)?.resized(toFit: 18)
             ?? NSImage(size: NSSize(width: 18, height: 18))
     }
@@ -263,11 +273,20 @@ private struct ModuleDetail: View {
         Form {
             Section("Module icon") {
                 HStack(spacing: 8) {
-                    Image(nsImage: module.icon.image(side: 32) ?? NSImage(size: NSSize(width: 32, height: 32)))
-                        .frame(width: 32, height: 32)
+                    EventIconPicker(
+                        event: IconOverrideStore.moduleIconEvent,
+                        category: module.category,
+                        defaultIcon: module.icon,
+                        store: iconOverrides
+                    )
                     Text("Shown beside this module's name in the list")
                         .foregroundStyle(.secondary)
                     Spacer()
+                    EventIconButtons(
+                        event: IconOverrideStore.moduleIconEvent,
+                        category: module.category,
+                        store: iconOverrides
+                    )
                 }
             }
 
@@ -286,6 +305,11 @@ private struct ModuleDetail: View {
                             )
                             Text(event.title)
                             Spacer()
+                            EventIconButtons(
+                                event: event.name,
+                                category: module.category,
+                                store: iconOverrides
+                            )
                             // A checkbox rather than a switch: this is one item in a long
                             // list of the same question, which is what checkboxes are for,
                             // and it is how the original presents it.
