@@ -76,6 +76,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     /// indistinguishable from not being on a network at all. Requesting authorization is
     /// all this needs: the location itself is never read, only the permission it unlocks.
     private var locationManager: CLLocationManager?
+    private var lastKnownSSID: String?
 
     init(continuation: AsyncStream<NetworkSourceEvent>.Continuation) {
         self.continuation = continuation
@@ -264,9 +265,13 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
         if let interface = CWWiFiClient.shared().interface(withName: interfaceName),
            let ssid = interface.ssid() {
+            lastKnownSSID = ssid
             continuation.yield(.wifiConnected(ssid: ssid, detail: WiFiDetail(interface: interface)))
         } else {
-            continuation.yield(.wifiDisconnected)
+            // The interface no longer knows the SSID by the time it reports leaving, so
+            // the name comes from what was remembered on joining.
+            continuation.yield(.wifiDisconnected(ssid: lastKnownSSID))
+            lastKnownSSID = nil
         }
     }
 }

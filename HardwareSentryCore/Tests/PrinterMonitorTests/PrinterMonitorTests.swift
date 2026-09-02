@@ -156,11 +156,11 @@ struct PrinterMonitorTests {
 
         let body = events.first?.body ?? ""
         #expect(body.hasPrefix("HP LaserJet"))
-        #expect(body.contains("Location:\tOffice"))
-        #expect(body.contains("Model:\tHP LaserJet Pro M404"))
-        #expect(body.contains("Connection:\tNetwork"))
-        #expect(body.contains("Shared:\tYes"))
-        #expect(body.contains("Capabilities:\tColor, Duplex"))
+        #expect(body.contains("Location: Office"))
+        #expect(body.contains("Model: HP LaserJet Pro M404"))
+        #expect(body.contains("Connection: Network"))
+        #expect(body.contains("Shared: Yes"))
+        #expect(body.contains("Capabilities: Color, Duplex"))
     }
 
     @Test("a printer that reports none of the extra detail says only its name")

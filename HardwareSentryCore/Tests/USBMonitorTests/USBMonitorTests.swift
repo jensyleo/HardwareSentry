@@ -122,3 +122,45 @@ struct USBMonitorTests {
         await monitor.stop()
     }
 }
+
+@Suite("USB icon artwork")
+struct USBIconTests {
+    private func device(class code: UInt8, isHub: Bool = false) -> USBDevice {
+        USBDevice(name: "Thing", isHub: isHub, deviceClass: code)
+    }
+
+    @Test("mass storage borrows the disk artwork, not the generic USB glyph")
+    func massStorageLooksLikeADisk() {
+        // A flash drive is a disk, and that is what somebody expects to see.
+        #expect(device(class: 0x08).iconBaseName == "Device-USBDrive")
+    }
+
+    @Test("mass storage leaving asks for the artwork that exists")
+    func massStorageDisconnectUsesUnmounted() {
+        // The mechanical "-Disconnected" suffix would name a file that is not there, and
+        // the icon would silently fall back to nothing.
+        #expect(device(class: 0x08).disconnectedIconName == "Device-USBDrive-Unmounted")
+        #expect(device(class: 0x03).disconnectedIconName == "USB-TypeHID-Disconnected")
+        #expect(device(class: 0x00).disconnectedIconName == "USB-Off")
+    }
+
+    @Test("every icon this monitor can ask for is actually shipped")
+    func everyReferencedIconExists() throws {
+        // A missing asset is an invisible failure: the notification still appears, just
+        // with no artwork, so nothing points at the cause.
+        var names = Set<String>(["USB-On", "USB-Off"])
+        for code in UInt8.min...UInt8.max {
+            let plain = device(class: code)
+            if let base = plain.iconBaseName { names.insert(base) }
+            names.insert(plain.disconnectedIconName)
+        }
+        names.insert(device(class: 0x00, isHub: true).iconBaseName ?? "")
+
+        for name in names where !name.isEmpty {
+            #expect(
+                Bundle.module.url(forResource: name, withExtension: "png") != nil,
+                "missing artwork: \(name)"
+            )
+        }
+    }
+}

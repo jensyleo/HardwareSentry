@@ -4,7 +4,9 @@ import Foundation
 public enum NetworkSourceEvent: Sendable, Equatable {
     case reachability(isReachable: Bool, detail: NetworkPathDetail? = nil)
     case wifiConnected(ssid: String, detail: WiFiDetail? = nil)
-    case wifiDisconnected
+    /// Carries the network that was left. Without it the banner says only that Wi-Fi
+    /// dropped, and which network it dropped is the one thing worth knowing.
+    case wifiDisconnected(ssid: String? = nil)
     /// The full current set of user-facing network interfaces with an active link — not a
     /// delta, same reasoning as `DisplaySourceEvent.snapshot`. Restricted to interfaces
     /// `SCNetworkInterfaceCopyAll` itself lists — the same set System Settings › Network

@@ -24,7 +24,7 @@ extension CameraDetail {
             transport: Self.describe(transport: device.transportType),
             manufacturer: device.manufacturer.isEmpty ? nil : device.manufacturer,
             position: Self.describe(position: device.position),
-            maxResolution: widest.map { "\($0.width) × \($0.height)" },
+            maxResolution: widest.map { "\($0.width)x\($0.height)" },
             maxFrameRate: fastest.map { String(format: "%.0f fps", $0) },
             isContinuityCamera: device.deviceType == .continuityCamera,
             isDeskViewCamera: device.deviceType == .deskViewCamera,

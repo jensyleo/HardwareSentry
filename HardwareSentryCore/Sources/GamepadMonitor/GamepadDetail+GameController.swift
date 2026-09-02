@@ -17,8 +17,11 @@ extension GamepadDetail {
 
         self.init(
             productCategory: controller.productCategory.isEmpty ? nil : controller.productCategory,
-            // `.indexUnset` is the framework's "nobody assigned one", not player 0.
-            playerIndex: controller.playerIndex == .indexUnset ? nil : controller.playerIndex.rawValue,
+            // `.indexUnset` is the framework's "nobody assigned one", not player 0 — and
+            // the numbered cases start at zero, so `.index1` has rawValue 0. Shown raw,
+            // player one read as "Player: 0"; the +1 is what puts it back on the labels
+            // printed on the controller itself.
+            playerIndex: controller.playerIndex == .indexUnset ? nil : controller.playerIndex.rawValue + 1,
             // A controller with no reading reports a negative level; shown literally that
             // becomes a charge of "-100%", which is worse than saying nothing.
             batteryPercent: controller.battery
@@ -33,7 +36,13 @@ extension GamepadDetail {
             lightColor: controller.light.map { Self.describe($0.color) },
             // The Elite/Series X paddles are the only optional buttons the Xbox profile
             // exposes; a plain Xbox controller reports them as nil.
-            hasElitePaddles: (profile as? GCXboxGamepad)?.paddleButton1 != nil
+            // Any of the four, not just the first: a controller can expose a subset, and
+            // asking only about paddle one calls the rest of them absent.
+            hasElitePaddles: {
+                guard let xbox = profile as? GCXboxGamepad else { return false }
+                return xbox.paddleButton1 != nil || xbox.paddleButton2 != nil
+                    || xbox.paddleButton3 != nil || xbox.paddleButton4 != nil
+            }()
         )
     }
 
@@ -53,8 +62,10 @@ extension GamepadDetail {
         let named = localities
             .filter { $0 != .all && $0 != .default }
             .compactMap { Self.hapticNames[$0] }
-            .sorted()
-        if !named.isEmpty { return named.joined(separator: ", ") }
+        // Ordered handles-then-triggers, the way they sit on the controller, rather than
+        // alphabetically — which would put "Left Trigger" before "Right Handle".
+        let ordered = Self.hapticOrder.filter(named.contains)
+        if !ordered.isEmpty { return ordered.joined(separator: ", ") }
         return localities.isEmpty ? nil : "Supported"
     }
 
@@ -69,6 +80,8 @@ extension GamepadDetail {
 
     /// The actuator positions in ordinary words, rather than the framework's raw
     /// identifiers.
+    private static let hapticOrder = ["Left Handle", "Right Handle", "Left Trigger", "Right Trigger"]
+
     private static let hapticNames: [GCHapticsLocality: String] = [
         .leftHandle: "Left Handle",
         .rightHandle: "Right Handle",

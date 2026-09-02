@@ -12,10 +12,10 @@ public actor PowerMonitor: Monitor {
         .init(name: PowerEvent.sourceChanged.rawValue, title: "Power source changed", icon: .asset("Power-Plugged", in: .module)),
         .init(name: PowerEvent.fullyCharged.rawValue, title: "Battery fully charged", icon: .asset("Power-100", in: .module)),
         .init(name: PowerEvent.lowBatteryWarning.rawValue, title: "Battery low", icon: .asset("Power-10", in: .module)),
-        .init(name: PowerEvent.systemSleep.rawValue, title: "System going to sleep", enabledByDefault: false, icon: .asset("Power-NoBattery", in: .module)),
-        .init(name: PowerEvent.systemWake.rawValue, title: "System woke up", enabledByDefault: false, icon: .asset("Power-Plugged", in: .module)),
-        .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) went to sleep", enabledByDefault: false, icon: .asset("Power-NoBattery", in: .module)),
-        .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) woke up", enabledByDefault: false, icon: .asset("Power-Plugged", in: .module)),
+        .init(name: PowerEvent.systemSleep.rawValue, title: "System going to sleep", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module)),
+        .init(name: PowerEvent.systemWake.rawValue, title: "System woke up", enabledByDefault: false, icon: .asset("Power-AdapterChanged", in: .module)),
+        .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) went to sleep", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module)),
+        .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) woke up", enabledByDefault: false, icon: .asset("Power-AdapterChanged", in: .module)),
         .init(name: PowerEvent.lowPowerModeChanged.rawValue, title: "Low Power Mode toggled", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module))
     ]
 
@@ -58,13 +58,13 @@ public actor PowerMonitor: Monitor {
         case .snapshot(let snapshot):
             await handleSnapshot(snapshot)
         case .systemWillSleep:
-            await context.notify(PowerEvent.systemSleep.rawValue, subject: "System", title: "System Going to Sleep", body: "")
+            await context.notify(PowerEvent.systemSleep.rawValue, subject: "System", title: "System Going to Sleep", body: "", icon: .asset("Power-LowPowerMode", in: .module))
         case .systemDidWake:
-            await context.notify(PowerEvent.systemWake.rawValue, subject: "System", title: "System Woke Up", body: "")
+            await context.notify(PowerEvent.systemWake.rawValue, subject: "System", title: "System Woke Up", body: "", icon: .asset("Power-AdapterChanged", in: .module))
         case .screensDidSleep:
-            await context.notify(PowerEvent.screensSleep.rawValue, subject: "Screens", title: "Display(s) Went to Sleep", body: "")
+            await context.notify(PowerEvent.screensSleep.rawValue, subject: "Screens", title: "Display(s) Went to Sleep", body: "", icon: .asset("Power-LowPowerMode", in: .module))
         case .screensDidWake:
-            await context.notify(PowerEvent.screensWake.rawValue, subject: "Screens", title: "Display(s) Woke Up", body: "")
+            await context.notify(PowerEvent.screensWake.rawValue, subject: "Screens", title: "Display(s) Woke Up", body: "", icon: .asset("Power-AdapterChanged", in: .module))
         case .lowPowerModeChanged(let enabled):
             await handleLowPowerMode(enabled)
         }
@@ -192,7 +192,7 @@ public actor PowerMonitor: Monitor {
         case .ac: return "AC Power"
         case .battery: return "Battery Power"
         case .ups: return "UPS Power"
-        case .unknown: return "Unknown Power"
+        case .unknown: return "Unknown Power Source"
         }
     }
 }

@@ -161,7 +161,8 @@ public actor CameraMonitor: Monitor {
             event.rawValue,
             subject: event.rawValue,
             title: "\(Self.label(for: effect)) \(enabled ? "Enabled" : "Disabled")",
-            body: "Control Center video effect changed system-wide"
+            body: "Control Center video effect changed system-wide",
+            icon: .asset("CameraMonitor-Icon", in: .module)
         )
     }
 

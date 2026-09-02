@@ -113,7 +113,7 @@ struct ThermalMonitorTests {
             "ThermalFair": false,
             "ThermalSerious": true,
             "ThermalCritical": true,
-            "ThermalDarkWakeEmergency": true
+            "ThermalDarkWakeEmergency": false
         ])
     }
 

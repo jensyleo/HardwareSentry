@@ -64,7 +64,7 @@ struct NetworkMonitorTests {
 
     @Test("joining and leaving Wi-Fi fire distinct events")
     func wifiConnectAndDisconnect() async {
-        let events = await run([.wifiConnected(ssid: "CasaWiFi"), .wifiDisconnected])
+        let events = await run([.wifiConnected(ssid: "CasaWiFi"), .wifiDisconnected()])
 
         #expect(events[0].name == "AirportConnected")
         #expect(events[0].subject == "CasaWiFi")

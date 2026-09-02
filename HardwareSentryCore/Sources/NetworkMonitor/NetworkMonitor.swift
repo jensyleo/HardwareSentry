@@ -85,8 +85,13 @@ public actor NetworkMonitor: Monitor {
                 ]),
                 icon: .asset("Network-Wifi-4", in: .module)
             )
-        case .wifiDisconnected:
-            await context.notify(NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi", title: "AirPort Disconnected", body: "", icon: .asset("Network-Wifi-Off", in: .module))
+        case .wifiDisconnected(let ssid):
+            await context.notify(
+                NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi",
+                title: "AirPort Disconnected",
+                body: ssid.map { "Left network \($0)." } ?? "",
+                icon: .asset("Network-Wifi-Off", in: .module)
+            )
         case .linkSnapshot(let links):
             await handleLinkSnapshot(links)
         case .primaryInterfaceSnapshot(let name):

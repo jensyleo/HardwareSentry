@@ -62,7 +62,7 @@ public actor USBMonitor: Monitor {
                     .always(device.name),
                     .field(USBField.vendor.rawValue, vendorDetail(device))
                 ]),
-                icon: .asset(device.iconBaseName.map { "\($0)-Disconnected" } ?? "USB-Off", in: .module)
+                icon: .asset(device.disconnectedIconName, in: .module)
             )
         }
     }

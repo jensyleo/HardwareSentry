@@ -70,11 +70,14 @@ public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
         if protocolName?.caseInsensitiveCompare("Secure Digital") == .orderedSame { return .sdCard }
 
         let text = (mediaName ?? "").lowercased()
-        if ["card reader", "sd card", "sdxc", "cf card"].contains(where: text.contains) { return .sdCard }
+        if ["secure digital", " sd/", "sd card", "sdxc", "sdhc", "mmc",
+            "compactflash", " cf ", "cardreader", "card reader"].contains(where: text.contains) { return .sdCard }
         // An explicit name beats the size guess: checked first so a 1 TB drive that calls
         // itself a flash drive is not filed as an enclosure on size alone.
-        if ["flash", "thumb", "pen drive", "usb drive", "mass storage"].contains(where: text.contains) { return .usbDrive }
+        // Enclosures before thumb drives, the order the original settled on: "external
+        // flash SSD" names both, and it is an enclosure.
         if ["hdd", "ssd", "hard disk", "hard drive", "external"].contains(where: text.contains) { return .externalDisk }
+        if ["flash", "thumb", "pen drive", "usb drive", "mass storage"].contains(where: text.contains) { return .usbDrive }
         if let sizeBytes, sizeBytes >= externalDiskThresholdBytes { return .externalDisk }
 
         return nil
@@ -87,6 +90,11 @@ public enum VolumeField: String, CaseIterable {
     case fileSystem = "FileSystem"
     case size = "Size"
     case readOnly = "ReadOnly"
+
+    /// Path, file system and size are on: together they answer "which disk is this and
+    /// how big", which is the reason to read a mount notice at all. Read-only is the
+    /// exception because most volumes are writable and saying so every time is noise.
+    var shownByDefault: Bool { self != .readOnly }
 }
 
 /// What the system told this monitor just happened.

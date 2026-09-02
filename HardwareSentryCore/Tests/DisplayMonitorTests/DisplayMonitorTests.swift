@@ -76,9 +76,14 @@ struct DisplayMonitorTests {
 
     @Test("the details a display can report show up when it connects")
     func connectCarriesDeclaredDetails() async {
+        // Baselined against a different display rather than an empty list: an empty list
+        // now means "ask again", the way the framework means it.
         let events = await run([
-            .snapshot([]),
-            .snapshot([display(id: "1", name: "Studio Display", width: 5120, height: 2880, hz: 60, role: .main)])
+            .snapshot([display(id: "0", name: "Built-in")]),
+            .snapshot([
+                display(id: "0", name: "Built-in"),
+                display(id: "1", name: "Studio Display", width: 5120, height: 2880, hz: 60, role: .main)
+            ])
         ])
 
         let body = events.first?.body ?? ""

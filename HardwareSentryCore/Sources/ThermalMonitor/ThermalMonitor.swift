@@ -11,7 +11,7 @@ public actor ThermalMonitor: Monitor {
         .init(name: ThermalEvent.fair.rawValue, title: "Slightly elevated (Fair)", enabledByDefault: false, icon: .asset("Thermal-Fair", in: .module)),
         .init(name: ThermalEvent.serious.rawValue, title: "Throttling active (Serious)", enabledByDefault: true, icon: .asset("Thermal-Serious", in: .module)),
         .init(name: ThermalEvent.critical.rawValue, title: "Severe throttling (Critical)", enabledByDefault: true, icon: .asset("Thermal-Critical", in: .module)),
-        .init(name: ThermalEvent.darkWakeEmergency.rawValue, title: "Overheated during a maintenance wake", enabledByDefault: true, icon: .asset("Thermal-DarkWakeEmergency", in: .module))
+        .init(name: ThermalEvent.darkWakeEmergency.rawValue, title: "Overheated during a maintenance wake", enabledByDefault: false, icon: .asset("Thermal-DarkWakeEmergency", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = [

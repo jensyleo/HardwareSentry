@@ -32,4 +32,18 @@ public struct BodyLine: Sendable {
     ) -> BodyLine {
         BodyLine(field: name, text: { value().map { "\(label):\t\($0)" } })
     }
+
+    /// A labelled detail separated by a space rather than a tab.
+    ///
+    /// A tab lines values up into a column, which is what most of these want. A handful
+    /// read as prose instead — a printer's location, a volume's size — and the original
+    /// application writes exactly those with a space. Kept as a separate call rather than
+    /// a parameter so the ordinary case stays the short one.
+    public static func prose(
+        _ name: String,
+        _ label: String,
+        _ value: @autoclosure @escaping @Sendable () -> String?
+    ) -> BodyLine {
+        BodyLine(field: name, text: { value().map { "\(label): \($0)" } })
+    }
 }

@@ -148,8 +148,8 @@ struct VolumeMonitorTests {
         let body = events.first?.body ?? ""
         #expect(body.hasPrefix("Click to open"))
         #expect(body.contains("/Volumes/Backup"))
-        #expect(body.contains("Format:\tapfs"))
-        #expect(body.contains("Size:\t"))
+        #expect(body.contains("File system: apfs"))
+        #expect(body.contains("Size: "))
         // Writable is the normal case; saying so every time would be noise.
         #expect(!body.contains("Read-only"))
     }
@@ -160,12 +160,12 @@ struct VolumeMonitorTests {
             path: "/Volumes/Installer", name: "Installer",
             detail: VolumeDetail(fileSystemType: "hfs", isReadOnly: true)
         )])
-        #expect(readOnly.first?.body.contains("Read-only") == true)
+        #expect(readOnly.first?.body.contains("Read-only:\tYes") == true)
         #expect(readOnly.first?.body.contains("Size:") == false)
 
         let bare = await run([.mounted(path: "/Volumes/X", name: "X")])
         #expect(bare.first?.title == "X Mounted")
-        #expect(bare.first?.body.contains("Format:") == false)
+        #expect(bare.first?.body.contains("File system:") == false)
     }
 
     @Test("stopping twice is harmless")

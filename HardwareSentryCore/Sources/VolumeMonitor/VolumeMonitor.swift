@@ -22,10 +22,10 @@ public actor VolumeMonitor: Monitor {
     ]
 
     public static let fields: [MonitorFieldDescription] = [
-        .init(name: VolumeField.path.rawValue, title: "Mount path", shownByDefault: false),
-        .init(name: VolumeField.fileSystem.rawValue, title: "File system", shownByDefault: false),
-        .init(name: VolumeField.size.rawValue, title: "Size", shownByDefault: false),
-        .init(name: VolumeField.readOnly.rawValue, title: "Read-only", shownByDefault: false)
+        .init(name: VolumeField.path.rawValue, title: "Mount path", shownByDefault: VolumeField.path.shownByDefault),
+        .init(name: VolumeField.fileSystem.rawValue, title: "File system type", shownByDefault: VolumeField.fileSystem.shownByDefault),
+        .init(name: VolumeField.size.rawValue, title: "Volume size", shownByDefault: VolumeField.size.shownByDefault),
+        .init(name: VolumeField.readOnly.rawValue, title: "Read-only flag", shownByDefault: VolumeField.readOnly.shownByDefault)
     ]
 
     private let source: any VolumeSource
@@ -35,14 +35,25 @@ public actor VolumeMonitor: Monitor {
     /// Paths Finder told us it's about to eject — a path that disappears WITHOUT having
     /// passed through here first was pulled out, not ejected.
     private var pathsExpectingUnmount: Set<String> = []
+    private var expectedUnmountExpiries: [String: Task<Void, Never>] = [:]
+    /// How long a promised unmount is believed before the path goes back to being one a
+    /// surprise removal can be reported for.
+    private let unmountWaitNanoseconds: UInt64
     private var pathsBelowSpaceThreshold: Set<String> = []
     /// Remembered at mount: by the time a volume goes away there is no filesystem left to
     /// ask what it was, so the artwork has to come from what was seen on the way in.
     private var kindByPath: [String: VolumeKind] = [:]
 
-    public init(source: any VolumeSource, context: MonitorContext) {
+    public init(source: any VolumeSource, context: MonitorContext, unmountWait: Double = 600) {
         self.source = source
         self.context = context
+        self.unmountWaitNanoseconds = UInt64(unmountWait * 1_000_000_000)
+    }
+
+    /// Puts a path back to being one an unsafe ejection can be reported for.
+    private func forgetExpectedUnmount(_ path: String) {
+        expectedUnmountExpiries.removeValue(forKey: path)
+        pathsExpectingUnmount.remove(path)
     }
 
     public func start() async {
@@ -59,6 +70,8 @@ public actor VolumeMonitor: Monitor {
     public func stop() async {
         watching?.cancel()
         watching = nil
+        expectedUnmountExpiries.values.forEach { $0.cancel() }
+        expectedUnmountExpiries.removeAll()
     }
 
     private func handle(_ event: VolumeSourceEvent) async {
@@ -74,11 +87,11 @@ public actor VolumeMonitor: Monitor {
                 body: await context.body([
                     .always("Click to open"),
                     .field(VolumeField.path.rawValue, path),
-                    .field(VolumeField.fileSystem.rawValue, "Format", detail.fileSystemType),
-                    .field(VolumeField.size.rawValue, "Size", detail.sizeLabel),
+                    .prose(VolumeField.fileSystem.rawValue, "File system", detail.fileSystemType),
+                    .prose(VolumeField.size.rawValue, "Size", detail.sizeLabel),
                     // Only worth saying when it is true; most volumes are writable and
                     // saying so every time is noise.
-                    .field(VolumeField.readOnly.rawValue, detail.isReadOnly ? "Read-only" : nil)
+                    .field(VolumeField.readOnly.rawValue, "Read-only", detail.isReadOnly ? "Yes" : nil)
                 ]),
                 icon: .asset(detail.kind?.iconBaseName ?? "DisksVolumes-Mounted", in: .module),
                 // Clicking a mount notification opens the volume, which is the one thing
@@ -92,8 +105,19 @@ public actor VolumeMonitor: Monitor {
 
         case .willUnmount(let path, _):
             pathsExpectingUnmount.insert(path)
+            // Expires, because a `willUnmount` is a promise the system does not always
+            // keep — an eject that stalls or is cancelled leaves the path marked
+            // "expected" forever, and a later genuine yank of that same disk would then
+            // never raise the unsafe-eject warning. Ten minutes, the original's figure.
+            expectedUnmountExpiries[path]?.cancel()
+            expectedUnmountExpiries[path] = Task { [unmountWaitNanoseconds] in
+                try? await Task.sleep(nanoseconds: unmountWaitNanoseconds)
+                guard !Task.isCancelled else { return }
+                await self.forgetExpectedUnmount(path)
+            }
 
         case .unmounted(let path, let name):
+            expectedUnmountExpiries.removeValue(forKey: path)?.cancel()
             let wasExpected = pathsExpectingUnmount.remove(path) != nil
             let kind = kindByPath.removeValue(forKey: path)
             pathsBelowSpaceThreshold.remove(path)

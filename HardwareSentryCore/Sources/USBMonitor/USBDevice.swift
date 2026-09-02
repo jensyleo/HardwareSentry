@@ -26,6 +26,9 @@ public struct USBDevice: Sendable, Equatable {
         case 0x03: return "USB-TypeHID"
         case 0x06: return "USB-TypeScanner"
         case 0x07: return "USB-TypePrinter"
+        // Mass storage borrows the disk artwork rather than the generic USB glyph: a
+        // flash drive is a disk, and that is what somebody expects to see.
+        case 0x08: return "Device-USBDrive"
         case 0x09: return "USB-TypeHub"
         case 0x0B: return "USB-TypeSmartCard"
         case 0x0E: return "USB-TypeWebcam"
@@ -52,4 +55,17 @@ public enum USBDeviceChange: Sendable, Equatable {
 public protocol USBDeviceSource: Sendable {
     /// Devices already attached when watching begins, followed by changes as they happen.
     func changes() -> AsyncStream<USBDeviceChange>
+}
+
+public extension USBDevice {
+    /// The artwork for this device leaving.
+    ///
+    /// Almost always the connected name with `-Disconnected` on the end. Mass storage is
+    /// the exception: it borrows Volume Monitor's disk artwork, whose "gone" variant is
+    /// named `-Unmounted`, so the mechanical suffix would ask for a file that does not
+    /// exist and the icon would silently fall back to nothing.
+    var disconnectedIconName: String {
+        guard let base = iconBaseName else { return "USB-Off" }
+        return base == "Device-USBDrive" ? "Device-USBDrive-Unmounted" : "\(base)-Disconnected"
+    }
 }

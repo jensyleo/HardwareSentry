@@ -89,11 +89,11 @@ public actor PrinterMonitor: Monitor {
                 title: "Printer Connected",
                 body: await context.body([
                     .always(name),
-                    .field(PrinterField.location.rawValue, "Location", printer.location),
-                    .field(PrinterField.model.rawValue, "Model", printer.makeAndModel),
-                    .field(PrinterField.connection.rawValue, "Connection", printer.connection),
-                    .field(PrinterField.shared.rawValue, "Shared", printer.isShared ? "Yes" : "No"),
-                    .field(PrinterField.capabilities.rawValue, "Capabilities", printer.capabilities)
+                    .prose(PrinterField.location.rawValue, "Location", printer.location),
+                    .prose(PrinterField.model.rawValue, "Model", printer.makeAndModel),
+                    .prose(PrinterField.connection.rawValue, "Connection", printer.connection),
+                    .prose(PrinterField.shared.rawValue, "Shared", printer.isShared ? "Yes" : "No"),
+                    .prose(PrinterField.capabilities.rawValue, "Capabilities", printer.capabilities)
                 ]),
                 icon: .asset("PrinterMonitor-Icon-Connected", in: .module)
             )

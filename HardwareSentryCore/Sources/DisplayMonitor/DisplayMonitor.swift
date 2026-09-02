@@ -67,6 +67,11 @@ public actor DisplayMonitor: Monitor {
     }
 
     private func handleSnapshot(_ displays: [DisplaySnapshot]) async {
+        // An empty list is the framework saying "ask again", not "every screen was
+        // unplugged". It happens mid-reconfiguration and while the Mac sleeps; believed
+        // literally it announces every display disconnecting and then reconnecting.
+        guard !displays.isEmpty else { return }
+
         let current = Dictionary(uniqueKeysWithValues: displays.map { ($0.id, $0) })
 
         if !hasBaseline {
