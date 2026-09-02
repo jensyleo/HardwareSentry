@@ -22,6 +22,19 @@ public enum BluetoothEvent: String, NotificationEventKey, CaseIterable {
     /// A Bluetooth Low Energy accessory answered about itself, or went away.
     case leConnected = "BluetoothLEConnected"
     case leDisconnected = "BluetoothLEDisconnected"
+    // One row per device kind, as the original has it.
+    case connectedComputer = "BluetoothConnectedComputer"
+    case connectedPhone = "BluetoothConnectedPhone"
+    case connectedAccessPoint = "BluetoothConnectedAccessPoint"
+    case connectedWearable = "BluetoothConnectedWearable"
+    case connectedHealth = "BluetoothConnectedHealth"
+    case connectedKeyboard = "BluetoothConnectedKeyboard"
+    case connectedMouse = "BluetoothConnectedMouse"
+    case connectedCombo = "BluetoothConnectedCombo"
+    case connectedHeadset = "BluetoothConnectedHeadset"
+    case connectedMicrophone = "BluetoothConnectedMicrophone"
+    case connectedSpeaker = "BluetoothConnectedSpeaker"
+    case connectedHeadphones = "BluetoothConnectedHeadphones"
 
     public static let category: NotificationCategory = "Bluetooth"
 }

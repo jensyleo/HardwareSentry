@@ -48,7 +48,9 @@ struct BluetoothMonitorTests {
         ])
 
         #expect(events.count == 2)
-        #expect(events[0].name == "BluetoothConnected")
+        // The row this device's own kind owns, so a keyboard can be silenced without
+        // silencing a headset.
+        #expect(events[0].name == "BluetoothConnectedKeyboard")
         #expect(events[0].subject == "Magic Keyboard")
         #expect(events[1].name == "BluetoothDisconnected")
     }
@@ -102,22 +104,20 @@ struct BluetoothMonitorTests {
     func eventsAreDeclaredWithDefaults() {
         let byName = Dictionary(uniqueKeysWithValues: BluetoothMonitor.events.map { ($0.name, $0.enabledByDefault) })
 
-        #expect(byName == [
-            "BluetoothConnected": true,
-            "BluetoothDisconnected": true,
-            "BluetoothRadioOn": false,
-            "BluetoothRadioOff": false,
-            "BluetoothSubsystemStateChanged": false,
-            "BluetoothPaired": false,
-            "BluetoothUnpaired": false,
-            "BluetoothSignalExcellent": false,
-            "BluetoothSignalGood": false,
-            "BluetoothSignalFair": false,
-            "BluetoothSignalWeak": false,
-            "BluetoothSignalNone": false,
-            "BluetoothLEConnected": false,
-            "BluetoothLEDisconnected": false
-        ])
+        // One row per device kind, then presence, the radio, pairing, Low Energy and the
+        // signal levels.
+        #expect(Set(byName.keys) == Set(BluetoothEvent.allCases.map(\.rawValue)))
+        #expect(BluetoothDeviceKind.allCases.allSatisfy { byName[$0.connectedEvent.rawValue] == true })
+        #expect(byName["BluetoothConnected"] == true)
+        #expect(byName["BluetoothDisconnected"] == true)
+        #expect(byName["BluetoothRadioOn"] == false)
+        #expect(byName["BluetoothRadioOff"] == false)
+        #expect(byName["BluetoothPaired"] == false)
+        #expect(byName["BluetoothUnpaired"] == false)
+        #expect(byName["BluetoothSubsystemStateChanged"] == false)
+        #expect(byName["BluetoothLEConnected"] == false)
+        #expect(byName["BluetoothLEDisconnected"] == false)
+        #expect(BluetoothSignalLevel.allCases.allSatisfy { byName[$0.event.rawValue] == false })
     }
 
     @Test("stopping twice is harmless")
@@ -216,21 +216,30 @@ struct BluetoothMonitorFieldTests {
     @Test("out of the box the message says what kind of thing connected, and how strong")
     func kindAndSignalAreOnByDefault() async {
         let defaults = Set(BluetoothMonitor.fields.filter(\.shownByDefault).map(\.name))
-        // Three, as the original has them: what kind of thing it is, how strong the link
-        // is, and how much battery is left.
+        // The original's six.
         #expect(defaults == [
             BluetoothField.kind.rawValue,
+            BluetoothField.paired.rawValue,
+            BluetoothField.address.rawValue,
+            BluetoothField.battery.rawValue,
             BluetoothField.signal.rawValue,
-            BluetoothField.battery.rawValue
+            BluetoothField.services.rawValue
         ])
 
         let body = await body(
             .classicConnected(name: "WH-1000XM4", kind: .headphones, detail: Self.headphones),
             allowing: defaults
         )
-        // The signal is on because it is the answer to "why does this keep cutting out",
-        // and because the original has it on.
-        #expect(body == "WH-1000XM4\nType:\tHeadphones\nSignal:\t-52 dBm (4/4)")
+        // In declared order: what it is, whether it is paired, its address, how strong
+        // the link is, and what it says it can do.
+        #expect(body == """
+        WH-1000XM4
+        Type:\tHeadphones
+        Address:\t00-11-22-33-44-55
+        Paired:\tYes
+        Signal:\t-52 dBm (4/4)
+        Services:\tAudio Sink, Handsfree
+        """)
     }
 
     @Test("with everything switched on, the details read in the declared order")

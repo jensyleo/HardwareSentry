@@ -8,14 +8,23 @@ import SignalCore
 public actor BluetoothMonitor: Monitor {
     public static let category = BluetoothEvent.category
 
-    public static let events: [MonitorEventDescription] = [
-        .init(name: BluetoothEvent.connected.rawValue, title: "Device connected", icon: .asset("Bluetooth-On", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.radioOn.rawValue, title: "Radio turned on", enabledByDefault: false, icon: .asset("Bluetooth-Radio-On", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.radioOff.rawValue, title: "Radio turned off", enabledByDefault: false, icon: .asset("Bluetooth-Radio-Off", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.subsystemStateChanged.rawValue, title: "Subsystem trouble (resetting/unauthorized/unsupported)", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.paired.rawValue, title: "Device paired", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.unpaired.rawValue, title: "Device unpaired", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+    /// One row per device kind first, in the original's order, then presence, the radio,
+    /// pairing, Low Energy and the signal levels.
+    public static let events: [MonitorEventDescription] = BluetoothDeviceKind.allCases.map { kind in
+        .init(
+            name: kind.connectedEvent.rawValue,
+            title: kind.settingsTitle,
+            icon: .asset(kind.iconBaseName, in: .module),
+            group: Group.device
+        )
+    } + [
+        .init(name: BluetoothEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("Bluetooth-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.radioOn.rawValue, title: "Bluetooth Radio On", enabledByDefault: false, icon: .asset("Bluetooth-Radio-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.radioOff.rawValue, title: "Bluetooth Radio Off", enabledByDefault: false, icon: .asset("Bluetooth-Radio-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.subsystemStateChanged.rawValue, title: "Bluetooth Status Changed", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.paired.rawValue, title: "Paired", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.unpaired.rawValue, title: "Unpaired", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
 
         // Off by default, as in the original, and unlike the Wi-Fi ones. An accessory's
         // signal moves whenever it is picked up or carried to the next room, so on a Mac
@@ -28,13 +37,12 @@ public actor BluetoothMonitor: Monitor {
         // Off by default, as in the original: a BLE accessory is discovered as already
         // connected rather than connecting, so this fires for whatever is on the desk
         // every time the radio comes back — which is not an event anybody caused.
-        .init(name: BluetoothEvent.leConnected.rawValue, title: "Low Energy accessory found", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.leDisconnected.rawValue, title: "Low Energy accessory gone", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.leConnected.rawValue, title: "BLE Accessory Connected", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.leDisconnected.rawValue, title: "BLE Accessory Disconnected", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
         .init(name: BluetoothEvent.signalNone.rawValue, title: BluetoothSignalLevel.lost.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.lost.iconName, in: .module), group: Group.signal)
     ]
 
-    /// The module's own picture, said outright: its first event is a device one, and this
-    /// module is about more than devices.
+    /// Said outright: the first event is now a computer, and this module is about more.
     public static let icon: NotificationIcon = .asset("Bluetooth-On", in: .module)
 
     public static let fields: [MonitorFieldDescription] = BluetoothField.allCases.map {
@@ -92,7 +100,9 @@ public actor BluetoothMonitor: Monitor {
         case .classicConnected(let name, let kind, let detail):
             if let kind { lastKindByName[name] = kind }
             await context.notify(
-                BluetoothEvent.connected.rawValue, subject: name,
+                // The row this device's own kind owns; the generic one only for a kind
+                // this application has no artwork for.
+                (kind?.connectedEvent ?? BluetoothEvent.connected).rawValue, subject: name,
                 title: await context.connectionTitle(
                     medium: "Bluetooth",
                     type: kind?.label,

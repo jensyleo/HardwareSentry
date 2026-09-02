@@ -178,21 +178,21 @@ public enum BluetoothField: String, CaseIterable {
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
         switch self {
-        case .kind: return "What kind of device it is"
-        case .address: return "Hardware address"
-        case .paired: return "Whether it is paired"
-        case .signal: return "Signal strength"
-        case .linkType: return "Kind of radio link"
-        case .initiator: return "Which side connected"
-        case .services: return "Bluetooth profiles it offers"
-        case .favorite: return "Marked as a favourite"
-        case .lastSeen: return "When it was last used"
-        case .battery: return "Battery level (Apple accessories: Magic Mouse/Keyboard/Trackpad)"
+        case .kind: return "Device type (Keyboard, Mouse, Headphones…)"
+        case .address: return "MAC address"
+        case .paired: return "Paired state"
+        case .signal: return "Signal strength (RSSI, while connected)"
+        case .linkType: return "Link type (ACL/SCO/eSCO)"
+        case .initiator: return "Who initiated the connection"
+        case .services: return "Advertised services (SDP)"
+        case .favorite: return "Favourite flag"
+        case .lastSeen: return "Last used date"
+        case .battery: return "Battery level (Apple accessories: AirPods, Magic Mouse/Keyboard/Trackpad)"
         case .encryption: return "Link encryption state"
         case .serviceClass: return "Service class bits (Audio/Telephony/Rendering/etc.)"
-        case .identity: return "Vendor/product ID and version (PnP record)"
-        case .handsFree: return "Hands-free features"
-        case .hidDetail: return "HID detail (keyboards, mice)"
+        case .identity: return "Device ID (VID/PID/version, via SDP)"
+        case .handsFree: return "Hands-Free supported features (via SDP)"
+        case .hidDetail: return "HID detail: country code, remote wake (via SDP)"
         case .linkDiagnostics: return "Link diagnostics (quality, transmit power)"
         }
     }
@@ -202,10 +202,10 @@ public enum BluetoothField: String, CaseIterable {
     /// number; the signal is on because it is the answer to "why does this keep cutting
     /// out", and the original has it on too. The rest are for people who want them.
     var shownByDefault: Bool {
-        // Three, as the original has them: what kind of thing it is, how strong the link
-        // is, and — for the accessories macOS publishes it for — how much battery is
-        // left, which is the one that stops a keyboard dying mid-sentence.
-        [.kind, .signal, .battery].contains(self)
+        // The original's six: what kind of thing it is, whether it is paired, its
+        // address, how much battery is left, how strong the link is, and what it says it
+        // can do. The rest are for somebody diagnosing a specific accessory.
+        [.kind, .paired, .address, .battery, .signal, .services].contains(self)
     }
 
     /// Which heading this line sits under, matching the event groups.

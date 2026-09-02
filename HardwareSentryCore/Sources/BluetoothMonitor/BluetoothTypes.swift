@@ -28,6 +28,42 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
     case keyboard, mouse, combo
     case headset, microphone, speaker, headphones
 
+    /// How the row is named in Settings, in the original's words.
+    var settingsTitle: String {
+        switch self {
+        case .computer: return "Computer"
+        case .phone: return "Phone"
+        case .accessPoint: return "Access Point"
+        case .wearable: return "Wearable"
+        case .health: return "Health"
+        case .keyboard: return "Keyboard"
+        case .mouse: return "Mouse"
+        case .combo: return "Combo"
+        case .headset: return "Headset"
+        case .microphone: return "Microphone"
+        case .speaker: return "Speaker"
+        case .headphones: return "Headphones"
+        }
+    }
+
+    /// The event raised when a device of this kind connects.
+    var connectedEvent: BluetoothEvent {
+        switch self {
+        case .computer: return .connectedComputer
+        case .phone: return .connectedPhone
+        case .accessPoint: return .connectedAccessPoint
+        case .wearable: return .connectedWearable
+        case .health: return .connectedHealth
+        case .keyboard: return .connectedKeyboard
+        case .mouse: return .connectedMouse
+        case .combo: return .connectedCombo
+        case .headset: return .connectedHeadset
+        case .microphone: return .connectedMicrophone
+        case .speaker: return .connectedSpeaker
+        case .headphones: return .connectedHeadphones
+        }
+    }
+
     public var iconBaseName: String {
         switch self {
         case .computer: return "BT-TypeComputer"

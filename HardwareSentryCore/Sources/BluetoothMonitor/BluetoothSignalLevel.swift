@@ -56,11 +56,11 @@ public enum BluetoothSignalLevel: Int, Sendable, Equatable, Comparable, CaseIter
 
     var settingsTitle: String {
         switch self {
-        case .lost: return "Signal lost (0 bars)"
-        case .weak: return "Signal weak (1 bar)"
-        case .fair: return "Signal fair (2 bars)"
-        case .good: return "Signal good (3 bars)"
-        case .excellent: return "Signal excellent (4 bars)"
+        case .lost: return "Signal — No Signal"
+        case .weak: return "Signal — Weak"
+        case .fair: return "Signal — Fair"
+        case .good: return "Signal — Good"
+        case .excellent: return "Signal — Excellent"
         }
     }
 }
