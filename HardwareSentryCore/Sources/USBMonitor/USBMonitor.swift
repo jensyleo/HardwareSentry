@@ -6,9 +6,26 @@ import SignalCore
 public actor USBMonitor: Monitor {
     public static let category = USBEvent.category
 
-    public static let events: [MonitorEventDescription] = [
-        .init(name: USBEvent.connected.rawValue, title: "Device connected", icon: .asset("USB-On", in: .module)),
-        .init(name: USBEvent.disconnected.rawValue, title: "Device disconnected", icon: .asset("USB-Off", in: .module))
+    /// Said outright rather than taken from the first event, which is now a hub.
+    ///
+    /// The same trap Network fell into: the module list takes the first event's artwork,
+    /// so declaring one row per device class quietly turned the whole of USB into a hub.
+    public static let icon: NotificationIcon = .asset("USB-On", in: .module)
+
+    /// One row per device class, in the original's order, each with its own artwork and
+    /// its own switch: a Mac with a hub, a keyboard and a webcam permanently attached
+    /// should be able to silence the hub without silencing the webcam.
+    public static let events: [MonitorEventDescription] = USBDeviceKind.allCases.map { kind in
+        .init(
+            name: kind.connectedEvent.rawValue,
+            title: kind.settingsTitle,
+            icon: .asset(kind.iconBaseName, in: .module)
+        )
+    } + [
+        // The two the original calls "(generic)": a device that never said what it is,
+        // which is most of them, and every disconnection.
+        .init(name: USBEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("USB-On", in: .module)),
+        .init(name: USBEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("USB-Off", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = USBField.allCases.map {
@@ -44,7 +61,10 @@ public actor USBMonitor: Monitor {
         switch change {
         case .attached(let device):
             await context.notify(
-                USBEvent.connected.rawValue,
+                // The row this device's own class owns, so it can be silenced and
+                // re-iconed on its own; the generic one only for a device that never
+                // said what it is.
+                (device.kind?.connectedEvent ?? USBEvent.connected).rawValue,
                 subject: device.name,
                 title: device.isHub ? "USB Hub/Dock Connection" : "USB Connection",
                 body: await context.body([

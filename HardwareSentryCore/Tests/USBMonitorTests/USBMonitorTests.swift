@@ -115,7 +115,9 @@ struct USBMonitorTests {
     func eventsAreDeclared() {
         let declared = Set(USBMonitor.events.map(\.name))
 
-        #expect(declared == ["USBConnected", "USBDisconnected"])
+        // One per device class, plus the two the original calls "(generic)".
+        #expect(declared == Set(USBEvent.allCases.map(\.rawValue)))
+        #expect(declared.count == USBDeviceKind.allCases.count + 2)
     }
 
     @Test("stopping twice is harmless")
@@ -334,5 +336,79 @@ struct USBBusNameTests {
     func realDevicesAreUntouched() {
         #expect(IOKitUSBDeviceSource.friendlyBusName("SanDisk Cruzer") == "SanDisk Cruzer")
         #expect(IOKitUSBDeviceSource.friendlyBusName("") == "")
+    }
+}
+
+@Suite("USBMonitor · one row per device class")
+struct USBDeviceKindRowTests {
+    @Test("every class the original lists has a row, an icon that exists, and its own event")
+    func everyKindIsDeclared() throws {
+        // The original's fourteen rows: twelve classes plus the two generics.
+        #expect(USBDeviceKind.allCases.count == 12)
+
+        for kind in USBDeviceKind.allCases {
+            let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }
+            #expect(declared != nil, "\(kind) has no row")
+            // `.asset` gives no icon for a name that resolves to nothing, so this catches
+            // a typo in an artwork name as well as a missing row.
+            #expect(declared?.icon != .none, "\(kind) has no icon")
+            #expect(declared?.title == kind.settingsTitle)
+        }
+    }
+
+    @Test("the class codes are the USB-IF's own, and an unlisted one falls back to generic")
+    func classCodesAreDecoded() {
+        #expect(USBDeviceKind(deviceClass: 0x09) == .hub)
+        #expect(USBDeviceKind(deviceClass: 0x08) == .massStorage)
+        #expect(USBDeviceKind(deviceClass: 0x03) == .hid)
+        #expect(USBDeviceKind(deviceClass: 0x0E) == .webcam)
+        #expect(USBDeviceKind(deviceClass: 0xE0) == .wireless)
+        // 0x02 is Communications, which has no artwork of its own: an honest generic
+        // icon beats a wrong specific one.
+        #expect(USBDeviceKind(deviceClass: 0x02) == nil)
+        #expect(USBDeviceKind(deviceClass: 0x00) == nil)
+    }
+
+    @Test("a hub is a hub even when its class code says otherwise")
+    func hubFlagWins() {
+        // Some hubs report a per-interface class and nothing on the device itself; the
+        // registry knows they are hubs regardless, and that is the better answer.
+        let device = USBDevice(name: "Hub", isHub: true, deviceClass: nil)
+        #expect(device.kind == .hub)
+        #expect(device.iconBaseName == "USB-TypeHub")
+    }
+
+    @Test("a device that never said what it is uses the generic row")
+    func unclassifiedUsesGeneric() {
+        let device = USBDevice(name: "Something", isHub: false, deviceClass: nil)
+        #expect(device.kind == nil)
+        #expect(device.iconBaseName == nil)
+    }
+
+    @Test("the fields the original ships on are on here too")
+    func defaultsMatchTheOriginal() {
+        let defaults = Set(USBMonitor.fields.filter(\.shownByDefault).map(\.name))
+        #expect(defaults == [
+            "Vendor", "Type", "VIDPID", "Speed", "Power", "Medium",
+            "Serial", "Firmware", "LocationID"
+        ])
+        // And the five it ships off stay off.
+        #expect(!defaults.contains(USBField.configurations.rawValue))
+        #expect(!defaults.contains(USBField.specVersion.rawValue))
+        #expect(!defaults.contains(USBField.tunnel.rawValue))
+        #expect(!defaults.contains(USBField.failedPower.rawValue))
+        #expect(!defaults.contains(USBField.portInfo.rawValue))
+    }
+}
+
+@Suite("USBMonitor · module icon")
+struct USBModuleIconTests {
+    @Test("the module's icon is the plain USB glyph, not whichever class comes first")
+    func moduleIconIsDeclared() {
+        // Declaring one row per device class put a hub first, and the module list takes
+        // the first event's artwork — so the whole of USB briefly became a hub. Network
+        // fell into the same trap; this is the test that stops either happening again.
+        #expect(USBMonitor.icon == .asset("USB-On", in: .module))
+        #expect(USBMonitor.icon != USBMonitor.events.first?.icon)
     }
 }

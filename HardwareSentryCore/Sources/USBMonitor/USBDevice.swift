@@ -26,27 +26,103 @@ public struct USBDevice: Sendable, Equatable {
         self.detail = detail
     }
 
-    /// The artwork for what this device says it is, or nil when it has not said anything
-    /// specific — most USB devices declare their class per-interface rather than on the
-    /// device, so falling back to the plain USB icon is the common case, not a failure.
-    public var iconBaseName: String? {
-        if isHub { return "USB-TypeHub" }
+    /// What this device says it is, or nil when it has not said anything specific.
+    ///
+    /// Nil is the common case, not a failure: most USB devices declare their class on
+    /// each interface rather than on the device itself, so the generic USB glyph is what
+    /// a great many perfectly ordinary devices get.
+    public var kind: USBDeviceKind? {
+        if isHub { return .hub }
+        guard let deviceClass else { return nil }
+        return USBDeviceKind(deviceClass: deviceClass)
+    }
+
+    /// The artwork for what this device says it is.
+    public var iconBaseName: String? { kind?.iconBaseName }
+}
+
+/// The device classes that have artwork and a row of their own.
+///
+/// One row per class, as the original has it: a Mac with a hub, a keyboard and a webcam
+/// permanently attached should be able to silence the hub without silencing the webcam,
+/// and give each the icon its owner recognises. The USB-IF assigns many more class codes
+/// than these; the ones without artwork fall back to the generic row, because an honest
+/// generic icon beats a wrong specific one.
+public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
+    case hub, massStorage, hid, webcam, scanner, printer, smartCard
+    case audio, healthcare, audioVideo, typeCBridge, wireless
+
+    /// The USB-IF base class code, as the device reports it.
+    public init?(deviceClass: UInt8) {
         switch deviceClass {
-        case 0x01: return "USB-TypeAudio"
-        case 0x03: return "USB-TypeHID"
-        case 0x06: return "USB-TypeScanner"
-        case 0x07: return "USB-TypePrinter"
+        case 0x01: self = .audio
+        case 0x03: self = .hid
+        case 0x06: self = .scanner
+        case 0x07: self = .printer
+        case 0x08: self = .massStorage
+        case 0x09: self = .hub
+        case 0x0B: self = .smartCard
+        case 0x0E: self = .webcam
+        case 0x0F: self = .healthcare
+        case 0x10: self = .audioVideo
+        case 0x12: self = .typeCBridge
+        case 0xE0: self = .wireless
+        default: return nil
+        }
+    }
+
+    public var iconBaseName: String {
+        switch self {
+        case .hub: return "USB-TypeHub"
         // Mass storage borrows the disk artwork rather than the generic USB glyph: a
         // flash drive is a disk, and that is what somebody expects to see.
-        case 0x08: return "Device-USBDrive"
-        case 0x09: return "USB-TypeHub"
-        case 0x0B: return "USB-TypeSmartCard"
-        case 0x0E: return "USB-TypeWebcam"
-        case 0x0F: return "USB-TypeHealthcare"
-        case 0x10: return "USB-TypeAudioVideo"
-        case 0x12: return "USB-TypeTypeCBridge"
-        case 0xE0: return "USB-TypeWireless"
-        default: return nil
+        case .massStorage: return "Device-USBDrive"
+        case .hid: return "USB-TypeHID"
+        case .webcam: return "USB-TypeWebcam"
+        case .scanner: return "USB-TypeScanner"
+        case .printer: return "USB-TypePrinter"
+        case .smartCard: return "USB-TypeSmartCard"
+        case .audio: return "USB-TypeAudio"
+        case .healthcare: return "USB-TypeHealthcare"
+        case .audioVideo: return "USB-TypeAudioVideo"
+        case .typeCBridge: return "USB-TypeTypeCBridge"
+        case .wireless: return "USB-TypeWireless"
+        }
+    }
+
+    /// How the row is named in Settings, in the original's words.
+    var settingsTitle: String {
+        switch self {
+        case .hub: return "Hub"
+        case .massStorage: return "Mass Storage"
+        case .hid: return "Keyboard/Mouse"
+        case .webcam: return "Webcam"
+        case .scanner: return "Scanner"
+        case .printer: return "Printer"
+        case .smartCard: return "Smart Card"
+        case .audio: return "Audio"
+        case .healthcare: return "Healthcare"
+        case .audioVideo: return "Audio/Video"
+        case .typeCBridge: return "Type-C Bridge"
+        case .wireless: return "Wireless"
+        }
+    }
+
+    /// The event raised when a device of this kind arrives.
+    var connectedEvent: USBEvent {
+        switch self {
+        case .hub: return .connectedHub
+        case .massStorage: return .connectedMassStorage
+        case .hid: return .connectedHID
+        case .webcam: return .connectedWebcam
+        case .scanner: return .connectedScanner
+        case .printer: return .connectedPrinter
+        case .smartCard: return .connectedSmartCard
+        case .audio: return .connectedAudio
+        case .healthcare: return .connectedHealthcare
+        case .audioVideo: return .connectedAudioVideo
+        case .typeCBridge: return .connectedTypeCBridge
+        case .wireless: return .connectedWireless
         }
     }
 }
