@@ -14,6 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var eventSettings: EventSettingsModel!
     private(set) var history: NotificationHistoryStore!
     private(set) var iconOverrides: IconOverrideStore!
+    private(set) var general: GeneralSettingsModel!
+
+    /// Mirrors the General tab's icon choice for the menu bar scene, which needs a binding
+    /// it can write to even though nothing ever writes back through it.
+    var menuBarIconIsVisible: Bool = true
     private var dispatcher: NotificationDispatcher!
     private var registry: MonitorRegistry!
     private var bannerDelivery: BannerDelivery!
@@ -84,6 +89,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             announcesWhatIsAlreadyThere: preferences.announcesWhatIsAlreadyThere
         )
         eventSettings = EventSettingsModel(preferences: preferences, registry: registry)
+        general = GeneralSettingsModel(preferences: preferences, iconOverrides: iconOverrides)
+        general.applyStoredIconVisibility()
+        menuBarIconIsVisible = general.iconVisibility.showsMenuBarIcon
+        trackIconVisibilityChanges()
         trackAppearanceChanges()
         trackIconOverrideChanges()
 
@@ -116,6 +125,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Handed in by the scene, which is the only thing that can open a SwiftUI `Window`.
     var openSettingsWindow: (() -> Void)?
+
+    /// A menu-bar application outlives its windows: the banners it draws are windows, and
+    /// the last of them going away is the normal state of things, not a reason to quit.
+    /// Without this, the application ends a few seconds after launch as soon as the
+    /// startup banners expire — which looks exactly like a crash.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
         let registry = self.registry
@@ -152,6 +169,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let overrides = self.iconOverrides.overrides
                 await self.iconOverrideMiddleware.update(overrides)
                 self.trackIconOverrideChanges()
+            }
+        }
+    }
+
+    /// Keeps the menu bar item in step with the General tab, the same re-arming way the
+    /// appearance and icon settings are followed.
+    private func trackIconVisibilityChanges() {
+        withObservationTracking {
+            _ = general.iconVisibility
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.menuBarIconIsVisible = self.general.iconVisibility.showsMenuBarIcon
+                self.trackIconVisibilityChanges()
             }
         }
     }

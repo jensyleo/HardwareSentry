@@ -10,7 +10,10 @@ struct HardwareSentryApp: App {
         // The application's own icon rather than a system symbol: in a menu bar full of
         // other people's glyphs, the thing that makes this one findable is that it looks
         // like the application it belongs to.
-        MenuBarExtra {
+        MenuBarExtra(isInserted: Binding(
+            get: { delegate.menuBarIconIsVisible },
+            set: { delegate.menuBarIconIsVisible = $0 }
+        )) {
             Button("About HardwareSentry") {
                 NSApplication.shared.orderFrontStandardAboutPanel(nil)
                 NSApplication.shared.activate()
@@ -33,13 +36,17 @@ struct HardwareSentryApp: App {
         } label: {
             MenuBarIcon(delegate: delegate)
         }
+        // Hidden when somebody has asked for the dock only, or for nothing at all. The
+        // application keeps running either way — this is where it shows itself, not
+        // whether it works.
+
 
         // A plain window rather than the `Settings` scene: that one sizes itself to the
         // content's intrinsic height and refuses to resize, which leaves the appearance
         // tab permanently cut off — and it grows with every setting added. The menu item
         // and ⌘, are wired by hand below, which is the whole of what `Settings` gave us.
         Window("HardwareSentry Settings", id: Self.settingsWindowID) {
-            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings, history: delegate.history, iconOverrides: delegate.iconOverrides)
+            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings, history: delegate.history, iconOverrides: delegate.iconOverrides, general: delegate.general)
                 .onAppear { NSApplication.shared.activate() }
         }
         .defaultSize(width: 620, height: 720)

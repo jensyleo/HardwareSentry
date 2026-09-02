@@ -11,9 +11,15 @@ struct SettingsView: View {
     let events: EventSettingsModel
     let history: NotificationHistoryStore
     let iconOverrides: IconOverrideStore
+    let general: GeneralSettingsModel
 
     var body: some View {
         TabView {
+            // First, and in this order, because it is the one tab about the application
+            // itself rather than about the notifications it sends.
+            GeneralSettingsView(model: general)
+                .tabItem { Label("General", systemImage: "gearshape") }
+
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
