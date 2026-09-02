@@ -19,13 +19,38 @@ public actor VolumeMonitor: Monitor {
     private var lowSpaceThresholdPercent: Double
     private var lowSpaceRecoverPercent: Double
 
-    public static let events: [MonitorEventDescription] = [
-        .init(name: VolumeEvent.mounted.rawValue, title: "Volume mounted", icon: .asset("DisksVolumes-Mounted", in: .module)),
-        .init(name: VolumeEvent.unmounted.rawValue, title: "Volume unmounted", icon: .asset("DisksVolumes-Eject", in: .module)),
-        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Volume disappeared without being ejected", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module)),
-        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk could not be read", icon: .asset("Device-Critical", in: .module)),
-        .init(name: VolumeEvent.lowSpace.rawValue, title: "Free space low", enabledByDefault: false, icon: .asset("Device-Critical", in: .module))
+    /// Three rows per kind of drive — mounted, unmounted, low space — then the generics
+    /// and the two that are about a drive going wrong rather than coming and going.
+    public static let events: [MonitorEventDescription] = VolumeKind.allCases.flatMap { kind in
+        [
+            MonitorEventDescription(
+                name: kind.mountedEvent.rawValue,
+                title: kind.settingsTitle,
+                icon: .asset(kind.iconBaseName, in: .module)
+            ),
+            MonitorEventDescription(
+                name: kind.unmountedEvent.rawValue,
+                title: "\(kind.settingsTitle) (Unmounted)",
+                icon: .asset("\(kind.iconBaseName)-Unmounted", in: .module)
+            ),
+            MonitorEventDescription(
+                name: kind.lowSpaceEvent.rawValue,
+                title: "\(kind.settingsTitle) (Critical)",
+                enabledByDefault: false,
+                icon: .asset("\(kind.iconBaseName)-Critical", in: .module)
+            )
+        ]
+    } + [
+        .init(name: VolumeEvent.lowSpace.rawValue, title: "Critical (generic)", enabledByDefault: false, icon: .asset("Device-Critical", in: .module)),
+        .init(name: VolumeEvent.mounted.rawValue, title: "Mounted (generic)", icon: .asset("DisksVolumes-Mounted", in: .module)),
+        .init(name: VolumeEvent.unmounted.rawValue, title: "Unmounted (generic)", icon: .asset("DisksVolumes-Eject", in: .module)),
+        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Ejected Unsafely", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module)),
+        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module))
     ]
+
+    /// Said outright: the first event is now an optical disc, and this module is about
+    /// every kind of volume.
+    public static let icon: NotificationIcon = .asset("DisksVolumes-Mounted", in: .module)
 
     public static let fields: [MonitorFieldDescription] = VolumeField.allCases.map {
         .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
@@ -128,7 +153,9 @@ public actor VolumeMonitor: Monitor {
         switch event {
         case .mounted(let path, let name, let detail):
             await context.notify(
-                VolumeEvent.mounted.rawValue,
+                // The row this drive's own kind owns; the generic one only for a volume
+                // with no honest signal about what it is.
+                (detail.kind?.mountedEvent ?? VolumeEvent.mounted).rawValue,
                 subject: path,
                 // The volume's own name in the title, not a fixed word: with eight
                 // volumes announced at once, a column of identical "Volume Mounted"
@@ -213,7 +240,7 @@ public actor VolumeMonitor: Monitor {
                 )
             }
             await context.notify(
-                VolumeEvent.unmounted.rawValue,
+                (kind?.unmountedEvent ?? VolumeEvent.unmounted).rawValue,
                 subject: path,
                 title: "\(name) Unmounted",
                 body: "",
@@ -232,7 +259,7 @@ public actor VolumeMonitor: Monitor {
                 pathsBelowSpaceThreshold.insert(path)
                 let purgeable = purgeableAwareFreeByPath[path]
                 await context.notify(
-                    VolumeEvent.lowSpace.rawValue,
+                    (kindByPath[path]?.lowSpaceEvent ?? VolumeEvent.lowSpace).rawValue,
                     subject: path,
                     title: "Low Disk Space",
                     body: await context.body([

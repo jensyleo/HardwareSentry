@@ -122,6 +122,53 @@ public struct VolumeDetail: Sendable, Equatable {
 public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
     case sdCard, usbDrive, externalDisk, optical, nas
 
+    /// How the row is named in Settings, in the original's words.
+    var settingsTitle: String {
+        switch self {
+        case .sdCard: return "SD Card"
+        case .usbDrive: return "USB Drive"
+        case .externalDisk: return "External Disk"
+        case .optical: return "Optical"
+        case .nas: return "NAS"
+        }
+    }
+
+    /// The event raised when a volume of this kind mounts, and when one goes.
+    ///
+    /// Three rows per kind rather than one, as the original has it: mounting, unmounting
+    /// and running out of space are three different pieces of news about the same drive,
+    /// and somebody who wants the low-space warning on an external disk does not
+    /// necessarily want to be told every time they plug it in.
+    var mountedEvent: VolumeEvent {
+        switch self {
+        case .optical: return .mountedOptical
+        case .nas: return .mountedNAS
+        case .externalDisk: return .mountedExternalDisk
+        case .sdCard: return .mountedSDCard
+        case .usbDrive: return .mountedUSBDrive
+        }
+    }
+
+    var unmountedEvent: VolumeEvent {
+        switch self {
+        case .optical: return .unmountedOptical
+        case .nas: return .unmountedNAS
+        case .externalDisk: return .unmountedExternalDisk
+        case .sdCard: return .unmountedSDCard
+        case .usbDrive: return .unmountedUSBDrive
+        }
+    }
+
+    var lowSpaceEvent: VolumeEvent {
+        switch self {
+        case .optical: return .lowSpaceOptical
+        case .nas: return .lowSpaceNAS
+        case .externalDisk: return .lowSpaceExternalDisk
+        case .sdCard: return .lowSpaceSDCard
+        case .usbDrive: return .lowSpaceUSBDrive
+        }
+    }
+
     public var iconBaseName: String {
         switch self {
         case .sdCard: return "Device-SDCard"

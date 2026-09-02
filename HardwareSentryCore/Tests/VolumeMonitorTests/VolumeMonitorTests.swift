@@ -125,15 +125,23 @@ struct VolumeMonitorTests {
     func eventsAreDeclaredWithDefaults() {
         let byName = Dictionary(uniqueKeysWithValues: VolumeMonitor.events.map { ($0.name, $0.enabledByDefault) })
 
-        #expect(byName == [
-            "VolumeMounted": true,
-            "VolumeUnmounted": true,
-            "VolumeUnsafeEject": false,
-            // On by default, as in the original: an unreadable card is a real problem
-            // somebody would want told about, not a detail to opt into.
-            "VolumeNotReadable": true,
-            "VolumeLowSpace": false
-        ])
+        // Three rows per kind of drive, then the generics and the two about a drive
+        // going wrong rather than coming and going.
+        #expect(Set(byName.keys) == Set(VolumeEvent.allCases.map(\.rawValue)))
+        #expect(byName["VolumeMounted"] == true)
+        #expect(byName["VolumeUnmounted"] == true)
+        // On by default, as in the original: an unreadable card is a real problem
+        // somebody would want told about, not a detail to opt into.
+        #expect(byName["VolumeNotReadable"] == true)
+        #expect(byName["VolumeUnsafeEject"] == false)
+        #expect(byName["VolumeLowSpace"] == false)
+
+        for kind in VolumeKind.allCases {
+            #expect(byName[kind.mountedEvent.rawValue] == true)
+            #expect(byName[kind.unmountedEvent.rawValue] == true)
+            // Low space stays off per kind too: it is the one that repeats.
+            #expect(byName[kind.lowSpaceEvent.rawValue] == false)
+        }
     }
 
     @Test("the details a volume can report show up when it mounts")
@@ -376,5 +384,31 @@ struct VolumeDetailLineTests {
         #expect(VolumeDetail(isEncrypted: false).encryptedNote == "No")
         #expect(VolumeDetail(isCaseSensitive: true).caseSensitiveNote == "Yes")
         #expect(VolumeDetail().caseSensitiveNote == nil)
+    }
+}
+
+@Suite("VolumeMonitor · one row per kind of drive")
+struct VolumeKindRowTests {
+    @Test("every kind has three rows, each with artwork that exists")
+    func everyKindHasThreeRows() {
+        // Mounted, unmounted and low space are three different pieces of news about the
+        // same drive: somebody who wants the low-space warning on an external disk does
+        // not necessarily want telling every time they plug it in.
+        for kind in VolumeKind.allCases {
+            for event in [kind.mountedEvent, kind.unmountedEvent, kind.lowSpaceEvent] {
+                let declared = VolumeMonitor.events.first { $0.name == event.rawValue }
+                #expect(declared != nil, "\(kind) has no row for \(event)")
+                // `.asset` gives no icon for a name that resolves to nothing, so this
+                // catches a typo in an artwork name as well as a missing row.
+                #expect(declared?.icon != .none, "\(kind) \(event) has no icon")
+            }
+        }
+        #expect(VolumeKind.allCases.count == 5)
+    }
+
+    @Test("the module's icon is the plain volume glyph, not whichever kind comes first")
+    func moduleIconIsDeclared() {
+        #expect(VolumeMonitor.icon == .asset("DisksVolumes-Mounted", in: .module))
+        #expect(VolumeMonitor.icon != VolumeMonitor.events.first?.icon)
     }
 }
