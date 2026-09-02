@@ -21,6 +21,10 @@ public enum NetworkSourceEvent: Sendable, Equatable {
     /// looks like; the very first time an interface is seen holding a lease at all is
     /// just DHCP finishing normally, not a renewal of anything.
     case dhcpLeaseSnapshot([String: Date])
+    /// Every system-wide network setting worth watching, read together — not a delta.
+    case globalState(NetworkGlobalState)
+    /// Whether the Wi-Fi radio itself is powered on, independent of any network.
+    case wifiRadioPower(isOn: Bool)
     /// The name set in System Settings › General › Sharing — not the same as the "AirDrop
     /// & Handoff"-style Bonjour name, and not the same as a DNS hostname.
     case computerNameSnapshot(String?)

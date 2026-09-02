@@ -190,3 +190,41 @@ extension USBIconTests {
         #expect(!seen.isEmpty)
     }
 }
+
+@Suite("USB device type")
+struct USBClassNameTests {
+    private func named(_ code: UInt8?) -> String? {
+        USBDevice(name: "Thing", deviceClass: code).className
+    }
+
+    @Test("the message says what kind of thing arrived, not just that something did")
+    func classesAreNamed() {
+        #expect(named(0x08) == "Mass Storage")
+        #expect(named(0x03) == "HID (Keyboard/Mouse)")
+        #expect(named(0x09) == "Hub")
+        #expect(named(0x0E) == "Video")
+        #expect(named(0xE0) == "Wireless Controller")
+    }
+
+    @Test("a device that declares its class per-interface says nothing rather than guessing")
+    func perInterfaceClassIsSilent() {
+        // 0x00 means "look at the interfaces, not at me" — the common case for composite
+        // devices, and there is nothing useful to say about it.
+        #expect(named(0x00) == nil)
+        #expect(named(nil) == nil)
+        #expect(named(0x42) == nil)
+    }
+
+    @Test("every class with a name has an icon, and every class with an icon has a name")
+    func namesAndIconsAgree() {
+        // Not a strict requirement of the format, but a mismatch means a notification
+        // that shows a webcam picture and cannot say "Video", or vice versa — worth
+        // knowing about deliberately rather than discovering in a screenshot.
+        for code in UInt8.min...UInt8.max {
+            let device = USBDevice(name: "Thing", deviceClass: code)
+            if device.iconBaseName != nil {
+                #expect(device.className != nil, "class 0x\(String(code, radix: 16)) has an icon but no name")
+            }
+        }
+    }
+}

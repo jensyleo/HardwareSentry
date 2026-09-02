@@ -44,6 +44,10 @@ public struct SystemNetworkSource: NetworkSource {
 private let linkKeyPattern = "State:/Network/Interface/[^/]+/Link"
 private let dhcpKeyPattern = "State:/Network/Interface/[^/]+/DHCP"
 private let computerNameKey = "Setup:/System"
+private let globalDNSKey = "State:/Network/Global/DNS"
+private let globalProxiesKey = "State:/Network/Global/Proxies"
+private let setupRootKey = "Setup:"
+private let setupIPv4Key = "Setup:/Network/Global/IPv4"
 
 extension SystemNetworkSource {
     /// Every interface `SCNetworkInterfaceCopyAll` lists, by BSD name, classified into
@@ -77,6 +81,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     /// all this needs: the location itself is never read, only the permission it unlocks.
     private var locationManager: CLLocationManager?
     private var lastKnownSSID: String?
+    private var radioPollTask: Task<Void, Never>?
 
     init(continuation: AsyncStream<NetworkSourceEvent>.Continuation) {
         self.continuation = continuation
@@ -149,6 +154,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         CWWiFiClient.shared().delegate = nil
         try? CWWiFiClient.shared().stopMonitoringAllEvents()
         locationManager?.delegate = nil
+        radioPollTask?.cancel()
         continuation.finish()
     }
 
@@ -179,7 +185,11 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
 
         SCDynamicStoreSetNotificationKeys(
             store,
-            [globalIPv4Key as CFString, computerNameKey as CFString] as CFArray,
+            [
+                globalIPv4Key as CFString, computerNameKey as CFString,
+                globalDNSKey as CFString, globalProxiesKey as CFString,
+                setupRootKey as CFString, setupIPv4Key as CFString
+            ] as CFArray,
             [linkKeyPattern as CFString, dhcpKeyPattern as CFString] as CFArray
         )
         guard let source = SCDynamicStoreCreateRunLoopSource(kCFAllocatorDefault, store, 0) else { return }
@@ -228,6 +238,8 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         let system = SCDynamicStoreCopyValue(dynamicStore, computerNameKey as CFString) as? [String: AnyObject]
         continuation.yield(.computerNameSnapshot(system?[kSCPropSystemComputerName as String] as? String))
 
+        continuation.yield(.globalState(readGlobalState(dynamicStore)))
+
         emitAddresses()
     }
 
@@ -254,12 +266,76 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     private static let addressPollTimeout: TimeInterval = 15
 
 
+    /// Reads the system-wide settings that all live in `SCDynamicStore` dictionaries.
+    private func readGlobalState(_ store: SCDynamicStore) -> NetworkGlobalState {
+        let dns = SCDynamicStoreCopyValue(store, globalDNSKey as CFString) as? [String: AnyObject]
+        let proxies = SCDynamicStoreCopyValue(store, globalProxiesKey as CFString) as? [String: AnyObject]
+        let setupIPv4 = SCDynamicStoreCopyValue(store, setupIPv4Key as CFString) as? [String: AnyObject]
+
+        return NetworkGlobalState(
+            dnsServers: dns?["ServerAddresses"] as? [String] ?? [],
+            proxy: ProxyConfiguration(
+                http: proxies?["HTTPEnable"] as? Bool ?? false,
+                https: proxies?["HTTPSEnable"] as? Bool ?? false,
+                socks: proxies?["SOCKSEnable"] as? Bool ?? false,
+                autoConfig: proxies?["ProxyAutoConfigEnable"] as? Bool ?? false,
+                httpHost: proxies?["HTTPProxy"] as? String,
+                autoConfigURL: proxies?["ProxyAutoConfigURLString"] as? String
+            ),
+            locationName: readLocationName(store),
+            serviceOrder: setupIPv4?[kSCPropNetServiceOrder as String] as? [String] ?? []
+        )
+    }
+
+    /// The active network location's name.
+    ///
+    /// Two reads: the root `Setup:` dictionary names which set is current, as a path, and
+    /// the dictionary at that path carries the name somebody typed.
+    private func readLocationName(_ store: SCDynamicStore) -> String? {
+        guard let setup = SCDynamicStoreCopyValue(store, setupRootKey as CFString) as? [String: AnyObject],
+              let currentSetPath = setup[kSCPrefCurrentSet as String] as? String,
+              let set = SCDynamicStoreCopyValue(store, currentSetPath as CFString) as? [String: AnyObject]
+        else { return nil }
+        return set[kSCPropUserDefinedName as String] as? String
+    }
+
     // MARK: Wi-Fi (CoreWLAN)
 
     private func startWiFi() {
         let client = CWWiFiClient.shared()
         client.delegate = self
         try? client.startMonitoringEvent(with: .ssidDidChange)
+        try? client.startMonitoringEvent(with: .powerDidChange)
+        emitWiFiRadioPower()
+        startWiFiRadioPoll()
+    }
+
+    /// Reads the radio's power and reports it.
+    ///
+    /// The monitor only speaks when the answer changes, so calling this often is free.
+    private func emitWiFiRadioPower() {
+        guard let interface = CWWiFiClient.shared().interface() else { return }
+        continuation.yield(.wifiRadioPower(isOn: interface.powerOn()))
+    }
+
+    /// A slow backstop behind the push notification.
+    ///
+    /// `powerDidChange` is the right mechanism and usually arrives, but a missed one would
+    /// otherwise leave the application permanently wrong about the radio — and every Wi-Fi
+    /// notification after that reads as inexplicable. Thirty seconds, the original's
+    /// figure, is cheap: reading a power flag is not work.
+    private func startWiFiRadioPoll() {
+        radioPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { return }
+                await MainActor.run { self?.emitWiFiRadioPower() }
+            }
+        }
+    }
+
+    func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
+        emitWiFiRadioPower()
     }
 
     func ssidDidChangeForWiFiInterface(withName interfaceName: String) {

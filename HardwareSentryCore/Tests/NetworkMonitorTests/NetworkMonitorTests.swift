@@ -605,3 +605,176 @@ struct NetworkMonitorIPTests {
         #expect(events[1].body == "IP address released")
     }
 }
+
+@Suite("Network system-wide settings")
+struct NetworkGlobalStateTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("the settings already in force at launch are not announced as changes")
+    func firstReadingIsSilent() async {
+        // Somebody chose these at some point in the past. Announcing the state they were
+        // already in would be announcing a change that did not happen.
+        let events = await run([.globalState(NetworkGlobalState(
+            dnsServers: ["1.1.1.1"],
+            locationName: "Automatic",
+            serviceOrder: ["Wi-Fi", "Ethernet"]
+        ))], expecting: 0)
+        #expect(events.isEmpty)
+    }
+
+    @Test("changing the resolvers says which they were and which they are")
+    func dnsChangeNamesBothSides() async {
+        let events = await run([
+            .globalState(NetworkGlobalState(dnsServers: ["192.168.1.1"])),
+            .globalState(NetworkGlobalState(dnsServers: ["1.1.1.1", "1.0.0.1"]))
+        ], expecting: 1)
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == "DNSServersChanged")
+        #expect(events.first?.title == "DNS Servers Changed")
+        #expect(events.first?.body == "192.168.1.1 → 1.1.1.1, 1.0.0.1")
+    }
+
+    @Test("having no resolvers at all is said in words, not as an empty gap")
+    func emptyResolverListReadsAsNone() async {
+        let events = await run([
+            .globalState(NetworkGlobalState(dnsServers: ["1.1.1.1"])),
+            .globalState(NetworkGlobalState(dnsServers: []))
+        ], expecting: 1)
+        #expect(events.first?.body == "1.1.1.1 → none")
+    }
+
+    @Test("a proxy notice names which kinds are in force")
+    func proxySummaryNamesTheKinds() async {
+        let events = await run([
+            .globalState(NetworkGlobalState()),
+            .globalState(NetworkGlobalState(proxy: ProxyConfiguration(http: true, socks: true)))
+        ], expecting: 1)
+
+        #expect(events.first?.name == "ProxyConfigChanged")
+        #expect(events.first?.body == "Active: HTTP, SOCKS")
+    }
+
+    @Test("switching every proxy off says so rather than saying nothing")
+    func proxyOffIsStillNews() async {
+        let events = await run([
+            .globalState(NetworkGlobalState(proxy: ProxyConfiguration(http: true))),
+            .globalState(NetworkGlobalState())
+        ], expecting: 1)
+        #expect(events.first?.body == "No proxy configured")
+    }
+
+    @Test("pointing the same proxy kind at a different server is a change")
+    func movingProxyHostCounts() async {
+        // The same boxes stay ticked, so comparing only the flags would miss it.
+        let events = await run([
+            .globalState(NetworkGlobalState(proxy: ProxyConfiguration(http: true, httpHost: "old.example"))),
+            .globalState(NetworkGlobalState(proxy: ProxyConfiguration(http: true, httpHost: "new.example")))
+        ], expecting: 1)
+        #expect(events.first?.name == "ProxyConfigChanged")
+    }
+
+    @Test("reordering services is announced; adding or removing one is not")
+    func onlyReorderCountsAsAReorder() async {
+        let reordered = await run([
+            .globalState(NetworkGlobalState(serviceOrder: ["Wi-Fi", "Ethernet"])),
+            .globalState(NetworkGlobalState(serviceOrder: ["Ethernet", "Wi-Fi"]))
+        ], expecting: 1)
+        #expect(reordered.first?.name == "NetworkServiceOrderChanged")
+        #expect(reordered.first?.body == "Ethernet → Wi-Fi")
+
+        // A service appearing changes the array too, and that is different news than
+        // "the order you try them in changed".
+        let added = await run([
+            .globalState(NetworkGlobalState(serviceOrder: ["Wi-Fi"])),
+            .globalState(NetworkGlobalState(serviceOrder: ["Wi-Fi", "Thunderbolt Bridge"]))
+        ], expecting: 0)
+        #expect(added.isEmpty)
+    }
+
+    @Test("the network location is named on both sides of the change")
+    func locationChangeNamesBothSides() async {
+        let events = await run([
+            .globalState(NetworkGlobalState(locationName: "Automatic")),
+            .globalState(NetworkGlobalState(locationName: "Office"))
+        ], expecting: 1)
+        #expect(events.first?.name == "NetworkLocationChanged")
+        #expect(events.first?.body == "Automatic → Office")
+    }
+
+    @Test("two settings moving at once produce two notices, not one merged one")
+    func independentSettingsReportIndependently() async {
+        let events = await run([
+            .globalState(NetworkGlobalState(dnsServers: ["1.1.1.1"], locationName: "Home")),
+            .globalState(NetworkGlobalState(dnsServers: ["8.8.8.8"], locationName: "Office"))
+        ], expecting: 2)
+        #expect(Set(events.map(\.name)) == ["DNSServersChanged", "NetworkLocationChanged"])
+    }
+}
+
+@Suite("Wi-Fi radio power")
+struct WiFiRadioPowerTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("the radio's state at launch is a baseline, not news")
+    func firstReadingIsSilent() async {
+        #expect(await run([.wifiRadioPower(isOn: true)], expecting: 0).isEmpty)
+    }
+
+    @Test("turning the radio off and on again uses the original's wording")
+    func powerChangesUseTheExpectedTitles() async {
+        let events = await run([
+            .wifiRadioPower(isOn: true),
+            .wifiRadioPower(isOn: false),
+            .wifiRadioPower(isOn: true)
+        ], expecting: 2)
+
+        #expect(events.count == 2)
+        #expect(events[0].name == "WifiRadioOff")
+        #expect(events[0].title == "Wi-Fi Turned Off")
+        #expect(events[1].name == "WifiRadioOn")
+        #expect(events[1].title == "Wi-Fi Turned On")
+    }
+
+    @Test("the backstop poll reading the same answer says nothing")
+    func repeatedReadingsAreSilent() async {
+        // The poll behind the push notification runs every thirty seconds; it must be
+        // free to report the same state forever.
+        let events = await run([
+            .wifiRadioPower(isOn: true),
+            .wifiRadioPower(isOn: true),
+            .wifiRadioPower(isOn: true)
+        ], expecting: 0)
+        #expect(events.isEmpty)
+    }
+}

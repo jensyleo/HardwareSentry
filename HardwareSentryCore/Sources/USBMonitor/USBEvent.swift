@@ -14,4 +14,5 @@ public enum USBEvent: String, NotificationEventKey {
 /// The optional details this monitor can add.
 public enum USBField: String, CaseIterable {
     case vendor = "Vendor"
+    case deviceClass = "Type"
 }

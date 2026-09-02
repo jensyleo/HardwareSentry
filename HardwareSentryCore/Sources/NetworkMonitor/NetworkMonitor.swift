@@ -36,6 +36,8 @@ public actor NetworkMonitor: Monitor {
     private var knownLeaseStarts: [String: Date] = [:]
     private var hasLeaseBaseline = false
     private var lastKnownComputerName: String?
+    private var lastKnownGlobalState: NetworkGlobalState?
+    private var lastKnownWiFiRadioOn: Bool?
     /// What the IP message last actually said. Compared as text rather than as addresses,
     /// because that is what decides whether re-showing it would tell anyone anything new:
     /// an address changing behind a switched-off IPv6 line changes nothing visible.
@@ -102,6 +104,10 @@ public actor NetworkMonitor: Monitor {
             await handleComputerName(name)
         case .ipAddressSnapshot(let report):
             await handleIPAddresses(report)
+        case .globalState(let state):
+            await handleGlobalState(state)
+        case .wifiRadioPower(let isOn):
+            await handleWiFiRadioPower(isOn)
         }
     }
 
@@ -216,6 +222,73 @@ public actor NetworkMonitor: Monitor {
             // A machine holding only self-assigned addresses has an address and no
             // connection; the icon should not read as success.
             icon: .asset(report.hasRoutableAddress ? "Network-Generic-On" : "Network-Generic-Off", in: .module)
+        )
+    }
+
+    /// Reports each system-wide setting that actually moved.
+    ///
+    /// Always a silent baseline, whatever the startup sweep is set to: these are settings
+    /// somebody chose at some point in the past, not devices that just showed up, and
+    /// announcing the state they were already in would be announcing a change that did
+    /// not happen.
+    private func handleGlobalState(_ state: NetworkGlobalState) async {
+        defer { lastKnownGlobalState = state }
+        guard let previous = lastKnownGlobalState else { return }
+
+        if previous.dnsServers != state.dnsServers {
+            await context.notify(
+                NetworkEvent.dnsServersChanged.rawValue, subject: "DNS",
+                title: "DNS Servers Changed",
+                body: "\(NetworkGlobalState.describe(previous.dnsServers)) → \(NetworkGlobalState.describe(state.dnsServers))",
+                icon: .asset("Network-DNS-On", in: .module)
+            )
+        }
+
+        if previous.proxy != state.proxy {
+            await context.notify(
+                NetworkEvent.proxyConfigChanged.rawValue, subject: "Proxy",
+                title: "Proxy Configuration Changed",
+                body: state.proxy.summary,
+                icon: .asset("Network-Proxy-On", in: .module)
+            )
+        }
+
+        if let was = previous.locationName, let now = state.locationName, was != now {
+            await context.notify(
+                NetworkEvent.locationChanged.rawValue, subject: "Location",
+                title: "Network Location Changed",
+                body: "\(was) → \(now)",
+                icon: .asset("Network-Generic-On", in: .module)
+            )
+        }
+
+        // Only a reorder counts. A service being added or removed changes the array too,
+        // and that is a different piece of news than "the order you try them in changed".
+        if previous.serviceOrder != state.serviceOrder,
+           Set(previous.serviceOrder) == Set(state.serviceOrder),
+           !state.serviceOrder.isEmpty {
+            await context.notify(
+                NetworkEvent.serviceOrderChanged.rawValue, subject: "ServiceOrder",
+                title: "Network Service Order Changed",
+                body: NetworkGlobalState.describe(order: state.serviceOrder),
+                icon: .asset("Network-Generic-On", in: .module)
+            )
+        }
+    }
+
+    /// The radio's own power, which is a different fact from being on a network: the radio
+    /// can be on with nothing joined, and turning it off is what explains every other
+    /// network notification that follows.
+    private func handleWiFiRadioPower(_ isOn: Bool) async {
+        defer { lastKnownWiFiRadioOn = isOn }
+        guard let previous = lastKnownWiFiRadioOn, previous != isOn else { return }
+
+        await context.notify(
+            (isOn ? NetworkEvent.wifiRadioOn : NetworkEvent.wifiRadioOff).rawValue,
+            subject: "WiFiRadio",
+            title: isOn ? "Wi-Fi Turned On" : "Wi-Fi Turned Off",
+            body: "",
+            icon: .asset(isOn ? "Network-Wifi-Radio-On" : "Network-Wifi-Radio-Off", in: .module)
         )
     }
 

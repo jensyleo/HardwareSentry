@@ -12,6 +12,9 @@ public actor USBMonitor: Monitor {
     ]
 
     public static let fields: [MonitorFieldDescription] = [
+        // What kind of thing arrived, which is the second half of the news: the title
+        // already says it came in over USB, and this says what it is.
+        .init(name: USBField.deviceClass.rawValue, title: "What kind of device it is"),
         .init(name: USBField.vendor.rawValue, title: "Vendor")
     ]
 
@@ -49,6 +52,7 @@ public actor USBMonitor: Monitor {
                 title: device.isHub ? "USB Hub/Dock Connection" : "USB Connection",
                 body: await context.body([
                     .always(device.name),
+                    .field(USBField.deviceClass.rawValue, "Type", device.className),
                     .field(USBField.vendor.rawValue, vendorDetail(device))
                 ]),
                 icon: .asset(device.iconBaseName ?? "USB-On", in: .module)

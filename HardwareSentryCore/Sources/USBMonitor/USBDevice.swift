@@ -69,3 +69,38 @@ public extension USBDevice {
         return base == "Device-USBDrive" ? "Device-USBDrive-Unmounted" : "\(base)-Disconnected"
     }
 }
+
+public extension USBDevice {
+    /// What the device says it is, in words — "Mass Storage", "HID (Keyboard/Mouse)".
+    ///
+    /// The USB-IF's published base class codes. Nil for `0x00`, which means the device
+    /// declares its class per-interface rather than on itself: that is the common case,
+    /// not an error, and there is nothing useful to say about it.
+    var className: String? {
+        guard let deviceClass else { return nil }
+        switch deviceClass {
+        case 0x01: return "Audio"
+        case 0x02: return "Communications"
+        case 0x03: return "HID (Keyboard/Mouse)"
+        case 0x05: return "Physical"
+        case 0x06: return "Still Imaging"
+        case 0x07: return "Printer"
+        case 0x08: return "Mass Storage"
+        case 0x09: return "Hub"
+        case 0x0A: return "CDC Data"
+        case 0x0B: return "Smart Card"
+        case 0x0D: return "Content Security"
+        case 0x0E: return "Video"
+        case 0x0F: return "Personal Healthcare"
+        case 0x10: return "Audio/Video"
+        case 0x11: return "Billboard"
+        case 0x12: return "USB Type-C Bridge"
+        case 0xDC: return "Diagnostic"
+        case 0xE0: return "Wireless Controller"
+        case 0xEF: return "Miscellaneous"
+        case 0xFE: return "Application Specific"
+        case 0xFF: return "Vendor Specific"
+        default: return nil
+        }
+    }
+}
