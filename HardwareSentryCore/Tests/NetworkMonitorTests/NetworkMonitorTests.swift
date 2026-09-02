@@ -147,7 +147,25 @@ struct NetworkMonitorTests {
             "PrimaryInterfaceChanged": false,
             "NetworkDHCPLeaseRenewed": false,
             "NetworkHostnameChanged": false,
-            "IPAddressChange": true
+            "IPAddressChange": true,
+            "AirportSignalChange": true,
+            "WifiRadioOn": true,
+            "WifiRadioOff": true,
+            "WifiHostAPModeChanged": false,
+            "VPNConnected": true,
+            "VPNDisconnected": true,
+            "DNSServersChanged": false,
+            "ProxyConfigChanged": false,
+            "NetworkLocationChanged": false,
+            "NetworkServiceOrderChanged": false,
+            "NetworkLinkSpeedChanged": false,
+            "NetworkAdapterDetaching": true,
+            "NetworkBondMemberStatusChanged": false,
+            "NetworkPromiscuousModeChanged": true,
+            "NetworkPathStatusChanged": false,
+            "NetworkPathExpensiveChanged": false,
+            "NetworkPathConstrainedChanged": false,
+            "NetworkPathQualityChanged": false
         ])
     }
 
@@ -1654,5 +1672,108 @@ struct WiFiInterfaceModeTests {
             .wifiInterfaceMode(nil)
         ], expecting: 0)
         #expect(events.isEmpty)
+    }
+}
+
+@Suite("NetworkMonitor · declarations")
+struct NetworkDeclarationTests {
+    /// The test that was missing, and would have caught the whole class of bug.
+    ///
+    /// An event that is raised but not declared still arrives — an unset preference
+    /// defaults to wanted — so nothing looks broken from the outside. What it cannot do is
+    /// appear in the settings window: no switch, no icon of its own, no line in the
+    /// generated help. Eighteen of this monitor's events were in that state.
+    @Test("every event this monitor can raise is declared for preferences to find")
+    func everyEventIsDeclared() {
+        let declared = Set(NetworkMonitor.events.map(\.name))
+        let raiseable = Set(NetworkEvent.allCases.map(\.rawValue))
+
+        #expect(declared == raiseable)
+        #expect(declared.count == 27)
+    }
+
+    /// Also checks that every icon file actually ships.
+    ///
+    /// `NotificationIcon.asset` gives `.none` for a name that resolves to nothing, so a
+    /// typo in one of these names is indistinguishable from "no icon" — and this is the
+    /// only place it can be caught before somebody sees a notification wearing the
+    /// application's own icon instead of its module's.
+    @Test("every declared event has a title and an icon that exists")
+    func declarationsAreComplete() {
+        for event in NetworkMonitor.events {
+            #expect(!event.title.isEmpty)
+            #expect(event.icon != .none, "\(event.name) has no icon")
+        }
+    }
+
+    @Test("the connect notification's icon shows the signal it actually joined with")
+    func connectIconFollowsTheSignal() {
+        // The bug the user reported: a fixed four-bar icon on every connection is a
+        // strength indicator that indicates nothing.
+        #expect(WiFiSignalLevel(rssi: -48).iconName == "Network-Wifi-4")
+        #expect(WiFiSignalLevel(rssi: -60).iconName == "Network-Wifi-3")
+        #expect(WiFiSignalLevel(rssi: -70).iconName == "Network-Wifi-2")
+        #expect(WiFiSignalLevel(rssi: -78).iconName == "Network-Wifi-1")
+        #expect(WiFiSignalLevel(rssi: -90).iconName == "Network-Wifi-0")
+        // No reading at all, which is what a connection with no RSSI reports.
+        #expect(WiFiSignalLevel(rssi: 0).iconName == "Network-Wifi-0")
+    }
+
+    @Test("the levels are the thresholds the original uses, boundary by boundary")
+    func thresholdsMatchTheOriginal() {
+        // Each boundary is inclusive at the stronger end, the same as HWGWifiBarsForRSSI.
+        #expect(WiFiSignalLevel(rssi: -55) == .excellent)
+        #expect(WiFiSignalLevel(rssi: -56) == .good)
+        #expect(WiFiSignalLevel(rssi: -65) == .good)
+        #expect(WiFiSignalLevel(rssi: -66) == .fair)
+        #expect(WiFiSignalLevel(rssi: -73) == .fair)
+        #expect(WiFiSignalLevel(rssi: -74) == .weak)
+        #expect(WiFiSignalLevel(rssi: -80) == .weak)
+        #expect(WiFiSignalLevel(rssi: -81) == .none)
+    }
+
+    @Test("the message is worded exactly as the original words it")
+    func signalMessageWording() {
+        var watcher = WiFiSignalWatcher(cooldown: 0)
+        watcher.baseline(.fair)
+        let improved = watcher.consider(.good)
+        #expect(improved?.summary == "Signal ↑ improved (3/4)")
+
+        watcher.baseline(.good)
+        let degraded = watcher.consider(.weak)
+        #expect(degraded?.summary == "Signal ↓ degraded (1/4)")
+    }
+}
+
+@Suite("NetworkMonitor · signal availability")
+struct WiFiSignalAvailabilityTests {
+    @Test("leaving station mode forgets the level rather than comparing across networks")
+    func unavailableResetsTheBaseline() async {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: [
+                .wifiSignal(rssi: -50, ssid: "Home"),      // baseline: excellent
+                .wifiSignalUnavailable,                     // radio off, or sharing
+                .wifiSignal(rssi: -78, ssid: "Cafe"),      // a different network, weak
+                .wifiSignal(rssi: -50, ssid: "Cafe")       // and it improves
+            ]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            signalCooldown: 0
+        )
+
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+
+        let signals = await delivery.events.filter { $0.name == NetworkEvent.wifiSignalChanged.rawValue }
+        // Only the last reading is news. Without the reset, joining the café would have
+        // been reported as the signal degrading from the network before it.
+        #expect(signals.count == 1)
+        #expect(signals.first?.body.contains("Signal ↑ improved (4/4)") == true)
+        #expect(signals.first?.subject == "Cafe")
     }
 }

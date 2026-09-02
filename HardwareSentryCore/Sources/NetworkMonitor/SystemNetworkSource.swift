@@ -570,7 +570,18 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     }
 
     private func emitWiFiSignal() {
-        guard let interface = CWWiFiClient.shared().interface(), interface.powerOn() else { return }
+        guard let interface = CWWiFiClient.shared().interface() else { return }
+
+        // Station mode as well as power, which is what the original checks. A radio that is
+        // on but sharing the connection, or on but not joined to anything, still answers
+        // with an RSSI — and that reading is about nothing. Taken as a signal level it
+        // would report the machine's Wi-Fi strength as whatever noise the radio happened
+        // to hear.
+        guard interface.powerOn(), interface.interfaceMode() == .station else {
+            continuation.yield(.wifiSignalUnavailable)
+            return
+        }
+
         let rssi = interface.rssiValue()
         // Zero means the interface had nothing to say, which is not the same as a signal
         // of zero strength — passing it on would be reporting a reading that does not exist.

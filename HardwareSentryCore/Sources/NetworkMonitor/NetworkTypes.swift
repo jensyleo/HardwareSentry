@@ -26,6 +26,12 @@ public enum NetworkSourceEvent: Sendable, Equatable {
     /// A fresh signal reading for the joined network, from the poll. The monitor decides
     /// whether it is worth saying anything about.
     case wifiSignal(rssi: Int, ssid: String?)
+    /// The Wi-Fi interface is not on a network — radio off, or on but not associated.
+    ///
+    /// Its own case rather than an absence of readings: the level remembered from the last
+    /// network has to be forgotten, or rejoining would compare the new network's signal
+    /// against the old one's and report a change that never happened.
+    case wifiSignalUnavailable
     /// Every interface currently in promiscuous mode — not a delta.
     case promiscuousSnapshot(Set<String>)
     /// Every link-aggregation member and how it is faring — not a delta.

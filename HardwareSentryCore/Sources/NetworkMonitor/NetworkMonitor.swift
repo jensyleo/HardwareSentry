@@ -17,7 +17,32 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module)),
         .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
         .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module))
+        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module)),
+        // Wi-Fi
+        .init(name: NetworkEvent.wifiSignalChanged.rawValue, title: "Wi-Fi signal strength changed", icon: .asset("Network-Wifi-2", in: .module)),
+        .init(name: NetworkEvent.wifiRadioOn.rawValue, title: "Wi-Fi radio turned on", icon: .asset("Network-Wifi-Radio-On", in: .module)),
+        .init(name: NetworkEvent.wifiRadioOff.rawValue, title: "Wi-Fi radio turned off", icon: .asset("Network-Wifi-Radio-Off", in: .module)),
+        .init(name: NetworkEvent.wifiHostAPModeChanged.rawValue, title: "Internet Sharing started/stopped", enabledByDefault: false, icon: .asset("Network-Wifi-Radio-On", in: .module)),
+        // VPN
+        .init(name: NetworkEvent.vpnConnected.rawValue, title: "VPN connected", icon: .asset("Network-VPN-On", in: .module)),
+        .init(name: NetworkEvent.vpnDisconnected.rawValue, title: "VPN disconnected", icon: .asset("Network-VPN-Off", in: .module)),
+        // System configuration
+        .init(name: NetworkEvent.dnsServersChanged.rawValue, title: "DNS servers changed", enabledByDefault: false, icon: .asset("Network-DNS-On", in: .module)),
+        .init(name: NetworkEvent.proxyConfigChanged.rawValue, title: "Proxy configuration changed", enabledByDefault: false, icon: .asset("Network-Proxy-On", in: .module)),
+        .init(name: NetworkEvent.locationChanged.rawValue, title: "Network location changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        .init(name: NetworkEvent.serviceOrderChanged.rawValue, title: "Service order changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        // Links and adapters
+        .init(name: NetworkEvent.linkSpeedChanged.rawValue, title: "Link speed or duplex changed", enabledByDefault: false, icon: .asset("Network-Ethernet-Speed", in: .module)),
+        .init(name: NetworkEvent.adapterDetaching.rawValue, title: "Network adapter unplugged", icon: .asset("Network-Interface-Off", in: .module)),
+        .init(name: NetworkEvent.bondMemberStatusChanged.rawValue, title: "Bonded link member changed", enabledByDefault: false, icon: .asset("Network-Ethernet-On", in: .module)),
+        .init(name: NetworkEvent.promiscuousModeChanged.rawValue, title: "Interface started capturing packets", icon: .asset("Network-Interface-On", in: .module)),
+        // The four path facts, all off: they are the same things the reachability message
+        // can carry as lines, offered separately for somebody who wants one of them to
+        // move on its own.
+        .init(name: NetworkEvent.pathStatusChanged.rawValue, title: "Network path status changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        .init(name: NetworkEvent.pathExpensiveChanged.rawValue, title: "Connection became metered/unmetered", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        .init(name: NetworkEvent.pathConstrainedChanged.rawValue, title: "Low Data Mode turned on/off", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
+        .init(name: NetworkEvent.pathQualityChanged.rawValue, title: "Network path became usable/blocked", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = NetworkField.allCases.map {
@@ -116,7 +141,10 @@ public actor NetworkMonitor: Monitor {
                     .field(NetworkField.wifiHardwareAddress.rawValue, "Wi-Fi hardware address", detail?.hardwareAddress),
                     .field(NetworkField.interfaceMode.rawValue, "Interface mode", detail?.interfaceMode)
                 ]),
-                icon: .asset("Network-Wifi-4", in: .module)
+                // The bars for the signal it actually joined with, the way the original
+                // does it — a fixed four-bar icon on every connection is a strength
+                // indicator that indicates nothing.
+                icon: .asset(WiFiSignalLevel(rssi: detail?.rssi ?? 0).iconName, in: .module)
             )
         case .wifiDisconnected(let ssid):
             // Forgotten rather than kept: comparing the next network's signal against
@@ -157,6 +185,10 @@ public actor NetworkMonitor: Monitor {
             )
         case .wifiSignal(let rssi, let ssid):
             await handleWiFiSignal(rssi: rssi, ssid: ssid)
+        case .wifiSignalUnavailable:
+            // Nothing is said. The level is simply forgotten, so the next network to be
+            // joined is baselined afresh rather than compared with this one's.
+            signalWatcher.reset()
         }
     }
 
