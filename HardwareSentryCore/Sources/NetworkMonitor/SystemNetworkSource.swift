@@ -221,7 +221,13 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
                       let kind = kinds[interfaceName]
                 else { continue }
                 let active = (SCDynamicStoreCopyValue(dynamicStore, key as CFString) as? [String: AnyObject])?[kSCPropNetLinkActive as String] as? Bool
-                links[interfaceName] = LinkState(isActive: active ?? false, kind: kind)
+                links[interfaceName] = LinkState(
+                    isActive: active ?? false,
+                    kind: kind,
+                    // Only asked of wired links: Wi-Fi negotiates a rate too, but that is
+                    // the `Link Rate` line on the join notification, not a media type.
+                    media: kind == .wired ? LinkMedia.read(interface: interfaceName) : nil
+                )
             }
         }
         continuation.yield(.linkSnapshot(links))
@@ -370,6 +376,14 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         emitWiFiRadioPower()
     }
 
+    /// How long a "left the network" report is held back.
+    ///
+    /// Turning the radio off produces both a power change and an SSID change, and the
+    /// order they arrive in is not fixed. Read in the wrong order the banners say the
+    /// network was lost and then, inexplicably, that Wi-Fi was switched off. Holding the
+    /// network notice for a moment lets the cause land before the effect.
+    private static let disconnectDelay = Duration.milliseconds(400)
+
     func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
         if let interface = CWWiFiClient.shared().interface(withName: interfaceName),
            let ssid = interface.ssid() {
@@ -378,8 +392,12 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         } else {
             // The interface no longer knows the SSID by the time it reports leaving, so
             // the name comes from what was remembered on joining.
-            continuation.yield(.wifiDisconnected(ssid: lastKnownSSID))
+            let leftNetwork = lastKnownSSID
             lastKnownSSID = nil
+            Task { [continuation] in
+                try? await Task.sleep(for: Self.disconnectDelay)
+                continuation.yield(.wifiDisconnected(ssid: leftNetwork))
+            }
         }
     }
 }

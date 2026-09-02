@@ -46,10 +46,13 @@ public enum NetworkInterfaceKind: String, Sendable, Equatable, CaseIterable {
 public struct LinkState: Sendable, Equatable {
     public let isActive: Bool
     public let kind: NetworkInterfaceKind
+    /// What a wired link negotiated. Nil for Wi-Fi and for anything that does not answer.
+    public let media: LinkMedia?
 
-    public init(isActive: Bool, kind: NetworkInterfaceKind) {
+    public init(isActive: Bool, kind: NetworkInterfaceKind, media: LinkMedia? = nil) {
         self.isActive = isActive
         self.kind = kind
+        self.media = media
     }
 }
 

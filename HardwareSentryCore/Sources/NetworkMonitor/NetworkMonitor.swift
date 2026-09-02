@@ -39,6 +39,13 @@ public actor NetworkMonitor: Monitor {
     private var lastKnownGlobalState: NetworkGlobalState?
     private var lastKnownWiFiRadioOn: Bool?
     private var signalWatcher = WiFiSignalWatcher()
+    /// The network and the access point last announced as joined.
+    ///
+    /// Both halves matter. CoreWLAN reports its SSID-changed event more than once for a
+    /// single join, so without the pair a normal connection announces itself twice; and
+    /// comparing the name alone would hide roaming, which is a real move between two
+    /// access points and worth saying.
+    private var announcedNetwork: (ssid: String, bssid: String?)?
     /// What the IP message last actually said. Compared as text rather than as addresses,
     /// because that is what decides whether re-showing it would tell anyone anything new:
     /// an address changing behind a switched-off IPv6 line changes nothing visible.
@@ -71,6 +78,16 @@ public actor NetworkMonitor: Monitor {
         case .reachability(let isReachable, let detail):
             await handleReachability(isReachable, detail: detail)
         case .wifiConnected(let ssid, let detail):
+            // Repeated reports of the same join are dropped here rather than left to the
+            // duplicate filter: that works on a time window, and CoreWLAN's repeats are
+            // not reliably close together.
+            if let announced = announcedNetwork,
+               announced.ssid == ssid,
+               announced.bssid == detail?.bssid {
+                return
+            }
+            announcedNetwork = (ssid, detail?.bssid)
+
             // Baselined from the reading that came with joining, so the first real
             // movement is caught one poll sooner than it would be otherwise.
             if let rssi = detail?.rssi { signalWatcher.baseline(WiFiSignalLevel(rssi: rssi)) }
@@ -95,6 +112,7 @@ public actor NetworkMonitor: Monitor {
             // Forgotten rather than kept: comparing the next network's signal against
             // this one's level would report a change that never happened.
             signalWatcher.reset()
+            announcedNetwork = nil
             await context.notify(
                 NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi",
                 title: "AirPort Disconnected",
@@ -181,8 +199,24 @@ public actor NetworkMonitor: Monitor {
             if state.isActive, was?.isActive != true {
                 await context.notify(
                     NetworkEvent.linkUp.rawValue, subject: interfaceName,
-                    title: "\(state.kind.label) Link Up", body: "Interface:\t\(interfaceName)",
+                    title: "\(state.kind.label) Link Up",
+                    body: await context.body([
+                        .always("Interface:\t\(interfaceName)"),
+                        .field(NetworkField.linkSpeed.rawValue, "Speed", state.media?.speed),
+                        .field(NetworkField.linkMode.rawValue, "Mode", state.media?.mode),
+                        .field(NetworkField.linkNegotiated.rawValue, "Negotiated", state.media?.negotiatedNote)
+                    ]),
                     icon: .asset(state.kind.icon(active: true), in: .module)
+                )
+            } else if state.isActive, was?.isActive == true,
+                      let now = state.media?.speed, let before = was?.media?.speed, now != before {
+                // A cable degrading — a bad connector, a switch port dropping to 100 Mb/s
+                // — never takes the link down, so nothing else would ever mention it.
+                await context.notify(
+                    NetworkEvent.linkSpeedChanged.rawValue, subject: interfaceName,
+                    title: "Ethernet Speed Changed",
+                    body: "\(interfaceName):\t\(before) → \(now)",
+                    icon: .asset("Network-Ethernet-Speed", in: .module)
                 )
             } else if !state.isActive, was?.isActive == true {
                 await context.notify(

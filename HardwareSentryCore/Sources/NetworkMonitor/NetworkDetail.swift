@@ -143,6 +143,10 @@ public enum NetworkField: String, CaseIterable {
     case constrained = "Constrained"
     case ipProtocols = "IPProtocols"
     case dns = "DNS"
+    // Wired links
+    case linkSpeed = "Speed"
+    case linkMode = "Mode"
+    case linkNegotiated = "Negotiated"
     // IP addresses
     case ipv6 = "IPv6"
 
@@ -163,6 +167,9 @@ public enum NetworkField: String, CaseIterable {
         case .constrained: return "Low Data Mode is on"
         case .ipProtocols: return "IPv4 / IPv6"
         case .dns: return "Warn when the path has no DNS"
+        case .linkSpeed: return "Negotiated speed"
+        case .linkMode: return "Duplex mode"
+        case .linkNegotiated: return "Warn when slower than the port supports"
         case .ipv6: return "Include IPv6 addresses"
         }
     }
@@ -171,6 +178,6 @@ public enum NetworkField: String, CaseIterable {
     /// know; the DNS warning is on because it only ever appears when something is wrong,
     /// so it costs nothing when everything works.
     var shownByDefault: Bool {
-        self == .signal || self == .channel || self == .dns || self == .ipv6
+        [.signal, .channel, .dns, .ipv6, .linkSpeed, .linkMode].contains(self)
     }
 }

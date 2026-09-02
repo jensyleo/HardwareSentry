@@ -270,9 +270,13 @@ struct NetworkMonitorFieldTests {
     @Test("out of the box, joining a network says the channel and the signal")
     func defaultsAreChannelSignalAndTheDNSWarning() async {
         let defaults = Set(NetworkMonitor.fields.filter(\.shownByDefault).map(\.name))
+        // Per notification: the Wi-Fi ones here, the wired link's speed and mode on a
+        // link notice, IPv6 addresses on an address notice, and the DNS warning. Each is
+        // on because it answers the question the notification it belongs to raises.
         #expect(defaults == [
             NetworkField.signal.rawValue, NetworkField.channel.rawValue,
-            NetworkField.dns.rawValue, NetworkField.ipv6.rawValue
+            NetworkField.dns.rawValue, NetworkField.ipv6.rawValue,
+            NetworkField.linkSpeed.rawValue, NetworkField.linkMode.rawValue
         ])
 
         let bodies = await bodies([.wifiConnected(ssid: "Casa", detail: Self.wifi)], expecting: 1, allowing: defaults)
@@ -995,5 +999,172 @@ struct NetworkVPNRoutingTests {
         ], expecting: 2)
 
         #expect(Set(events.map(\.name)) == ["NetworkLinkUp", "VPNConnected"])
+    }
+}
+
+@Suite("Wired link media")
+struct LinkMediaTests {
+    @Test("a link running at what the port supports says nothing about it")
+    func matchingSpeedsAreSilent() {
+        // Telling somebody their gigabit adapter negotiated gigabit is not news.
+        let media = LinkMedia(speed: "1000baseT", mode: "full-duplex", maximumSpeed: "1000baseT")
+        #expect(media.negotiatedNote == nil)
+    }
+
+    @Test("a link slower than the port supports is worth surfacing")
+    func slowerThanSupportedIsCalledOut() {
+        // Usually a bad cable or a slow switch port, and the kind of thing somebody would
+        // want to know rather than discover in a speed test.
+        let media = LinkMedia(speed: "100baseTX", mode: "full-duplex", maximumSpeed: "1000baseT")
+        #expect(media.negotiatedNote == "100baseTX (max 1000baseT)")
+    }
+
+    @Test("an interface that answers nothing produces no lines at all")
+    func silenceWhenNothingIsKnown() {
+        let media = LinkMedia()
+        #expect(media.negotiatedNote == nil)
+        #expect(media.speed == nil)
+        #expect(media.mode == nil)
+    }
+}
+
+@Suite("Wired link speed changes")
+struct LinkSpeedChangeTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    private func wired(_ active: Bool, speed: String?) -> LinkState {
+        LinkState(isActive: active, kind: .wired, media: LinkMedia(speed: speed, mode: "full-duplex"))
+    }
+
+    @Test("a cable degrading without the link dropping is reported")
+    func degradingCableIsReported() async {
+        // The link never goes down, so nothing else would ever mention it.
+        let events = await run([
+            .linkSnapshot(["en5": wired(true, speed: "1000baseT")]),
+            .linkSnapshot(["en5": wired(true, speed: "100baseTX")])
+        ], expecting: 2)
+
+        let speedChange = events.first { $0.name == "NetworkLinkSpeedChanged" }
+        #expect(speedChange?.title == "Ethernet Speed Changed")
+        #expect(speedChange?.body == "en5:\t1000baseT → 100baseTX")
+    }
+
+    @Test("the same speed read again says nothing")
+    func unchangedSpeedIsSilent() async {
+        let events = await run([
+            .linkSnapshot(["en5": wired(true, speed: "1000baseT")]),
+            .linkSnapshot(["en5": wired(true, speed: "1000baseT")])
+        ], expecting: 1)
+
+        #expect(!events.contains { $0.name == "NetworkLinkSpeedChanged" })
+    }
+
+    @Test("a link coming up carries its speed and duplex mode")
+    func linkUpCarriesTheMedia() async {
+        let events = await run([
+            .linkSnapshot(["en5": wired(false, speed: nil)]),
+            .linkSnapshot(["en5": wired(true, speed: "1000baseT")])
+        ], expecting: 1)
+
+        let up = events.first { $0.name == "NetworkLinkUp" }
+        #expect(up?.body.contains("Speed:\t1000baseT") == true)
+        #expect(up?.body.contains("Mode:\tfull-duplex") == true)
+    }
+
+    @Test("a link going down is not reported as a speed change")
+    func droppingIsNotASpeedChange() async {
+        let events = await run([
+            .linkSnapshot(["en5": wired(true, speed: "1000baseT")]),
+            .linkSnapshot(["en5": wired(false, speed: nil)])
+        ], expecting: 2)
+
+        #expect(events.map(\.name).contains("NetworkLinkDown"))
+        #expect(!events.contains { $0.name == "NetworkLinkSpeedChanged" })
+    }
+}
+
+@Suite("Wi-Fi join deduplication")
+struct WiFiJoinDedupTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    private func detail(bssid: String?) -> WiFiDetail {
+        WiFiDetail(bssid: bssid, rssi: -55)
+    }
+
+    @Test("CoreWLAN reporting the same join twice announces it once")
+    func repeatedJoinIsAnnouncedOnce() async {
+        // The framework raises its SSID-changed event more than once for a single join,
+        // and the repeats are not reliably close enough together for a time-window filter
+        // to catch them.
+        let events = await run([
+            .wifiConnected(ssid: "Casa", detail: detail(bssid: "aa:bb:cc:dd:ee:ff")),
+            .wifiConnected(ssid: "Casa", detail: detail(bssid: "aa:bb:cc:dd:ee:ff"))
+        ], expecting: 1)
+
+        #expect(events.filter { $0.name == "AirportConnected" }.count == 1)
+    }
+
+    @Test("moving to another access point on the same network is a real move")
+    func roamingIsAnnounced() async {
+        // Same name, different hardware: the laptop physically moved between two access
+        // points, and comparing names alone would hide it.
+        let events = await run([
+            .wifiConnected(ssid: "Casa", detail: detail(bssid: "aa:bb:cc:dd:ee:ff")),
+            .wifiConnected(ssid: "Casa", detail: detail(bssid: "11:22:33:44:55:66"))
+        ], expecting: 2)
+
+        #expect(events.filter { $0.name == "AirportConnected" }.count == 2)
+    }
+
+    @Test("joining a different network is always announced")
+    func differentNetworkIsAnnounced() async {
+        let events = await run([
+            .wifiConnected(ssid: "Casa", detail: detail(bssid: nil)),
+            .wifiConnected(ssid: "Oficina", detail: detail(bssid: nil))
+        ], expecting: 2)
+
+        #expect(events.filter { $0.name == "AirportConnected" }.count == 2)
+    }
+
+    @Test("rejoining after leaving is announced, not swallowed as a repeat")
+    func rejoinAfterLeavingIsAnnounced() async {
+        let events = await run([
+            .wifiConnected(ssid: "Casa", detail: detail(bssid: "aa:bb:cc:dd:ee:ff")),
+            .wifiDisconnected(ssid: "Casa"),
+            .wifiConnected(ssid: "Casa", detail: detail(bssid: "aa:bb:cc:dd:ee:ff"))
+        ], expecting: 3)
+
+        #expect(events.filter { $0.name == "AirportConnected" }.count == 2)
+        #expect(events.contains { $0.name == "AirportDisconnected" })
     }
 }
