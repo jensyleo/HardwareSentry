@@ -94,6 +94,18 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Network scanners") {
+                Stepper(
+                    "Ask what it is doing every \(Int(tuning.scannerStatusSeconds))s",
+                    value: $tuning.scannerStatusSeconds,
+                    in: 2...300,
+                    step: 1
+                )
+                Text("Only when the scan and feeder notifications are switched on, and only for scanners that speak AirScan. Each check is one request to the scanner, so a short interval is real traffic. Takes effect the next time the application starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Profile") {
                 Text("Back up or restore every custom icon and every on/off setting — which modules run, their notification toggles, and what each message includes — in one file.")
                     .font(.caption)

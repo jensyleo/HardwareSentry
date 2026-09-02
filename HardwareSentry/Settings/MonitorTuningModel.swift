@@ -1,5 +1,6 @@
 import Foundation
 import PowerMonitor
+import ScannerMonitor
 import Observation
 
 /// The handful of numbers that change how often a monitor speaks, rather than whether it
@@ -25,7 +26,8 @@ final class MonitorTuningModel {
             Self.refireOnlyOnBatteryKey: true,
             Self.healthEnabledKey: true,
             Self.healthDaysKey: 7.0,
-            Self.lowSpacePercentKey: 5.0
+            Self.lowSpacePercentKey: 5.0,
+            Self.scannerStatusSecondsKey: 10.0
         ])
 
         // Assigned here rather than through the observers below, which do not fire during
@@ -36,6 +38,7 @@ final class MonitorTuningModel {
         checksBatteryHealth = defaults.bool(forKey: Self.healthEnabledKey)
         healthCheckDays = defaults.double(forKey: Self.healthDaysKey)
         lowSpacePercent = defaults.double(forKey: Self.lowSpacePercentKey)
+        scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
     }
 
     var repeatsPowerStatus: Bool {
@@ -61,6 +64,18 @@ final class MonitorTuningModel {
     var lowSpacePercent: Double {
         didSet { defaults.set(lowSpacePercent, forKey: Self.lowSpacePercentKey); onChange?() }
     }
+
+    /// How often a network scanner is asked what it is doing.
+    ///
+    /// Read at launch only, unlike the rest: the interval is handed to each scanner's own
+    /// polling task when that scanner is discovered, and changing it mid-flight would mean
+    /// tearing those down and rebuilding them — which would re-announce every scanner on
+    /// the network as newly found.
+    var scannerStatusSeconds: Double {
+        didSet { defaults.set(scannerStatusSeconds, forKey: Self.scannerStatusSecondsKey) }
+    }
+
+    var scannerStatusInterval: Duration { .seconds(scannerStatusSeconds) }
 
     /// When the battery was last looked at, for the line under the "Check Now" button.
     /// Read fresh each time rather than observed: it changes once a week.
@@ -88,4 +103,5 @@ final class MonitorTuningModel {
     private static let healthEnabledKey = "Power.EnableHealthCheck"
     private static let healthDaysKey = "Power.HealthCheckDays"
     private static let lowSpacePercentKey = "Volume.LowSpacePercent"
+    private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
 }

@@ -64,7 +64,7 @@ struct ScannerMonitorTests {
     @Test("every event it can raise is declared for preferences to find")
     func eventsAreDeclared() {
         let declared = Set(ScannerMonitor.events.map(\.name))
-        #expect(declared == ["ScannerFound", "ScannerLost"])
+        #expect(declared == ["ScannerFound", "ScannerLost", "ScannerScanStatus", "ScannerAdfStateChanged"])
     }
 
     @Test("stopping twice is harmless")
@@ -207,7 +207,7 @@ struct ScannerMonitorFieldTests {
     @Test("out of the box the message answers which scanner it is and where")
     func defaultFieldsAreModelAndLocation() async {
         let defaults = Set(ScannerMonitor.fields.filter(\.shownByDefault).map(\.name))
-        #expect(defaults == [ScannerField.model.rawValue, ScannerField.location.rawValue])
+        #expect(defaults == [ScannerField.model.rawValue, ScannerField.location.rawValue, ScannerField.statusReasons.rawValue])
 
         let body = await body(.found(name: "HP1C9D5B", detail: Self.detail), allowing: defaults)
         #expect(body == "HP1C9D5B\nModel:\tHP Color LaserJet MFP M283fdw\nLocation:\tRoom 3")
@@ -253,5 +253,314 @@ struct ScannerMonitorFieldTests {
         )
 
         #expect(body == "Unknown Scanner")
+    }
+}
+
+// MARK: - What the scanner is doing
+
+/// Answers with a scripted sequence of readings, one per poll.
+private actor ScriptedStatusReader: ScannerStatusReading {
+    private var readings: [ScannerStatus?]
+    private(set) var callCount = 0
+
+    init(_ readings: [ScannerStatus?]) {
+        self.readings = readings
+    }
+
+    func readStatus(host: String, port: Int) async -> ScannerStatus? {
+        callCount += 1
+        guard !readings.isEmpty else { return nil }
+        return readings.removeFirst()
+    }
+}
+
+@Suite("ScannerStatus · reading the eSCL document")
+struct ScannerStatusParsingTests {
+    private func xml(_ body: String) -> Data {
+        Data("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <scan:ScannerStatus xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03" \
+        xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">
+        \(body)
+        </scan:ScannerStatus>
+        """.utf8)
+    }
+
+    @Test("state and feeder are read from the document")
+    func readsStateAndAdf() {
+        let status = ScannerStatus.parse(escl: xml("""
+        <pwg:Version>2.63</pwg:Version>
+        <pwg:State>Processing</pwg:State>
+        <scan:AdfState>ScannerAdfLoaded</scan:AdfState>
+        """))
+
+        #expect(status?.state == .processing)
+        #expect(status?.adfState == .loaded)
+    }
+
+    @Test("a different vendor's namespace prefix reads the same")
+    func prefixesAreIgnored() {
+        let hp = ScannerStatus.parse(escl: xml("<scan:State>Idle</scan:State><pwg:AdfState>ScannerAdfEmpty</pwg:AdfState>"))
+        let bare = ScannerStatus.parse(escl: xml("<State>Idle</State><AdfState>ScannerAdfEmpty</AdfState>"))
+
+        #expect(hp?.state == .idle)
+        #expect(bare?.state == .idle)
+        #expect(hp == bare)
+    }
+
+    @Test("the reasons a scanner gives for stopping are collected")
+    func collectsReasons() {
+        let status = ScannerStatus.parse(escl: xml("""
+        <pwg:State>Stopped</pwg:State>
+        <pwg:StateReason>CoverOpen</pwg:StateReason>
+        <pwg:StateReason>MediaJam</pwg:StateReason>
+        """))
+
+        #expect(status?.stateReasons == ["CoverOpen", "MediaJam"])
+        #expect(status?.reasonsNote == "CoverOpen, MediaJam")
+    }
+
+    @Test("a flatbed with no feeder reports no feeder state rather than a wrong one")
+    func flatbedHasNoAdf() {
+        let status = ScannerStatus.parse(escl: xml("<pwg:State>Idle</pwg:State>"))
+        #expect(status?.adfState == nil)
+    }
+
+    @Test("something that is not a scanner status is no reading at all")
+    func rubbishIsNotAStatus() {
+        #expect(ScannerStatus.parse(escl: Data("<html><body>404 Not Found</body></html>".utf8)) == nil)
+        #expect(ScannerStatus.parse(escl: Data("not xml at all".utf8)) == nil)
+        #expect(ScannerStatus.parse(escl: xml("<pwg:Version>2.63</pwg:Version>")) == nil)
+    }
+
+    @Test("a state nobody has heard of is not forced into one that has been")
+    func unknownStateIsNil() {
+        let status = ScannerStatus.parse(escl: xml("<pwg:State>Bananas</pwg:State><pwg:StateReason>Odd</pwg:StateReason>"))
+        #expect(status?.state == nil)
+        // The rest of the document still counts, so the reading is not thrown away whole.
+        #expect(status?.stateReasons == ["Odd"])
+    }
+}
+
+@Suite("ScannerMonitor · status polling")
+struct ScannerStatusPollingTests {
+    /// Feeds readings straight to the monitor's own decision, rather than waiting out a
+    /// poll interval that is measured in seconds. What the timer does is wiring, tested
+    /// separately below; what this decides is the behaviour.
+    private func report(_ readings: [ScannerStatus]) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = ScannerMonitor(
+            source: ScriptedScannerSource(script: []),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: ScannerMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            )
+        )
+
+        for reading in readings {
+            await monitor.recordStatus(reading, of: "Office MFP")
+        }
+
+        return await delivery.events.filter {
+            $0.name == ScannerEvent.scanStatus.rawValue || $0.name == ScannerEvent.adfStateChanged.rawValue
+        }
+    }
+
+    private let reachable = ScannerDetail(host: "mfp.local.", port: 8080)
+
+    @Test("the first reading is a baseline, not news")
+    func firstReadingIsSilent() async {
+        let events = await report([ScannerStatus(state: .idle)])
+        #expect(events.isEmpty)
+    }
+
+    @Test("a scan starting and finishing is worded as what happened")
+    func scanStartAndFinish() async {
+        let events = await report([
+            ScannerStatus(state: .idle),
+            ScannerStatus(state: .processing),
+            ScannerStatus(state: .idle)
+        ])
+
+        #expect(events.map(\.title) == ["Scan Started", "Scan Finished"])
+        #expect(events.first?.subject == "Office MFP")
+    }
+
+    @Test("an unchanged reading is not repeated on every poll")
+    func unchangedIsSilent() async {
+        let events = await report([
+            ScannerStatus(state: .processing),
+            ScannerStatus(state: .processing),
+            ScannerStatus(state: .processing)
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("a scanner that stops mid-job says why, and says it loudly")
+    func stoppedCarriesItsReason() async {
+        let events = await report([
+            ScannerStatus(state: .processing),
+            ScannerStatus(state: .stopped, stateReasons: ["CoverOpen"])
+        ])
+
+        #expect(events.count == 1)
+        #expect(events.first?.title == "Scanner Stopped")
+        #expect(events.first?.priority == .high)
+        #expect(events.first?.body.contains("CoverOpen") == true)
+    }
+
+    @Test("a feeder change is its own notification")
+    func feederChange() async {
+        let events = await report([
+            ScannerStatus(state: .idle, adfState: .empty),
+            ScannerStatus(state: .idle, adfState: .loaded)
+        ])
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == ScannerEvent.adfStateChanged.rawValue)
+        #expect(events.first?.title == "Document Feeder Loaded")
+        #expect(events.first?.priority == .normal)
+    }
+
+    @Test("a jam is something somebody has to go and deal with")
+    func jamHasPriority() async {
+        let events = await report([
+            ScannerStatus(adfState: .loaded),
+            ScannerStatus(adfState: .jam)
+        ])
+
+        #expect(events.first?.title == "Document Feeder Jammed")
+        #expect(events.first?.priority == .high)
+    }
+
+    @Test("a state change and a feeder change in one reading are two notifications")
+    func bothChangeAtOnce() async {
+        let events = await report([
+            ScannerStatus(state: .idle, adfState: .loaded),
+            ScannerStatus(state: .processing, adfState: .processing)
+        ])
+
+        #expect(events.count == 2)
+        #expect(Set(events.map(\.name)) == [
+            ScannerEvent.scanStatus.rawValue,
+            ScannerEvent.adfStateChanged.rawValue
+        ])
+    }
+
+    @Test("a scanner discovered without an address is announced but never asked")
+    func unresolvedScannerIsNotPolled() async {
+        let reader = ScriptedStatusReader([ScannerStatus(state: .processing)])
+        let delivery = CollectingDelivery()
+        let monitor = ScannerMonitor(
+            source: ScriptedScannerSource(script: [.found(name: "Mystery Scanner", detail: nil)]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: ScannerMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            statusReader: reader,
+            statusInterval: .seconds(2)
+        )
+
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+
+        #expect(await reader.callCount == 0)
+        // It is still reported as found — only the polling is skipped.
+        #expect(await delivery.events.contains { $0.name == ScannerEvent.found.rawValue })
+    }
+
+    @Test("a scanner switched off mid-scan and back is not two notifications")
+    func unreachableIsNotNews() async {
+        // A failed read never reaches the decision at all — the poll loop drops it — so
+        // the reading either side of the gap is the same one, and the same is not news.
+        let events = await report([
+            ScannerStatus(state: .processing),
+            ScannerStatus(state: .processing)
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("a scanner leaving the network stops being asked")
+    func lostScannerStopsPolling() async {
+        let reader = ScriptedStatusReader([])
+        let monitor = ScannerMonitor(
+            source: ScriptedScannerSource(script: [
+                .found(name: "Office MFP", detail: ScannerDetail(host: "mfp.local", port: 8080)),
+                .lost(name: "Office MFP")
+            ]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: CollectingDelivery()),
+                category: ScannerMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            statusReader: reader,
+            statusInterval: .seconds(2)
+        )
+
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        let afterLoss = await reader.callCount
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+
+        // Whatever it managed before the scanner went away, it asked no more afterwards.
+        #expect(await reader.callCount == afterLoss)
+    }
+
+    @Test("polling is off entirely when no reader was given")
+    func noReaderMeansNoPolling() async {
+        let delivery = CollectingDelivery()
+        let monitor = ScannerMonitor(
+            source: ScriptedScannerSource(script: [.found(name: "Office MFP", detail: reachable)]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: ScannerMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            )
+        )
+
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+
+        #expect(await delivery.events.allSatisfy { $0.name == ScannerEvent.found.rawValue })
+    }
+
+    @Test("an interval that would be a flood is refused")
+    func intervalIsClamped() async {
+        // Nothing to assert on the outside, so this checks the only thing that matters:
+        // constructing one with an absurd interval does not produce a monitor that hammers
+        // the scanner. The clamp is in the initialiser; this pins that it exists.
+        let reader = ScriptedStatusReader(Array(repeating: ScannerStatus(state: .idle), count: 3))
+        let monitor = ScannerMonitor(
+            source: ScriptedScannerSource(script: [.found(name: "Office MFP", detail: reachable)]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: CollectingDelivery()),
+                category: ScannerMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            statusReader: reader,
+            statusInterval: .zero
+        )
+
+        await monitor.start()
+        for _ in 0..<300 { await Task.yield() }
+        await monitor.stop()
+
+        // Three scripted readings at most, and then the two-second floor stops it dead —
+        // not hundreds of requests in the time these yields take.
+        #expect(await reader.callCount <= 4)
+    }
+
+    @Test("every event and field it can raise is declared for preferences to find")
+    func eventsAndFieldsAreDeclared() {
+        let events = Dictionary(uniqueKeysWithValues: ScannerMonitor.events.map { ($0.name, $0.enabledByDefault) })
+        #expect(events.count == 4)
+        #expect(events[ScannerEvent.scanStatus.rawValue] == false)
+        #expect(events[ScannerEvent.adfStateChanged.rawValue] == false)
+        #expect(Set(ScannerMonitor.fields.map(\.name)) == Set(ScannerField.allCases.map(\.rawValue)))
     }
 }

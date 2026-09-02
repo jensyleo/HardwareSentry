@@ -69,6 +69,8 @@ public enum ScannerField: String, CaseIterable {
     case formats = "Formats"
     case colorModes = "ColorModes"
     case adminURL = "AdminURL"
+    /// Why the scanner is stopped, on a status change.
+    case statusReasons = "StatusReasons"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
@@ -82,6 +84,7 @@ public enum ScannerField: String, CaseIterable {
         case .formats: return "File formats it produces"
         case .colorModes: return "Colour modes"
         case .adminURL: return "Web administration page"
+        case .statusReasons: return "Why it stopped"
         }
     }
 
@@ -89,6 +92,8 @@ public enum ScannerField: String, CaseIterable {
     /// which is the reason to read the notification at all. The rest are capabilities that
     /// never change for a given device, so after the first sighting they repeat verbatim.
     var shownByDefault: Bool {
-        self == .model || self == .location
+        // The reasons line is on because it only ever appears when something is wrong,
+        // so it costs nothing when everything works.
+        self == .model || self == .location || self == .statusReasons
     }
 }

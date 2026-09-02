@@ -92,7 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             announcesWhatIsAlreadyThere: preferences.announcesWhatIsAlreadyThere,
             powerRefire: tuning.powerRefire,
             powerHealthCheck: tuning.powerHealthCheck,
-            volumeLowSpacePercent: tuning.lowSpacePercent
+            volumeLowSpacePercent: tuning.lowSpacePercent,
+            scannerStatusInterval: tuning.scannerStatusInterval
         )
         // Changed numbers reach the running monitors rather than waiting for a relaunch.
         tuning.onChange = { [weak self] in

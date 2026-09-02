@@ -33,6 +33,7 @@ public actor MonitorRegistry {
     private let powerHealthCheck: PowerHealthCheckSettings
     private let powerHealthStore: any PowerHealthStore
     private let volumeLowSpacePercent: Double
+    private let scannerStatusInterval: Duration
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -48,7 +49,8 @@ public actor MonitorRegistry {
         powerRefire: PowerRefireSettings = .off,
         powerHealthCheck: PowerHealthCheckSettings = PowerHealthCheckSettings(),
         powerHealthStore: any PowerHealthStore = UserDefaultsPowerHealthStore(),
-        volumeLowSpacePercent: Double = 5
+        volumeLowSpacePercent: Double = 5,
+        scannerStatusInterval: Duration = .seconds(10)
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
@@ -57,6 +59,7 @@ public actor MonitorRegistry {
         self.powerHealthCheck = powerHealthCheck
         self.powerHealthStore = powerHealthStore
         self.volumeLowSpacePercent = volumeLowSpacePercent
+        self.scannerStatusInterval = scannerStatusInterval
     }
 
     /// Passes changed tuning to the monitors that care about it, without rebuilding them.
@@ -145,7 +148,9 @@ public actor MonitorRegistry {
             ),
             ScannerMonitor(
                 source: BonjourScannerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ScannerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: ScannerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                statusReader: eSCLStatusReader(),
+                statusInterval: scannerStatusInterval
             )
         ]
     }
