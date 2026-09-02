@@ -148,7 +148,11 @@ struct NetworkMonitorTests {
             "NetworkDHCPLeaseRenewed": false,
             "NetworkHostnameChanged": false,
             "IPAddressChange": true,
-            "AirportSignalChange": true,
+            "AirportSignalNone": true,
+            "AirportSignalWeak": true,
+            "AirportSignalFair": true,
+            "AirportSignalGood": true,
+            "AirportSignalExcellent": true,
             "WifiRadioOn": true,
             "WifiRadioOff": true,
             "WifiHostAPModeChanged": false,
@@ -1689,7 +1693,7 @@ struct NetworkDeclarationTests {
         let raiseable = Set(NetworkEvent.allCases.map(\.rawValue))
 
         #expect(declared == raiseable)
-        #expect(declared.count == 27)
+        #expect(declared.count == 31)
     }
 
     /// Also checks that every icon file actually ships.
@@ -1769,11 +1773,133 @@ struct WiFiSignalAvailabilityTests {
         for _ in 0..<200 { await Task.yield() }
         await monitor.stop()
 
-        let signals = await delivery.events.filter { $0.name == NetworkEvent.wifiSignalChanged.rawValue }
+        let signals = await delivery.events.filter { $0.name.hasPrefix("AirportSignal") }
         // Only the last reading is news. Without the reset, joining the café would have
         // been reported as the signal degrading from the network before it.
         #expect(signals.count == 1)
         #expect(signals.first?.body.contains("Signal ↑ improved (4/4)") == true)
         #expect(signals.first?.subject == "Cafe")
+    }
+}
+
+@Suite("NetworkMonitor · one row per bar")
+struct WiFiSignalLevelRowTests {
+    private func signals(_ script: [NetworkSourceEvent]) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            signalCooldown: 0
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events.filter { $0.name.hasPrefix("AirportSignal") }
+    }
+
+    @Test("the event raised is the level the signal landed on")
+    func eventFollowsTheLevel() async {
+        let events = await signals([
+            .wifiSignal(rssi: -50, ssid: "Home"),   // baseline: excellent
+            .wifiSignal(rssi: -60, ssid: "Home"),   // good
+            .wifiSignal(rssi: -70, ssid: "Home"),   // fair
+            .wifiSignal(rssi: -78, ssid: "Home"),   // weak
+            .wifiSignal(rssi: -90, ssid: "Home")    // none
+        ])
+
+        #expect(events.map(\.name) == [
+            NetworkEvent.wifiSignalGood.rawValue,
+            NetworkEvent.wifiSignalFair.rawValue,
+            NetworkEvent.wifiSignalWeak.rawValue,
+            NetworkEvent.wifiSignalNone.rawValue
+        ])
+    }
+
+    @Test("each level carries its own icon")
+    func eachLevelHasItsIcon() {
+        for level in WiFiSignalLevel.allCases {
+            let declared = NetworkMonitor.events.first { $0.name == level.event.rawValue }
+            #expect(declared != nil, "\(level) has no declared event")
+            #expect(declared?.icon != .none, "\(level) has no icon")
+            #expect(declared?.enabledByDefault == true)
+        }
+    }
+
+    @Test("a single bar can be silenced without silencing the others")
+    func onlyOneBarSwitchedOff() async {
+        // What the five rows are for: the levels are separate events, so a preference can
+        // gate one of them. Checked at the level of names rather than through the filter,
+        // which is SignalCore's own and tested there.
+        let names = Set(WiFiSignalLevel.allCases.map(\.event.rawValue))
+        #expect(names.count == 5)
+    }
+
+    @Test("the wording is still the original's, whichever bar it lands on")
+    func wordingIsUnchanged() async {
+        let events = await signals([
+            .wifiSignal(rssi: -70, ssid: "Home"),
+            .wifiSignal(rssi: -50, ssid: "Home")
+        ])
+
+        #expect(events.count == 1)
+        #expect(events.first?.title == "Wi-Fi Signal Changed")
+        #expect(events.first?.body == "Home\nSignal ↑ improved (4/4)")
+    }
+}
+
+@Suite("MonitorDescription · groups")
+struct MonitorGroupTests {
+    @Test("Wi-Fi and wired read as separate lists")
+    func networkGroupsAreSeparate() {
+        let description = MonitorDescription(
+            category: NetworkMonitor.category,
+            events: NetworkMonitor.events,
+            fields: NetworkMonitor.fields
+        )
+
+        let titles = description.eventGroups.map(\.title)
+        #expect(titles == [
+            "Wi-Fi", "Wi-Fi signal strength", "Wired and other links",
+            "Internet and VPN", "Addresses", "System configuration"
+        ])
+        // Every event lands in exactly one group, and none of them is left unnamed.
+        #expect(description.eventGroups.flatMap(\.rows).count == NetworkMonitor.events.count)
+        #expect(description.eventGroups.allSatisfy { $0.title != nil })
+        #expect(description.fieldGroups.allSatisfy { $0.title != nil })
+    }
+
+    @Test("a module that declared no groups is one unnamed run")
+    func ungroupedModuleIsOneRun() {
+        // Which is every module but this one, so the settings screen can render them all
+        // the same way rather than asking whether each bothered to declare groups.
+        let plain = [
+            MonitorEventDescription(name: "a", title: "A"),
+            MonitorEventDescription(name: "b", title: "B")
+        ]
+        let description = MonitorDescription(category: "Test", events: plain, fields: [])
+
+        #expect(description.eventGroups.count == 1)
+        #expect(description.eventGroups.first?.title == nil)
+        #expect(description.eventGroups.first?.rows.count == 2)
+    }
+
+    @Test("groups appear where their first row does, not in alphabetical order")
+    func declarationOrderIsKept() {
+        let description = MonitorDescription(
+            category: "Test",
+            events: [],
+            fields: [
+                MonitorFieldDescription(name: "z", title: "z", group: "Zebra"),
+                MonitorFieldDescription(name: "a", title: "a", group: "Apple"),
+                MonitorFieldDescription(name: "z2", title: "z2", group: "Zebra")
+            ]
+        )
+
+        #expect(description.fieldGroups.map(\.title) == ["Zebra", "Apple"])
+        #expect(description.fieldGroups.first?.rows.map(\.name) == ["z", "z2"])
     }
 }

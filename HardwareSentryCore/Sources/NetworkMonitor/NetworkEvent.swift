@@ -24,7 +24,17 @@ public enum NetworkEvent: String, NotificationEventKey, CaseIterable {
     case wifiRadioOff = "WifiRadioOff"
     case vpnConnected = "VPNConnected"
     case vpnDisconnected = "VPNDisconnected"
-    case wifiSignalChanged = "AirportSignalChange"
+    // One event per bar, not one for "the signal changed".
+    //
+    // The original has five preference rows sharing a single notification name; here a row
+    // *is* an event, so five rows means five events — and it turns out to be the better
+    // model anyway. "Tell me when it drops to one bar and leave me alone otherwise" is the
+    // thing people actually want, and a single switch cannot express it.
+    case wifiSignalNone = "AirportSignalNone"
+    case wifiSignalWeak = "AirportSignalWeak"
+    case wifiSignalFair = "AirportSignalFair"
+    case wifiSignalGood = "AirportSignalGood"
+    case wifiSignalExcellent = "AirportSignalExcellent"
     case linkSpeedChanged = "NetworkLinkSpeedChanged"
     case promiscuousModeChanged = "NetworkPromiscuousModeChanged"
     case adapterDetaching = "NetworkAdapterDetaching"

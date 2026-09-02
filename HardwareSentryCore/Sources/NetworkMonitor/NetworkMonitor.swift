@@ -9,44 +9,60 @@ public actor NetworkMonitor: Monitor {
     public static let category = NetworkEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: NetworkEvent.reachabilityChanged.rawValue, title: "Internet reachability changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module)),
-        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module)),
-        .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module)),
-        .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module)),
-        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module)),
-        .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module)),
-        // Wi-Fi
-        .init(name: NetworkEvent.wifiSignalChanged.rawValue, title: "Wi-Fi signal strength changed", icon: .asset("Network-Wifi-2", in: .module)),
-        .init(name: NetworkEvent.wifiRadioOn.rawValue, title: "Wi-Fi radio turned on", icon: .asset("Network-Wifi-Radio-On", in: .module)),
-        .init(name: NetworkEvent.wifiRadioOff.rawValue, title: "Wi-Fi radio turned off", icon: .asset("Network-Wifi-Radio-Off", in: .module)),
-        .init(name: NetworkEvent.wifiHostAPModeChanged.rawValue, title: "Internet Sharing started/stopped", enabledByDefault: false, icon: .asset("Network-Wifi-Radio-On", in: .module)),
-        // VPN
-        .init(name: NetworkEvent.vpnConnected.rawValue, title: "VPN connected", icon: .asset("Network-VPN-On", in: .module)),
-        .init(name: NetworkEvent.vpnDisconnected.rawValue, title: "VPN disconnected", icon: .asset("Network-VPN-Off", in: .module)),
-        // System configuration
-        .init(name: NetworkEvent.dnsServersChanged.rawValue, title: "DNS servers changed", enabledByDefault: false, icon: .asset("Network-DNS-On", in: .module)),
-        .init(name: NetworkEvent.proxyConfigChanged.rawValue, title: "Proxy configuration changed", enabledByDefault: false, icon: .asset("Network-Proxy-On", in: .module)),
-        .init(name: NetworkEvent.locationChanged.rawValue, title: "Network location changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.serviceOrderChanged.rawValue, title: "Service order changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        // Links and adapters
-        .init(name: NetworkEvent.linkSpeedChanged.rawValue, title: "Link speed or duplex changed", enabledByDefault: false, icon: .asset("Network-Ethernet-Speed", in: .module)),
-        .init(name: NetworkEvent.adapterDetaching.rawValue, title: "Network adapter unplugged", icon: .asset("Network-Interface-Off", in: .module)),
-        .init(name: NetworkEvent.bondMemberStatusChanged.rawValue, title: "Bonded link member changed", enabledByDefault: false, icon: .asset("Network-Ethernet-On", in: .module)),
-        .init(name: NetworkEvent.promiscuousModeChanged.rawValue, title: "Interface started capturing packets", icon: .asset("Network-Interface-On", in: .module)),
-        // The four path facts, all off: they are the same things the reachability message
-        // can carry as lines, offered separately for somebody who wants one of them to
-        // move on its own.
-        .init(name: NetworkEvent.pathStatusChanged.rawValue, title: "Network path status changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.pathExpensiveChanged.rawValue, title: "Connection became metered/unmetered", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.pathConstrainedChanged.rawValue, title: "Low Data Mode turned on/off", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module)),
-        .init(name: NetworkEvent.pathQualityChanged.rawValue, title: "Network path became usable/blocked", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module))
+        // Wi-Fi and wired are one module because they are one subsystem, not because
+        // anybody thinks of them as one topic — so they read as separate lists.
+        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiRadioOn.rawValue, title: "Wi-Fi radio turned on", icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiRadioOff.rawValue, title: "Wi-Fi radio turned off", icon: .asset("Network-Wifi-Radio-Off", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.wifiHostAPModeChanged.rawValue, title: "Internet Sharing started/stopped", enabledByDefault: false, icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
+
+        // One row per bar, the way the original has it.
+        .init(name: NetworkEvent.wifiSignalExcellent.rawValue, title: WiFiSignalLevel.excellent.settingsTitle, icon: .asset(WiFiSignalLevel.excellent.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalGood.rawValue, title: WiFiSignalLevel.good.settingsTitle, icon: .asset(WiFiSignalLevel.good.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalFair.rawValue, title: WiFiSignalLevel.fair.settingsTitle, icon: .asset(WiFiSignalLevel.fair.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalWeak.rawValue, title: WiFiSignalLevel.weak.settingsTitle, icon: .asset(WiFiSignalLevel.weak.iconName, in: .module), group: Group.signal),
+        .init(name: NetworkEvent.wifiSignalNone.rawValue, title: WiFiSignalLevel.none.settingsTitle, icon: .asset(WiFiSignalLevel.none.iconName, in: .module), group: Group.signal),
+
+        .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
+        .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module), group: Group.wired),
+        .init(name: NetworkEvent.linkSpeedChanged.rawValue, title: "Link speed or duplex changed", enabledByDefault: false, icon: .asset("Network-Ethernet-Speed", in: .module), group: Group.wired),
+        .init(name: NetworkEvent.adapterDetaching.rawValue, title: "Network adapter unplugged", icon: .asset("Network-Interface-Off", in: .module), group: Group.wired),
+        .init(name: NetworkEvent.bondMemberStatusChanged.rawValue, title: "Bonded link member changed", enabledByDefault: false, icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
+
+        .init(name: NetworkEvent.reachabilityChanged.rawValue, title: "Internet reachability changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathStatusChanged.rawValue, title: "Network path status changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathExpensiveChanged.rawValue, title: "Connection became metered/unmetered", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathConstrainedChanged.rawValue, title: "Low Data Mode turned on/off", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathQualityChanged.rawValue, title: "Network path became usable/blocked", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.vpnConnected.rawValue, title: "VPN connected", icon: .asset("Network-VPN-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.vpnDisconnected.rawValue, title: "VPN disconnected", icon: .asset("Network-VPN-Off", in: .module), group: Group.internet),
+
+        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
+        .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
+        .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module), group: Group.addresses),
+
+        .init(name: NetworkEvent.dnsServersChanged.rawValue, title: "DNS servers changed", enabledByDefault: false, icon: .asset("Network-DNS-On", in: .module), group: Group.system),
+        .init(name: NetworkEvent.proxyConfigChanged.rawValue, title: "Proxy configuration changed", enabledByDefault: false, icon: .asset("Network-Proxy-On", in: .module), group: Group.system),
+        .init(name: NetworkEvent.locationChanged.rawValue, title: "Network location changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
+        .init(name: NetworkEvent.serviceOrderChanged.rawValue, title: "Service order changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
+        .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
+        .init(name: NetworkEvent.promiscuousModeChanged.rawValue, title: "Interface started capturing packets", icon: .asset("Network-Interface-On", in: .module), group: Group.system)
     ]
 
+    /// The headings its rows sit under. Named once so an event and the field that goes
+    /// with it cannot drift into two differently-spelled groups that render as two.
+    enum Group {
+        static let wifi = "Wi-Fi"
+        static let signal = "Wi-Fi signal strength"
+        static let wired = "Wired and other links"
+        static let internet = "Internet and VPN"
+        static let addresses = "Addresses"
+        static let system = "System configuration"
+    }
+
     public static let fields: [MonitorFieldDescription] = NetworkField.allCases.map {
-        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault, group: $0.group)
     }
 
     private let source: any NetworkSource
@@ -418,7 +434,10 @@ public actor NetworkMonitor: Monitor {
         guard let change = signalWatcher.consider(WiFiSignalLevel(rssi: rssi)) else { return }
 
         await context.notify(
-            NetworkEvent.wifiSignalChanged.rawValue,
+            // The event is the level it landed on, so each bar can be switched on or off
+            // by itself: "tell me when it drops to one bar and leave me alone otherwise"
+            // is the thing people actually want, and one switch cannot express it.
+            change.level.event.rawValue,
             // Per network, not one shared subject: moving between two networks whose
             // signal both wander should not read as one flapping thing.
             subject: ssid ?? "WiFiSignal",

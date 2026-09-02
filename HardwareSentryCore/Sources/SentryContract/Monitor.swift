@@ -61,17 +61,30 @@ public struct MonitorEventDescription: Sendable, Hashable {
     /// ordinary case, which is what somebody scanning the list needs in order to recognise
     /// the row they came to change.
     public let icon: NotificationIcon
+    /// Which heading this row sits under in preferences.
+    ///
+    /// Nil for a monitor whose events are few enough to read as one list, which is most of
+    /// them. A monitor covering genuinely separate things — Wi-Fi and wired networking are
+    /// one module because they are one subsystem, not because anybody thinks of them as
+    /// one topic — says so here, and the settings screen grows headings rather than the
+    /// module being split into two with two switches and two preference namespaces.
+    ///
+    /// Order comes from the declaration order of the events themselves, so a group appears
+    /// where its first event does.
+    public let group: String?
 
     public init(
         name: String,
         title: String,
         enabledByDefault: Bool = true,
-        icon: NotificationIcon = .none
+        icon: NotificationIcon = .none,
+        group: String? = nil
     ) {
         self.name = name
         self.title = title
         self.enabledByDefault = enabledByDefault
         self.icon = icon
+        self.group = group
     }
 
     /// Hashed by name alone. The name is already unique within a monitor, and the icon can
@@ -90,11 +103,14 @@ public struct MonitorFieldDescription: Sendable, Hashable {
     public let title: String
     /// Whether it is included for someone who has never touched the setting.
     public let shownByDefault: Bool
+    /// Which heading this row sits under, on the same terms as an event's.
+    public let group: String?
 
-    public init(name: String, title: String, shownByDefault: Bool = true) {
+    public init(name: String, title: String, shownByDefault: Bool = true, group: String? = nil) {
         self.name = name
         self.title = title
         self.shownByDefault = shownByDefault
+        self.group = group
     }
 }
 
@@ -117,6 +133,18 @@ public struct MonitorDescription: Sendable, Identifiable {
 
     public var id: String { category.rawValue }
 
+    /// The events under their headings, in the order they were declared.
+    ///
+    /// A monitor that declared no groups comes back as one unnamed run, so a screen can
+    /// render every module the same way without asking whether this one bothered.
+    public var eventGroups: [MonitorRowGroup<MonitorEventDescription>] {
+        MonitorRowGroup.grouping(events, by: \.group)
+    }
+
+    public var fieldGroups: [MonitorRowGroup<MonitorFieldDescription>] {
+        MonitorRowGroup.grouping(fields, by: \.group)
+    }
+
     public init(
         category: NotificationCategory,
         events: [MonitorEventDescription],
@@ -127,5 +155,32 @@ public struct MonitorDescription: Sendable, Identifiable {
         self.events = events
         self.fields = fields
         self.enabledByDefault = enabledByDefault
+    }
+}
+
+/// A run of rows under one heading.
+public struct MonitorRowGroup<Row: Sendable>: Sendable, Identifiable {
+    /// Nil for rows that asked for no heading.
+    public let title: String?
+    public let rows: [Row]
+
+    public var id: String { title ?? "" }
+
+    /// Groups while preserving declaration order — both of the groups themselves and of
+    /// the rows inside them.
+    ///
+    /// Sorting either would be worse: these lists are written in the order somebody should
+    /// read them, with the common things first, and alphabetical order would scatter that.
+    static func grouping(_ rows: [Row], by key: (Row) -> String?) -> [MonitorRowGroup<Row>] {
+        var order: [String?] = []
+        var byGroup: [String?: [Row]] = [:]
+
+        for row in rows {
+            let group = key(row)
+            if byGroup[group] == nil { order.append(group) }
+            byGroup[group, default: []].append(row)
+        }
+
+        return order.map { MonitorRowGroup(title: $0, rows: byGroup[$0] ?? []) }
     }
 }

@@ -95,33 +95,40 @@ private struct ModuleDetail: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Notifications") {
-                ForEach(module.events, id: \.name) { event in
-                    HStack(spacing: 8) {
-                        // Leading, not trailing: the icon is how someone recognises the
-                        // row they came to change, so it has to be where the eye lands
-                        // first rather than at the end of a line of text.
-                        EventIconPicker(
-                            event: event.name,
-                            category: module.category,
-                            defaultIcon: event.icon,
-                            store: iconOverrides
-                        )
-                        Toggle(event.title, isOn: binding(for: event, in: module.category))
+            // One section per heading the module declared, in its own order. A module
+            // that declared none comes back as a single unnamed run, so this renders every
+            // module the same way rather than asking whether this one bothered.
+            ForEach(module.eventGroups) { group in
+                Section(group.title ?? "Notifications") {
+                    ForEach(group.rows, id: \.name) { event in
+                        HStack(spacing: 8) {
+                            // Leading, not trailing: the icon is how someone recognises the
+                            // row they came to change, so it has to be where the eye lands
+                            // first rather than at the end of a line of text.
+                            EventIconPicker(
+                                event: event.name,
+                                category: module.category,
+                                defaultIcon: event.icon,
+                                store: iconOverrides
+                            )
+                            Toggle(event.title, isOn: binding(for: event, in: module.category))
+                        }
+                        .disabled(!model.isEnabled(module.category))
                     }
-                    .disabled(!model.isEnabled(module.category))
                 }
             }
 
             // Not events: extra lines inside a notification that is arriving anyway. In
             // their own section so the difference is visible rather than implied.
             if !module.fields.isEmpty {
-                Section("Include in the message") {
-                    ForEach(module.fields, id: \.name) { field in
-                        Toggle(field.title, isOn: binding(for: field, in: module.category))
+                ForEach(module.fieldGroups) { group in
+                    Section(group.title.map { "Include in the message — \($0)" } ?? "Include in the message") {
+                        ForEach(group.rows, id: \.name) { field in
+                            Toggle(field.title, isOn: binding(for: field, in: module.category))
+                        }
                     }
+                    .disabled(!model.isEnabled(module.category))
                 }
-                .disabled(!model.isEnabled(module.category))
             }
 
             Section {

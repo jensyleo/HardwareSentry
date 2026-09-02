@@ -33,6 +33,31 @@ public enum WiFiSignalLevel: Int, Sendable, Equatable, Comparable, CaseIterable 
 
     public var iconName: String { "Network-Wifi-\(rawValue)" }
 
+    /// The event raised when the signal settles at this level.
+    public var event: NetworkEvent {
+        switch self {
+        case .none: return .wifiSignalNone
+        case .weak: return .wifiSignalWeak
+        case .fair: return .wifiSignalFair
+        case .good: return .wifiSignalGood
+        case .excellent: return .wifiSignalExcellent
+        }
+    }
+
+    /// How the row is named in Settings.
+    ///
+    /// Both halves on purpose: the bars are what the menu bar shows, and the word is what
+    /// somebody would say out loud. Either alone makes the list harder to scan.
+    var settingsTitle: String {
+        switch self {
+        case .none: return "Signal lost (0 bars)"
+        case .weak: return "Signal weak (1 bar)"
+        case .fair: return "Signal fair (2 bars)"
+        case .good: return "Signal good (3 bars)"
+        case .excellent: return "Signal excellent (4 bars)"
+        }
+    }
+
     var label: String {
         switch self {
         case .none: return "no signal"

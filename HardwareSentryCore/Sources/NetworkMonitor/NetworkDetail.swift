@@ -229,6 +229,27 @@ public enum NetworkField: String, CaseIterable {
         }
     }
 
+    /// Which heading this line sits under, matching the event groups above: the lines that
+    /// go with a Wi-Fi notification are read next to the Wi-Fi notifications, not in one
+    /// list of thirty.
+    var group: String {
+        switch self {
+        case .bssid, .band, .channel, .generation, .security, .countryCode,
+             .wifiInterface, .transmitPower, .wifiHardwareAddress, .interfaceMode:
+            return NetworkMonitor.Group.wifi
+        case .signal, .quality, .transmitRate:
+            return NetworkMonitor.Group.signal
+        case .linkSpeed, .linkMode, .linkNegotiated, .baudrate, .decodedType:
+            return NetworkMonitor.Group.wired
+        case .pathInterface, .expensive, .constrained, .ipProtocols, .dns:
+            return NetworkMonitor.Group.internet
+        case .ipv6, .gateway, .ipConfigMethod, .mtu, .macAddress, .previousAddress, .dhcpLease:
+            return NetworkMonitor.Group.addresses
+        case .dnsSearchDomains:
+            return NetworkMonitor.Group.system
+        }
+    }
+
     /// Three on by default. Signal and channel are what someone joining a network wants to
     /// know; the DNS warning is on because it only ever appears when something is wrong,
     /// so it costs nothing when everything works.
