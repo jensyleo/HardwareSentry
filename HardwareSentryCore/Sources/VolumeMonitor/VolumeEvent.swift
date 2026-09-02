@@ -8,6 +8,7 @@ public enum VolumeEvent: String, NotificationEventKey {
     case mounted = "VolumeMounted"
     case unmounted = "VolumeUnmounted"
     case unsafeEject = "VolumeUnsafeEject"
+    case notReadable = "VolumeNotReadable"
     case lowSpace = "VolumeLowSpace"
 
     public static let category: NotificationCategory = "Volume"

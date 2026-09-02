@@ -1,5 +1,6 @@
 import AppKit
 import DiskArbitration
+import CNVMeSMART
 import Foundation
 
 /// Watches `NSWorkspace` for volume mount/unmount, and polls local mounted volumes' free
@@ -29,6 +30,7 @@ private final class Watcher: @unchecked Sendable {
     private let freeSpacePollInterval: Duration
     private var tokens: [NSObjectProtocol] = []
     private var pollTask: Task<Void, Never>?
+    private var unreadableWatcher: UnreadableDiskWatcher?
 
     init(continuation: AsyncStream<VolumeSourceEvent>.Continuation, freeSpacePollInterval: Duration) {
         self.continuation = continuation
@@ -86,6 +88,11 @@ private final class Watcher: @unchecked Sendable {
         // time.
         announceAlreadyMounted()
 
+        // A separate watcher, at a different level: mounts are about volumes the system
+        // understood, and this is about the ones it did not.
+        unreadableWatcher = UnreadableDiskWatcher(continuation: continuation)
+        unreadableWatcher?.start()
+
         pollTask = Task { [freeSpacePollInterval] in
             while !Task.isCancelled {
                 self.continuation.yield(.freeSpaceSnapshot(Self.readFreeSpaceByPath()))
@@ -98,6 +105,7 @@ private final class Watcher: @unchecked Sendable {
         let center = NSWorkspace.shared.notificationCenter
         tokens.forEach(center.removeObserver)
         pollTask?.cancel()
+        unreadableWatcher?.stop()
         continuation.finish()
     }
 
@@ -114,12 +122,105 @@ private final class Watcher: @unchecked Sendable {
         }
         let total = UInt64(info.f_blocks) * UInt64(info.f_bsize)
 
+        let url = URL(fileURLWithPath: path)
+        let values = try? url.resourceValues(forKeys: [
+            .volumeIsEncryptedKey, .volumeLocalizedFormatDescriptionKey, .volumeUUIDStringKey,
+            .volumeIsRemovableKey, .volumeIsEjectableKey, .volumeSupportsCasePreservedNamesKey,
+            .volumeAvailableCapacityForImportantUsageKey
+        ])
+        let arbitration = Self.diskDescription(of: path)
+        let health = Self.driveHealth(arbitration)
+
         return VolumeDetail(
             fileSystemType: type,
             totalBytes: total > 0 ? total : nil,
             isReadOnly: info.f_flags & UInt32(MNT_RDONLY) != 0,
-            kind: kind(of: path, sizeBytes: total > 0 ? total : nil)
+            kind: kind(of: path, sizeBytes: total > 0 ? total : nil),
+            healthPercent: health?.percent,
+            hasHealthWarning: health?.hasWarning ?? false,
+            isEncrypted: values?.volumeIsEncrypted,
+            format: values?.volumeLocalizedFormatDescription,
+            uuid: values?.volumeUUIDString,
+            isRemovable: values?.volumeIsRemovable,
+            isEjectable: values?.volumeIsEjectable,
+            // The key asks whether names are case-*preserved*; a volume that only
+            // preserves case is not case-sensitive, which is the question being answered.
+            isCaseSensitive: (info.f_flags & UInt32(MNT_UNKNOWNPERMISSIONS)) == 0
+                ? values?.volumeSupportsCasePreservedNames.map { $0 && type == "apfs" }
+                : nil,
+            busName: arbitration?[kDADiskDescriptionBusNameKey as String] as? String,
+            sectorSize: (arbitration?[kDADiskDescriptionMediaBlockSizeKey as String] as? NSNumber)?.intValue,
+            interfaceDescription: Self.describeInterface(arbitration),
+            purgeableAwareFreeBytes: values?.volumeAvailableCapacityForImportantUsage
+                .flatMap { $0 >= 0 ? UInt64($0) : nil }
         )
+    }
+
+    /// How worn the drive is, for internal storage that will say.
+    ///
+    /// Health is the complement of the NVMe spec's PERCENTAGE_USED, so a drive that has
+    /// consumed 3% of its rated writes reads as 97% healthy. A drive past its rating
+    /// reports over 100% used, which would give a negative figure — clamped to zero, since
+    /// "0% healthy" is the honest end of the scale.
+    ///
+    /// **Verified not to answer on Apple Silicon.** Measured on an M4: the internal disk's
+    /// protocol is "Apple Fabric", there is no `IONVMeController`, and the controller that
+    /// is there — `AppleANS3CGv2Controller` — does not offer
+    /// `IONVMeSMARTUserClient` at any level of the registry above the media. The bridge
+    /// tries the interface at each ancestor rather than matching a class name, so it will
+    /// work wherever the hardware does expose it (an Intel Mac, a third-party NVMe drive),
+    /// and returns nothing here rather than inventing a percentage.
+    ///
+    /// `diskutil` does report "SMART Status: Verified" on this Mac, but that is a boolean
+    /// with no scale behind it — the original examined and rejected the same signal for
+    /// that reason, and a health line that only ever says "fine" is not worth a line.
+    ///
+    /// Scoped to internal disks either way: an external enclosure speaks a bridge protocol
+    /// rather than NVMe, and the ATA-SMART path some bridges expose is a different, less
+    /// reliable mechanism.
+    private static func driveHealth(_ description: [String: Any]?) -> (percent: Int, hasWarning: Bool)? {
+        guard let description,
+              description[kDADiskDescriptionDeviceInternalKey as String] as? Bool == true,
+              let bsdName = description[kDADiskDescriptionMediaBSDNameKey as String] as? String
+        else { return nil }
+
+        let health = CNVMeReadHealth(bsdName)
+        guard health.available else { return nil }
+        return (max(0, 100 - Int(health.percentage_used)), health.critical_warning)
+    }
+
+    /// Whether a card is in a reader built into the Mac or in one plugged into it.
+    ///
+    /// The distinction matters because a card left in a built-in slot is easy to forget
+    /// about, while one in an external reader leaves with the reader.
+    private static func describeInterface(_ description: [String: Any]?) -> String? {
+        guard let description else { return nil }
+        let protocolName = description[kDADiskDescriptionDeviceProtocolKey as String] as? String
+
+        guard let kind = VolumeKind.infer(
+            protocolName: protocolName,
+            mediaName: [
+                description[kDADiskDescriptionMediaNameKey as String] as? String,
+                description[kDADiskDescriptionDeviceModelKey as String] as? String
+            ].compactMap { $0 }.joined(separator: " "),
+            mediaKind: description[kDADiskDescriptionMediaKindKey as String] as? String,
+            sizeBytes: nil
+        ), kind == .sdCard else {
+            return protocolName
+        }
+
+        // "Secure Digital" is the protocol a built-in slot speaks; a card in a USB reader
+        // reports the reader's own protocol instead.
+        let isIntegrated = protocolName?.caseInsensitiveCompare("Secure Digital") == .orderedSame
+        return isIntegrated ? "SD/CF card (integrated reader)" : "SD/CF card (external reader)"
+    }
+
+    /// The whole Disk Arbitration description for a mount path.
+    private static func diskDescription(of path: String) -> [String: Any]? {
+        guard let session = DASessionCreate(kCFAllocatorDefault),
+              let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, URL(fileURLWithPath: path) as CFURL)
+        else { return nil }
+        return DADiskCopyDescription(disk) as? [String: Any]
     }
 
     /// Asks Disk Arbitration what the volume sits on. Everything here is best-effort: an

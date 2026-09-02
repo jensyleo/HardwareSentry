@@ -90,9 +90,13 @@ let package = Package(
             resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // A C shim, for the same reason CCUPS is one: the header ships in the SDK but is
+        // not in IOKit's module map, so Swift cannot see it — and the interface behind it
+        // is an IOCFPlugIn function-pointer table, which is the shape Swift handles worst.
+        .target(name: "CNVMeSMART"),
         .target(
             name: "VolumeMonitor",
-            dependencies: ["SentryContract"],
+            dependencies: ["SentryContract", "CNVMeSMART"],
             resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

@@ -9,11 +9,96 @@ public struct VolumeDetail: Sendable, Equatable {
     public let isReadOnly: Bool
     public let kind: VolumeKind?
 
-    public init(fileSystemType: String? = nil, totalBytes: UInt64? = nil, isReadOnly: Bool = false, kind: VolumeKind? = nil) {
+    /// The drive's own health percentage, for disks that report SMART data.
+    public let healthPercent: Int?
+    /// Whether the drive itself is warning about its condition, alongside the percentage.
+    public let hasHealthWarning: Bool
+    public let isEncrypted: Bool?
+    /// The volume format as macOS names it — "APFS", "ExFAT", "MS-DOS (FAT32)". A
+    /// different, friendlier answer than the raw file-system type.
+    public let format: String?
+    public let uuid: String?
+    public let isRemovable: Bool?
+    public let isEjectable: Bool?
+    public let isCaseSensitive: Bool?
+    /// Which bus the disk is on, and the size of its sectors.
+    public let busName: String?
+    public let sectorSize: Int?
+    /// How the card got here, when it is a card: whether the reader is built in or
+    /// plugged in, which is what decides whether it can be forgotten in a slot.
+    public let interfaceDescription: String?
+    /// Free space including what macOS would reclaim if pushed. Shown alongside the plain
+    /// figure on a low-space warning, because the two can differ by a lot and the
+    /// difference is the difference between "act now" and "it will sort itself out".
+    public let purgeableAwareFreeBytes: UInt64?
+
+    public init(
+        fileSystemType: String? = nil,
+        totalBytes: UInt64? = nil,
+        isReadOnly: Bool = false,
+        kind: VolumeKind? = nil,
+        healthPercent: Int? = nil,
+        hasHealthWarning: Bool = false,
+        isEncrypted: Bool? = nil,
+        format: String? = nil,
+        uuid: String? = nil,
+        isRemovable: Bool? = nil,
+        isEjectable: Bool? = nil,
+        isCaseSensitive: Bool? = nil,
+        busName: String? = nil,
+        sectorSize: Int? = nil,
+        interfaceDescription: String? = nil,
+        purgeableAwareFreeBytes: UInt64? = nil
+    ) {
         self.fileSystemType = fileSystemType
         self.totalBytes = totalBytes
         self.isReadOnly = isReadOnly
         self.kind = kind
+        self.healthPercent = healthPercent
+        self.hasHealthWarning = hasHealthWarning
+        self.isEncrypted = isEncrypted
+        self.format = format
+        self.uuid = uuid
+        self.isRemovable = isRemovable
+        self.isEjectable = isEjectable
+        self.isCaseSensitive = isCaseSensitive
+        self.busName = busName
+        self.sectorSize = sectorSize
+        self.interfaceDescription = interfaceDescription
+        self.purgeableAwareFreeBytes = purgeableAwareFreeBytes
+    }
+
+    /// The health figure, with the drive's own warning appended when it is complaining.
+    ///
+    /// The warning is the actionable half: a percentage on its own invites arguing about
+    /// what counts as low, while a drive saying it is in trouble does not.
+    var healthNote: String? {
+        guard let healthPercent else { return nil }
+        return hasHealthWarning ? "\(healthPercent)% (Warning)" : "\(healthPercent)%"
+    }
+
+    var encryptedNote: String? { isEncrypted.map { $0 ? "Yes" : "No" } }
+    var caseSensitiveNote: String? { isCaseSensitive.map { $0 ? "Yes" : "No" } }
+
+    /// Removable and ejectable on one line, because they are almost the same question and
+    /// two lines of Yes/No for it reads as padding.
+    var removableNote: String? {
+        guard let isRemovable, let isEjectable else { return nil }
+        return "\(isRemovable ? "Yes" : "No")\tEjectable:\t\(isEjectable ? "Yes" : "No")"
+    }
+
+    /// The bus and the sector size together — neither is worth a line alone.
+    var busNote: String? {
+        var parts: [String] = []
+        if let busName { parts.append(busName) }
+        if let sectorSize { parts.append("Sector size: \(sectorSize) bytes") }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+
+    var purgeableAwareFreeLabel: String? {
+        purgeableAwareFreeBytes.map {
+            ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)
+        }
     }
 
     public var sizeLabel: String? {
@@ -90,15 +175,51 @@ public enum VolumeField: String, CaseIterable {
     case fileSystem = "FileSystem"
     case size = "Size"
     case readOnly = "ReadOnly"
+    case health = "Health"
+    case fileVault = "FileVault"
+    case format = "Format"
+    case uuid = "UUID"
+    case removable = "Removable"
+    case caseSensitive = "CaseSensitive"
+    case busInfo = "BusInfo"
+    case interfaceType = "InterfaceType"
+    case purgeableSpace = "PurgeableSpace"
 
-    /// Path, file system and size are on: together they answer "which disk is this and
-    /// how big", which is the reason to read a mount notice at all. Read-only is the
-    /// exception because most volumes are writable and saying so every time is noise.
-    var shownByDefault: Bool { self != .readOnly }
+    /// How the line is named in Settings → Events, under "Include in the message".
+    var settingsTitle: String {
+        switch self {
+        case .path: return "Mount path"
+        case .fileSystem: return "File system type"
+        case .size: return "Volume size"
+        case .readOnly: return "Read-only flag"
+        case .health: return "Drive health (disks that report it)"
+        case .fileVault: return "Whether it is encrypted"
+        case .format: return "Format (APFS, ExFAT, MS-DOS…)"
+        case .uuid: return "Volume UUID"
+        case .removable: return "Removable and ejectable flags"
+        case .caseSensitive: return "Case sensitivity"
+        case .busInfo: return "Bus and sector size"
+        case .interfaceType: return "Card reader type"
+        case .purgeableSpace: return "Free space including what macOS would reclaim"
+        }
+    }
+
+    /// Path, file system, size, drive health and encryption are on. The first three answer
+    /// "which disk is this and how big"; the other two are the ones that would matter and
+    /// that nobody thinks to go looking for.
+    var shownByDefault: Bool {
+        [.path, .fileSystem, .size, .health, .fileVault].contains(self)
+    }
 }
 
 /// What the system told this monitor just happened.
 public enum VolumeSourceEvent: Sendable, Equatable {
+    /// A settled batch of partitions the system saw but could not read, with the whole
+    /// disks that did have something mount. Settled rather than live: inserting one card
+    /// produces a burst of these, and the useful unit is the card.
+    case unreadable(partitions: [UnreadablePartition], readableWholeDisks: Set<String>)
+    /// A whole disk left entirely, so re-inserting it warns again.
+    case wholeDiskDisappeared(String)
     case mounted(path: String, name: String, detail: VolumeDetail = VolumeDetail())
     /// Finder is about to eject this volume gracefully. Distinct from `.unmounted` so the
     /// monitor can tell a graceful eject apart from a surprise removal — a volume that

@@ -129,6 +129,9 @@ struct VolumeMonitorTests {
             "VolumeMounted": true,
             "VolumeUnmounted": true,
             "VolumeUnsafeEject": false,
+            // On by default, as in the original: an unreadable card is a real problem
+            // somebody would want told about, not a detail to opt into.
+            "VolumeNotReadable": true,
             "VolumeLowSpace": false
         ])
     }
@@ -181,5 +184,197 @@ struct VolumeMonitorTests {
         await monitor.start()
         await monitor.stop()
         await monitor.stop()
+    }
+}
+
+@Suite("Unreadable disks")
+struct UnreadableDiskTests {
+    private func partition(
+        _ bsd: String, whole: String, name: String = "Untitled", isInternal: Bool = false
+    ) -> UnreadablePartition {
+        UnreadablePartition(bsdName: bsd, wholeDiskName: whole, displayName: name, isInternal: isInternal)
+    }
+
+    @Test("one card with four unreadable partitions is one notification")
+    func partitionsAreGroupedByDisk() {
+        // A person inserted one card and wants to be told about one card.
+        var tracker = UnreadableDiskTracker()
+        let reports = tracker.consider(unreadable: [
+            partition("disk4s1", whole: "disk4"),
+            partition("disk4s2", whole: "disk4"),
+            partition("disk4s3", whole: "disk4"),
+            partition("disk4s4", whole: "disk4")
+        ], readableWholeDisks: [])
+
+        #expect(reports.count == 1)
+        #expect(reports.first?.wholeDiskName == "disk4")
+    }
+
+    @Test("two separate cards are two notifications, in a stable order")
+    func separateDisksReportSeparately() {
+        var tracker = UnreadableDiskTracker()
+        let reports = tracker.consider(unreadable: [
+            partition("disk5s1", whole: "disk5", name: "Card B"),
+            partition("disk4s1", whole: "disk4", name: "Card A")
+        ], readableWholeDisks: [])
+
+        #expect(reports.map(\.wholeDiskName) == ["disk4", "disk5"])
+    }
+
+    @Test("a disk already reported is not reported again")
+    func reportedDisksAreRemembered() {
+        // Something re-probing a card in a slot must not warn about it every time.
+        var tracker = UnreadableDiskTracker()
+        _ = tracker.consider(unreadable: [partition("disk4s1", whole: "disk4")], readableWholeDisks: [])
+        let again = tracker.consider(unreadable: [partition("disk4s1", whole: "disk4")], readableWholeDisks: [])
+        #expect(again.isEmpty)
+    }
+
+    @Test("re-inserting a card that has left warns again")
+    func forgettingReArms() {
+        var tracker = UnreadableDiskTracker()
+        _ = tracker.consider(unreadable: [partition("disk4s1", whole: "disk4")], readableWholeDisks: [])
+        tracker.forget(wholeDiskName: "disk4")
+
+        let again = tracker.consider(unreadable: [partition("disk4s1", whole: "disk4")], readableWholeDisks: [])
+        #expect(again.count == 1)
+    }
+
+    @Test("a card where something did mount is described as partly unreadable")
+    func readableSiblingChangesTheWording() {
+        // Saying the whole card is unreadable when half of it mounted sends somebody
+        // looking for a fault that is not there.
+        var tracker = UnreadableDiskTracker()
+        let reports = tracker.consider(
+            unreadable: [partition("disk4s2", whole: "disk4", name: "SD Card")],
+            readableWholeDisks: ["disk4"]
+        )
+
+        #expect(reports.first?.hasReadableSibling == true)
+        #expect(reports.first?.message == "Part of this device (SD Card) could not be read. It may be unformatted or use an unsupported file system.")
+    }
+
+    @Test("a card where nothing mounted is described as unreadable outright")
+    func noReadableSiblingWording() {
+        var tracker = UnreadableDiskTracker()
+        let reports = tracker.consider(
+            unreadable: [partition("disk4s1", whole: "disk4", name: "Untitled")],
+            readableWholeDisks: []
+        )
+        #expect(reports.first?.message == "Untitled could not be read. It may be unformatted or use an unsupported file system.")
+    }
+
+    @Test("the Mac's own hidden partitions are never reported")
+    func internalDisksAreExcluded() {
+        // The startup disk's recovery and preboot partitions are unreadable by design;
+        // warning about them at every launch would be pure noise.
+        var tracker = UnreadableDiskTracker()
+        let reports = tracker.consider(unreadable: [
+            partition("disk3s5", whole: "disk3", isInternal: true),
+            partition("disk3s6", whole: "disk3", isInternal: true)
+        ], readableWholeDisks: [])
+        #expect(reports.isEmpty)
+    }
+}
+
+@Suite("Whole-disk names")
+struct WholeDiskNameTests {
+    @Test("a partition name reduces to the disk it sits on")
+    func partitionsMapToTheirDisk() {
+        #expect(UnreadableDiskWatcher.wholeDiskName(of: "disk4s1") == "disk4")
+        #expect(UnreadableDiskWatcher.wholeDiskName(of: "disk12s3") == "disk12")
+    }
+
+    @Test("a whole disk is already its own answer")
+    func wholeDisksAreUnchanged() {
+        #expect(UnreadableDiskWatcher.wholeDiskName(of: "disk4") == "disk4")
+    }
+
+    @Test("something that is not a disk name is left alone")
+    func nonDiskNamesAreUntouched() {
+        #expect(UnreadableDiskWatcher.wholeDiskName(of: "en0") == "en0")
+        #expect(UnreadableDiskWatcher.wholeDiskName(of: "") == "")
+    }
+}
+
+@Suite("Volume exclusions")
+struct VolumeExclusionTests {
+    @Test("an exact name is matched whichever case it is written in")
+    func exactMatchIsCaseInsensitive() {
+        let exclusions = VolumeExclusions(patterns: ["TimeMachine"])
+        #expect(exclusions.excludes(path: "/Volumes/timemachine", name: "timemachine"))
+        #expect(exclusions.excludes(path: "/x", name: "TIMEMACHINE"))
+        #expect(!exclusions.excludes(path: "/Volumes/Backup", name: "Backup"))
+    }
+
+    @Test("a trailing star covers everything under a path")
+    func wildcardMatchesPrefix() {
+        // What makes "every disk image under /Volumes/VM" one entry rather than one per
+        // disk.
+        let exclusions = VolumeExclusions(patterns: ["/Volumes/VM*"])
+        #expect(exclusions.excludes(path: "/Volumes/VM-ubuntu", name: "VM-ubuntu"))
+        #expect(exclusions.excludes(path: "/Volumes/VM", name: "VM"))
+        #expect(!exclusions.excludes(path: "/Volumes/Work", name: "Work"))
+    }
+
+    @Test("a bare star does not silently silence everything")
+    func bareStarIsRefused() {
+        // It would silence the module by accident while it still looked like it was
+        // running.
+        let exclusions = VolumeExclusions(patterns: ["*"])
+        #expect(!exclusions.excludes(path: "/Volumes/Anything", name: "Anything"))
+    }
+
+    @Test("either the path or the name matching is enough")
+    func eitherSideMatches() {
+        let byPath = VolumeExclusions(patterns: ["/Volumes/Scratch"])
+        #expect(byPath.excludes(path: "/Volumes/Scratch", name: "Something Else"))
+
+        let byName = VolumeExclusions(patterns: ["Scratch"])
+        #expect(byName.excludes(path: "/private/tmp/mnt", name: "Scratch"))
+    }
+
+    @Test("whitespace and empty patterns are ignored rather than matching everything")
+    func emptyPatternsAreIgnored() {
+        let exclusions = VolumeExclusions(patterns: ["", "   "])
+        #expect(!exclusions.excludes(path: "/Volumes/Backup", name: "Backup"))
+    }
+}
+
+@Suite("Volume detail lines")
+struct VolumeDetailLineTests {
+    @Test("the drive's own warning is appended to the health figure")
+    func healthCarriesTheWarning() {
+        // A percentage invites arguing about what counts as low; a drive saying it is in
+        // trouble does not.
+        #expect(VolumeDetail(healthPercent: 97, hasHealthWarning: false).healthNote == "97%")
+        #expect(VolumeDetail(healthPercent: 12, hasHealthWarning: true).healthNote == "12% (Warning)")
+        #expect(VolumeDetail().healthNote == nil)
+    }
+
+    @Test("removable and ejectable share one line")
+    func removableAndEjectableCombine() {
+        // Two lines of Yes/No for almost the same question reads as padding.
+        let detail = VolumeDetail(isRemovable: true, isEjectable: false)
+        #expect(detail.removableNote == "Yes\tEjectable:\tNo")
+        // Both or neither: half the answer answers nothing.
+        #expect(VolumeDetail(isRemovable: true).removableNote == nil)
+    }
+
+    @Test("the bus line gathers whichever parts are known")
+    func busLineIsBuiltFromParts() {
+        #expect(VolumeDetail(busName: "USB", sectorSize: 512).busNote == "USB, Sector size: 512 bytes")
+        #expect(VolumeDetail(busName: "USB").busNote == "USB")
+        #expect(VolumeDetail(sectorSize: 4096).busNote == "Sector size: 4096 bytes")
+        #expect(VolumeDetail().busNote == nil)
+    }
+
+    @Test("encryption and case sensitivity read both ways")
+    func flagsReadBothWays() {
+        // Whether the disk you just plugged in is encrypted is worth knowing either way.
+        #expect(VolumeDetail(isEncrypted: true).encryptedNote == "Yes")
+        #expect(VolumeDetail(isEncrypted: false).encryptedNote == "No")
+        #expect(VolumeDetail(isCaseSensitive: true).caseSensitiveNote == "Yes")
+        #expect(VolumeDetail().caseSensitiveNote == nil)
     }
 }
