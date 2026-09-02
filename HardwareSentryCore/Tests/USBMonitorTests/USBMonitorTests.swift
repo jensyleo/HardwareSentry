@@ -164,3 +164,29 @@ struct USBIconTests {
         }
     }
 }
+
+extension USBIconTests {
+    @Test("a device that declares no class falls back to the plain USB glyph")
+    func unknownClassUsesTheGenericIcon() {
+        // Most USB devices declare their class per-interface rather than on the device, so
+        // this is the common case, not the odd one.
+        #expect(device(class: 0x00).iconBaseName == nil)
+        #expect(device(class: 0xFF).iconBaseName == nil)
+    }
+
+    @Test("every recognised class has its own artwork, distinct from the generic one")
+    func everyClassIconIsDistinct() throws {
+        // A specific icon that happened to be the generic one would make "USB Connection"
+        // and "a webcam arrived" indistinguishable at a glance.
+        let generic = try #require(Bundle.module.url(forResource: "USB-On", withExtension: "png"))
+        let genericBytes = try Data(contentsOf: generic)
+
+        var seen = Set<String>()
+        for code in UInt8.min...UInt8.max {
+            guard let base = device(class: code).iconBaseName, seen.insert(base).inserted else { continue }
+            let url = try #require(Bundle.module.url(forResource: base, withExtension: "png"), "missing \(base)")
+            #expect(try Data(contentsOf: url) != genericBytes, "\(base) is the generic icon")
+        }
+        #expect(!seen.isEmpty)
+    }
+}

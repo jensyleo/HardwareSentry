@@ -267,3 +267,42 @@ struct BluetoothMonitorFieldTests {
         #expect(body == "WH-1000XM4")
     }
 }
+
+@Suite("Bluetooth icon artwork")
+struct BluetoothIconTests {
+    @Test("a device whose kind is unreadable falls back to the plain Bluetooth glyph")
+    func unknownKindUsesTheGenericIcon() {
+        // Class-of-Device values outside the table this app knows: the honest answer is
+        // "a Bluetooth device", not a confident wrong picture.
+        #expect(BluetoothDeviceKind.from(major: 0x1F, minor: 0x00) == nil)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x00) == nil)
+    }
+
+    @Test("every kind has its own artwork, distinct from the generic one")
+    func everyKindHasItsOwnArtwork() throws {
+        // A specific icon that happened to be the generic icon would make "Bluetooth
+        // Connection" and "Keyboard connected" indistinguishable at a glance.
+        let generic = try #require(Bundle.module.url(forResource: "Bluetooth-On", withExtension: "png"))
+        let genericBytes = try Data(contentsOf: generic)
+
+        for kind in BluetoothDeviceKind.allCases {
+            let connected = try #require(
+                Bundle.module.url(forResource: kind.iconBaseName, withExtension: "png"),
+                "missing artwork: \(kind.iconBaseName)"
+            )
+            #expect(try Data(contentsOf: connected) != genericBytes, "\(kind.iconBaseName) is the generic icon")
+
+            #expect(
+                Bundle.module.url(forResource: "\(kind.iconBaseName)-Disconnected", withExtension: "png") != nil,
+                "missing artwork: \(kind.iconBaseName)-Disconnected"
+            )
+        }
+    }
+
+    @Test("the plain glyphs the fallback needs are shipped")
+    func genericArtworkExists() {
+        for name in ["Bluetooth-On", "Bluetooth-Off", "Bluetooth-Radio-On", "Bluetooth-Radio-Off"] {
+            #expect(Bundle.module.url(forResource: name, withExtension: "png") != nil, "missing \(name)")
+        }
+    }
+}

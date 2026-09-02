@@ -139,3 +139,40 @@ struct ThunderboltMonitorTests {
         await monitor.stop()
     }
 }
+
+@Suite("Thunderbolt icon artwork")
+struct ThunderboltIconTests {
+    @Test("a device whose PCI class says nothing falls back to the plain Thunderbolt glyph")
+    func unknownClassUsesTheGenericIcon() {
+        #expect(ThunderboltDevice(name: "Thing", baseClass: 0x99).iconBaseName == nil)
+    }
+
+    @Test("every recognised class has its own artwork, distinct from the generic one")
+    func everyClassHasItsOwnArtwork() throws {
+        let generic = try #require(Bundle.module.url(forResource: "Thunderbolt-On", withExtension: "png"))
+        let genericBytes = try Data(contentsOf: generic)
+
+        var seen = Set<String>()
+        for code in UInt8.min...UInt8.max {
+            guard let base = ThunderboltDevice(name: "Thing", baseClass: code).iconBaseName else { continue }
+            guard seen.insert(base).inserted else { continue }
+
+            let url = try #require(
+                Bundle.module.url(forResource: base, withExtension: "png"),
+                "missing artwork: \(base)"
+            )
+            #expect(try Data(contentsOf: url) != genericBytes, "\(base) is the generic icon")
+            #expect(
+                Bundle.module.url(forResource: "\(base)-Disconnected", withExtension: "png") != nil,
+                "missing artwork: \(base)-Disconnected"
+            )
+        }
+        #expect(!seen.isEmpty)
+    }
+
+    @Test("the plain glyphs the fallback needs are shipped")
+    func genericArtworkExists() {
+        #expect(Bundle.module.url(forResource: "Thunderbolt-On", withExtension: "png") != nil)
+        #expect(Bundle.module.url(forResource: "Thunderbolt-Off", withExtension: "png") != nil)
+    }
+}
