@@ -1988,3 +1988,65 @@ struct WiFiSignalParityTests {
         #expect(NetworkMonitor.icon != NetworkMonitor.events.first?.icon)
     }
 }
+
+@Suite("NetworkMonitor · joining a network that cannot be named")
+struct UnnamedNetworkTests {
+    private func run(_ script: [NetworkSourceEvent]) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("a network joined under a stand-in name is still announced")
+    func standInNameIsAnnounced() async {
+        // What the source now sends when the radio is associated but Location access has
+        // not been granted, so the SSID reads as nil. Being unable to name the network is
+        // not a reason to say nothing about having joined one.
+        let events = await run([.wifiConnected(ssid: "Wi-Fi", detail: WiFiDetail(rssi: -62))])
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == NetworkEvent.wifiConnected.rawValue)
+        #expect(events.first?.title == "AirPort Connected")
+        #expect(events.first?.body.contains("SSID:\tWi-Fi") == true)
+    }
+
+    @Test("the real name arriving later is announced rather than swallowed as a repeat")
+    func realNameReplacesTheStandIn() async {
+        // Granting Location mid-session: the network is announced again, now that it can
+        // be named. The dedup is on the name and the access point together, so this is a
+        // different announcement rather than the same one twice.
+        let events = await run([
+            .wifiConnected(ssid: "Wi-Fi", detail: WiFiDetail(rssi: -62)),
+            .wifiConnected(ssid: "LAN-MAVERICK-5G", detail: WiFiDetail(bssid: "a0:36:bc:36:d1:64", rssi: -62))
+        ])
+
+        #expect(events.count == 2)
+        #expect(events.last?.body.contains("SSID:\tLAN-MAVERICK-5G") == true)
+    }
+
+    @Test("the icon is the bars for the signal it joined with")
+    func iconFollowsTheSignal() async {
+        // -62 dBm is three bars. The fixed four-bar icon this used to carry was the
+        // "strength indicator that indicates nothing" the user reported.
+        let events = await run([.wifiConnected(ssid: "Wi-Fi", detail: WiFiDetail(rssi: -62))])
+        #expect(events.first?.icon == .asset("Network-Wifi-3", in: .module))
+    }
+
+    @Test("transmit power is milliwatts, which is what CoreWLAN answers")
+    func transmitPowerIsMilliwatts() {
+        // This Mac reports 1496. That is a plausible figure in milliwatts and an
+        // impossible one in dBm, which is what the original labels it.
+        #expect(WiFiDetail(transmitPower: 1496).transmitPowerNote == "1496 mW")
+        #expect(WiFiDetail(transmitPower: 0).transmitPowerNote == nil)
+    }
+}

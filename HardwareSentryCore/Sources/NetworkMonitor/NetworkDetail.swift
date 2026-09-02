@@ -21,7 +21,7 @@ public struct WiFiDetail: Sendable, Equatable {
     public let transmitRate: Double?
     public let countryCode: String?
     public let interfaceName: String?
-    /// How hard the radio is transmitting, in dBm.
+    /// How hard the radio is transmitting, in milliwatts.
     public let transmitPower: Int?
     /// The Wi-Fi card's own hardware address, as distinct from the access point's.
     public let hardwareAddress: String?
@@ -58,10 +58,16 @@ public struct WiFiDetail: Sendable, Equatable {
         self.interfaceMode = interfaceMode
     }
 
+    /// Milliwatts, not dBm.
+    ///
+    /// `CWInterface.transmitPower()` is documented as milliwatts, and the figures bear it
+    /// out: this Mac reports 1496, which is a plausible internal power figure and an
+    /// impossible one in dBm — 1496 dBm is more energy than the sun puts out. The original
+    /// labels it dBm; this deliberately does not.
     var transmitPowerNote: String? {
         // Zero is the interface declining to answer, not a radio that is silent.
         guard let transmitPower, transmitPower != 0 else { return nil }
-        return "\(transmitPower) dBm"
+        return "\(transmitPower) mW"
     }
 
     var rssiNote: String? {

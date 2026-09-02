@@ -152,24 +152,25 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         }
     }
 
+    /// Asks for authorization when it has never been asked for, and sweeps either way.
+    ///
+    /// Either way is the point. Whether this Mac is on a Wi-Fi network is not a private
+    /// fact and needs no permission; only the network's *name* does. An earlier version
+    /// swept only once Location had been granted, which meant that on a Mac where it had
+    /// been refused the application never said a word about Wi-Fi — not "connected to a
+    /// network I cannot name", but nothing at all.
     private func requestOrSweep(_ manager: CLLocationManager) {
-        switch manager.authorizationStatus {
-        case .notDetermined:
+        if manager.authorizationStatus == .notDetermined {
             manager.requestWhenInUseAuthorization()
-        case .authorized, .authorizedAlways:
-            // Already granted from a previous launch — nothing to request, so the sweep
-            // that could not run until now runs immediately.
-            announceAlreadyJoinedWiFi()
-        default:
-            // Refused, or restricted. The SSID cannot be read at all, so there is nothing
-            // to sweep and nothing worth asking twice for.
-            break
         }
+        announceAlreadyJoinedWiFi()
     }
 
     /// Fires once Location access is granted or denied. Only the transition into being
-    /// granted matters here: a network already joined could not be named in the sweep that
-    /// ran before permission existed, so it is announced again now that it can be.
+    /// granted matters here: the network was already announced, under the name "Wi-Fi"
+    /// because nothing could read its real one, and now it can be announced properly. The
+    /// monitor's own dedup is on the name and the access point together, so the second
+    /// announcement carries the real name rather than being swallowed as a repeat.
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         guard manager.authorizationStatus == .authorized || manager.authorizationStatus == .authorizedAlways else { return }
         announceAlreadyJoinedWiFi()
@@ -180,9 +181,33 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     /// networks, most of the time — is never mentioned at all.
     private func announceAlreadyJoinedWiFi() {
         for interface in CWWiFiClient.shared().interfaces() ?? [] {
-            guard let ssid = interface.ssid() else { continue }
-            continuation.yield(.wifiConnected(ssid: ssid, detail: WiFiDetail(interface: interface)))
+            guard Self.isAssociated(interface) else { continue }
+            continuation.yield(.wifiConnected(
+                ssid: Self.displayName(of: interface),
+                detail: WiFiDetail(interface: interface)
+            ))
         }
+    }
+
+    /// Whether the radio is on and joined to an access point.
+    ///
+    /// This — not the SSID — is what decides whether the Mac is on a Wi-Fi network.
+    /// `interfaceMode` is the operating system's own view of what the radio is doing and
+    /// needs no permission, while `ssid()` silently returns nil without Location access.
+    /// Deciding on the name meant that on a Mac where Location had been refused, every
+    /// Wi-Fi network looked like no network: nothing was announced on joining, and the
+    /// notification that a network had been joined was reported as leaving one. The
+    /// original draws the line here and says so in its own comment.
+    private static func isAssociated(_ interface: CWInterface) -> Bool {
+        interface.powerOn() && interface.interfaceMode() == .station
+    }
+
+    /// The network's name, or an honest stand-in when it cannot be read.
+    ///
+    /// "Wi-Fi" rather than nothing, exactly as the original does it: being unable to name
+    /// the network is not a reason to stay silent about having joined one.
+    private static func displayName(of interface: CWInterface) -> String {
+        interface.ssid() ?? "Wi-Fi"
     }
 
     func stop() {
@@ -613,9 +638,10 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
 
     func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
         if let interface = CWWiFiClient.shared().interface(withName: interfaceName),
-           let ssid = interface.ssid() {
-            lastKnownSSID = ssid
-            continuation.yield(.wifiConnected(ssid: ssid, detail: WiFiDetail(interface: interface)))
+           Self.isAssociated(interface) {
+            let name = Self.displayName(of: interface)
+            lastKnownSSID = name
+            continuation.yield(.wifiConnected(ssid: name, detail: WiFiDetail(interface: interface)))
         } else {
             // The interface no longer knows the SSID by the time it reports leaving, so
             // the name comes from what was remembered on joining.
