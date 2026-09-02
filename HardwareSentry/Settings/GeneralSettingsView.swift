@@ -1,4 +1,5 @@
 import AppKit
+import SentryContract
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -40,6 +41,20 @@ struct GeneralSettingsView: View {
                     set: { model.showsConnectedDevicesAtLaunch = $0 }
                 ))
                 Text("Takes effect the next time the application starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Connection notifications") {
+                Picker("Title reads", selection: $tuning.connectionNaming) {
+                    ForEach(ConnectionNaming.allCases) { naming in
+                        Text(naming.label).tag(naming)
+                    }
+                }
+                Text(tuning.connectionNaming.example)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Applies to USB, Bluetooth and Thunderbolt. A device that never said what it is says \"Device\" either way — most USB devices declare what they are per interface rather than on the device, so that is the ordinary case rather than a failure. Takes effect the next time the application starts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

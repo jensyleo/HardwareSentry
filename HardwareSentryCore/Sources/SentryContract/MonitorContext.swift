@@ -21,16 +21,21 @@ public struct MonitorContext: Sendable {
     /// than mistaken for a dozen things happening at once.
     public let announcesWhatIsAlreadyThere: Bool
 
+    /// How connection notifications name what arrived. See `ConnectionNaming`.
+    public let connectionNaming: ConnectionNaming
+
     public init(
         dispatcher: NotificationDispatcher,
         category: NotificationCategory,
         preferences: any NotificationPreferences = AlwaysWanted(),
-        announcesWhatIsAlreadyThere: Bool = true
+        announcesWhatIsAlreadyThere: Bool = true,
+        connectionNaming: ConnectionNaming = .mediumAndType
     ) {
         self.dispatcher = dispatcher
         self.category = category
         self.preferences = preferences
         self.announcesWhatIsAlreadyThere = announcesWhatIsAlreadyThere
+        self.connectionNaming = connectionNaming
     }
 
     /// Builds a body from lines, leaving out the optional ones nobody asked for.
@@ -53,6 +58,12 @@ public struct MonitorContext: Sendable {
     /// before it builds a line rather than while `body(_:)` is filtering them.
     public func isFieldEnabled(_ name: String) async -> Bool {
         await preferences.isFieldEnabled(name, in: category)
+    }
+
+    /// The title for something connecting or disconnecting, named the way this
+    /// application has been asked to name them.
+    public func connectionTitle(medium: String, type: String?, action: String) -> String {
+        connectionNaming.title(medium: medium, type: type, action: action)
     }
 
     /// Raises a notification, already stamped with the monitor's own category so it

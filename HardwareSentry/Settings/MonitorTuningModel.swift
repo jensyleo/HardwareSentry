@@ -1,5 +1,7 @@
 import Foundation
+import MonitorRegistry
 import PowerMonitor
+import SentryContract
 import ScannerMonitor
 import Observation
 
@@ -29,7 +31,8 @@ final class MonitorTuningModel {
             Self.lowSpacePercentKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
-            Self.wifiSignalCooldownKey: 10.0
+            Self.wifiSignalCooldownKey: 10.0,
+            Self.connectionNamingKey: ConnectionNaming.mediumAndType.rawValue
         ])
 
         // Assigned here rather than through the observers below, which do not fire during
@@ -43,6 +46,8 @@ final class MonitorTuningModel {
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
         wifiSignalCooldownSeconds = defaults.double(forKey: Self.wifiSignalCooldownKey)
+        connectionNaming = defaults.string(forKey: Self.connectionNamingKey)
+            .flatMap(ConnectionNaming.init(rawValue:)) ?? .mediumAndType
     }
 
     var repeatsPowerStatus: Bool {
@@ -80,6 +85,12 @@ final class MonitorTuningModel {
     }
 
     var scannerStatusInterval: Duration { .seconds(scannerStatusSeconds) }
+
+    /// How connection notifications name what arrived, for USB, Bluetooth and
+    /// Thunderbolt. Read at launch, since it is handed to each monitor when it is built.
+    var connectionNaming: ConnectionNaming {
+        didSet { defaults.set(connectionNaming.rawValue, forKey: Self.connectionNamingKey) }
+    }
 
     /// How often the Wi-Fi signal is read, and how long to leave between saying anything
     /// about it. Both read at launch: they are handed to the source and the monitor when
@@ -121,4 +132,5 @@ final class MonitorTuningModel {
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"
     private static let wifiSignalCooldownKey = "Network.WifiSignalCooldownSeconds"
+    private static let connectionNamingKey = "HardwareSentry.ConnectionNaming"
 }

@@ -22,7 +22,11 @@ public struct ThunderboltDevice: Sendable, Equatable {
     public var isDisplayController: Bool { baseClass == 0x03 }
 
     /// The PCI-SIG base class in words. Nil for classes with nothing useful to say.
-    public var typeLabel: String? {
+    public var typeLabel: String? { Self.label(forBaseClass: baseClass) }
+
+    /// The same lookup for a class code remembered from before a device left, since by
+    /// then there is no device left to ask.
+    public static func label(forBaseClass baseClass: UInt8?) -> String? {
         switch baseClass {
         case 0x01: return "Storage Controller"
         case 0x02: return "Network Controller"

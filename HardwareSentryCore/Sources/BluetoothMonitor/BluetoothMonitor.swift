@@ -93,7 +93,11 @@ public actor BluetoothMonitor: Monitor {
             if let kind { lastKindByName[name] = kind }
             await context.notify(
                 BluetoothEvent.connected.rawValue, subject: name,
-                title: "Bluetooth Connection",
+                title: await context.connectionTitle(
+                    medium: "Bluetooth",
+                    type: kind?.label,
+                    action: "Connected"
+                ),
                 body: await context.body([
                     .always(name),
                     .field(BluetoothField.kind.rawValue, "Type", detail?.kindNote),
@@ -120,7 +124,12 @@ public actor BluetoothMonitor: Monitor {
             let kind = lastKindByName.removeValue(forKey: name)
             await context.notify(
                 BluetoothEvent.disconnected.rawValue, subject: name,
-                title: "Bluetooth Disconnection", body: name,
+                title: await context.connectionTitle(
+                    medium: "Bluetooth",
+                    type: lastKindByName[name]?.label,
+                    action: "Disconnected"
+                ),
+                body: name,
                 icon: .asset(kind.map { "\($0.iconBaseName)-Disconnected" } ?? "Bluetooth-Off", in: .module)
             )
 

@@ -104,7 +104,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             volumeLowSpacePercent: tuning.lowSpacePercent,
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
-            networkSignalCooldown: tuning.wifiSignalCooldownSeconds
+            networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
+            connectionNaming: tuning.connectionNaming
         )
         // Changed numbers reach the running monitors rather than waiting for a relaunch.
         tuning.onChange = { [weak self] in

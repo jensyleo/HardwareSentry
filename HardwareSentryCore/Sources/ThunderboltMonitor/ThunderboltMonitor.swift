@@ -61,7 +61,11 @@ public actor ThunderboltMonitor: Monitor {
             await context.notify(
                 ThunderboltEvent.connected.rawValue,
                 subject: device.name,
-                title: "Thunderbolt Connection",
+                title: await context.connectionTitle(
+                    medium: "Thunderbolt",
+                    type: device.typeLabel,
+                    action: "Connected"
+                ),
                 body: await context.body([
                     .always(device.name),
                     .field(ThunderboltField.type.rawValue, "Type", device.typeLabel),
@@ -86,7 +90,11 @@ public actor ThunderboltMonitor: Monitor {
             await context.notify(
                 ThunderboltEvent.disconnected.rawValue,
                 subject: name,
-                title: "Thunderbolt Disconnection",
+                title: await context.connectionTitle(
+                    medium: "Thunderbolt",
+                    type: ThunderboltDevice.label(forBaseClass: baseClass),
+                    action: "Disconnected"
+                ),
                 body: name,
                 icon: .asset(iconBase.map { "\($0)-Disconnected" } ?? "Thunderbolt-Off", in: .module)
             )

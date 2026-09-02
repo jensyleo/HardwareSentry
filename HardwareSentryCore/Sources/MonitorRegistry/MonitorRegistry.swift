@@ -37,6 +37,7 @@ public actor MonitorRegistry {
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
     private let networkSignalCooldown: TimeInterval
     private let videoLinkPollInterval: Duration
+    private let connectionNaming: ConnectionNaming
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -56,7 +57,8 @@ public actor MonitorRegistry {
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
         networkSignalCooldown: TimeInterval = 10,
-        videoLinkPollInterval: Duration = .seconds(5)
+        videoLinkPollInterval: Duration = .seconds(5),
+        connectionNaming: ConnectionNaming = .mediumAndType
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
@@ -69,6 +71,7 @@ public actor MonitorRegistry {
         self.networkSignalPolling = networkSignalPolling
         self.networkSignalCooldown = networkSignalCooldown
         self.videoLinkPollInterval = videoLinkPollInterval
+        self.connectionNaming = connectionNaming
     }
 
     /// Passes changed tuning to the monitors that care about it, without rebuilding them.
@@ -105,23 +108,23 @@ public actor MonitorRegistry {
         monitors = [
             USBMonitor(
                 source: IOKitUSBDeviceSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             ThermalMonitor(
                 source: SystemThermalStateSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: ThermalMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             GamepadMonitor(
                 source: GameControllerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: GamepadMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             ThunderboltMonitor(
                 source: IOKitThunderboltDeviceSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: ThunderboltMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             CameraMonitor(
                 source: AVFoundationCameraSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             DisplayMonitor(
                 // The experimental video-link poll runs only when its notification is
@@ -133,40 +136,40 @@ public actor MonitorRegistry {
                         ? videoLinkPollInterval
                         : nil
                 ),
-                context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             PrinterMonitor(
                 source: CUPSPrinterSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             BluetoothMonitor(
                 source: IOBluetoothSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             AudioMonitor(
                 source: CoreAudioSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere)
+                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 lowSpaceThresholdPercent: volumeLowSpacePercent
             ),
             PowerMonitor(
                 source: IOPSPowerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 refire: powerRefire,
                 healthCheck: powerHealthCheck,
                 healthStore: powerHealthStore
             ),
             NetworkMonitor(
                 source: SystemNetworkSource(signalPolling: networkSignalPolling),
-                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 signalCooldown: networkSignalCooldown
             ),
             ScannerMonitor(
                 source: BonjourScannerSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: ScannerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere),
+                context: MonitorContext(dispatcher: dispatcher, category: ScannerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 statusReader: eSCLStatusReader(),
                 statusInterval: scannerStatusInterval
             )

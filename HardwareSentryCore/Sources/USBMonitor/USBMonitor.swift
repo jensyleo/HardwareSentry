@@ -66,7 +66,13 @@ public actor USBMonitor: Monitor {
                 // said what it is.
                 (device.kind?.connectedEvent ?? USBEvent.connected).rawValue,
                 subject: device.name,
-                title: device.isHub ? "USB Hub/Dock Connection" : "USB Connection",
+                // The device's own class, when it said — "USB Hub Connected" — and the
+                // generic wording when it did not, which is most of them.
+                title: await context.connectionTitle(
+                    medium: "USB",
+                    type: device.kind?.settingsTitle,
+                    action: "Connected"
+                ),
                 body: await context.body([
                     .always(device.name),
                     // In the original's order: who made it, what identifies it, what it
@@ -93,7 +99,11 @@ public actor USBMonitor: Monitor {
             await context.notify(
                 USBEvent.disconnected.rawValue,
                 subject: device.name,
-                title: device.isHub ? "USB Hub/Dock Disconnection" : "USB Disconnection",
+                title: await context.connectionTitle(
+                    medium: "USB",
+                    type: device.kind?.settingsTitle,
+                    action: "Disconnected"
+                ),
                 // The name alone. Every detail line describes a device that is present —
                 // its speed, its power draw, what is inside it — and none of it means
                 // anything about one that has just left.

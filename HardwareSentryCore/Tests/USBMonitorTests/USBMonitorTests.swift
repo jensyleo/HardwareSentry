@@ -52,7 +52,7 @@ struct USBMonitorTests {
 
         #expect(events.count == 1)
         #expect(events.first?.name == "USBConnected")
-        #expect(events.first?.title == "USB Connection")
+        #expect(events.first?.title == "USB Device Connected")
         #expect(events.first?.category == USBEvent.category)
     }
 
@@ -61,14 +61,14 @@ struct USBMonitorTests {
         let events = await run([.detached(USBDevice(name: "SanDisk Cruzer"))])
 
         #expect(events.first?.name == "USBDisconnected")
-        #expect(events.first?.title == "USB Disconnection")
+        #expect(events.first?.title == "USB Device Disconnected")
     }
 
     @Test("a hub is called a hub")
     func hubIsNamed() async {
         let events = await run([.attached(USBDevice(name: "Anker Hub", isHub: true))])
 
-        #expect(events.first?.title == "USB Hub/Dock Connection")
+        #expect(events.first?.title == "USB Hub Connected")
     }
 
     // The device's name is the subject, deliberately: identifiers the system assigns as it
@@ -189,7 +189,7 @@ extension USBIconTests {
 
     @Test("every recognised class has its own artwork, distinct from the generic one")
     func everyClassIconIsDistinct() throws {
-        // A specific icon that happened to be the generic one would make "USB Connection"
+        // A specific icon that happened to be the generic one would make "USB Device Connected"
         // and "a webcam arrived" indistinguishable at a glance.
         let generic = try #require(Bundle.module.url(forResource: "USB-On", withExtension: "png"))
         let genericBytes = try Data(contentsOf: generic)

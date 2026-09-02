@@ -78,3 +78,39 @@ struct BodyLineTests {
         #expect(body == "first\nsecond\nthird")
     }
 }
+
+@Suite("ConnectionNaming")
+struct ConnectionNamingTests {
+    @Test("the medium comes first, then what the thing is")
+    func mediumAndType() {
+        let naming = ConnectionNaming.mediumAndType
+        #expect(naming.title(medium: "USB", type: "Hub", action: "Connected") == "USB Hub Connected")
+        #expect(naming.title(medium: "Bluetooth", type: "Keyboard", action: "Connected") == "Bluetooth Keyboard Connected")
+        #expect(naming.title(medium: "Thunderbolt", type: "Bridge / Dock", action: "Disconnected") == "Thunderbolt Bridge / Dock Disconnected")
+    }
+
+    @Test("just what it is, for somebody who does not care how it got here")
+    func typeOnly() {
+        let naming = ConnectionNaming.typeOnly
+        #expect(naming.title(medium: "USB", type: "Hub", action: "Connected") == "Hub Connected")
+        #expect(naming.title(medium: "Bluetooth", type: "Keyboard", action: "Disconnected") == "Keyboard Disconnected")
+    }
+
+    @Test("a device that never said what it is falls back to the generic word")
+    func unknownTypeFallsBack() {
+        // Not a failure: most USB devices declare their class on each interface rather
+        // than on the device, so this is what a great many working things get.
+        #expect(ConnectionNaming.mediumAndType.title(medium: "USB", type: nil, action: "Connected") == "USB Device Connected")
+        // And "Connected" on its own would be a sentence with its subject missing.
+        #expect(ConnectionNaming.typeOnly.title(medium: "USB", type: nil, action: "Connected") == "Device Connected")
+    }
+
+    @Test("both choices are offered, and the medium-first one is the default")
+    func bothAreOffered() {
+        #expect(ConnectionNaming.allCases.count == 2)
+        #expect(MonitorContext(
+            dispatcher: NotificationDispatcher(delivery: DiscardingDelivery()),
+            category: "Test"
+        ).connectionNaming == .mediumAndType)
+    }
+}
