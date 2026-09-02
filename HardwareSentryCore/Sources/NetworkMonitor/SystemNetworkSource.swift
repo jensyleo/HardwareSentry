@@ -82,6 +82,8 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     private var locationManager: CLLocationManager?
     private var lastKnownSSID: String?
     private var radioPollTask: Task<Void, Never>?
+    private var interfaceKinds = InterfaceKindCache()
+    private var signalPollTask: Task<Void, Never>?
 
     init(continuation: AsyncStream<NetworkSourceEvent>.Continuation) {
         self.continuation = continuation
@@ -155,6 +157,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         try? CWWiFiClient.shared().stopMonitoringAllEvents()
         locationManager?.delegate = nil
         radioPollTask?.cancel()
+        signalPollTask?.cancel()
         continuation.finish()
     }
 
@@ -206,7 +209,10 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         // rather than everything `SCDynamicStore` happens to have a Link key for, which
         // includes housekeeping interfaces (AirDrop's `awdl0`, `llw0`, loopback) nobody
         // would recognise in a notification.
-        let kinds = SystemNetworkSource.realInterfaceKinds()
+        // Reconciled against what has been seen before, so an adapter already torn out of
+        // the registry is still recognised as the interface it was — see
+        // `InterfaceKindCache` for the bug this prevents.
+        let kinds = interfaceKinds.reconcile(live: SystemNetworkSource.realInterfaceKinds())
 
         var links: [String: LinkState] = [:]
         if let keys = SCDynamicStoreCopyKeyList(dynamicStore, linkKeyPattern as CFString) as? [String] {
@@ -308,6 +314,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         try? client.startMonitoringEvent(with: .powerDidChange)
         emitWiFiRadioPower()
         startWiFiRadioPoll()
+        startWiFiSignalPoll()
     }
 
     /// Reads the radio's power and reports it.
@@ -332,6 +339,31 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
                 await MainActor.run { self?.emitWiFiRadioPower() }
             }
         }
+    }
+
+    /// Reads the signal strength on a timer.
+    ///
+    /// There is no notification for this — CoreWLAN will tell you the SSID changed but not
+    /// that the signal moved, so it has to be asked. Twelve seconds is the original's
+    /// figure: often enough to notice walking out of range, rare enough that a laptop
+    /// sitting still is not doing constant work.
+    private func startWiFiSignalPoll() {
+        signalPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(12))
+                guard !Task.isCancelled else { return }
+                await MainActor.run { self?.emitWiFiSignal() }
+            }
+        }
+    }
+
+    private func emitWiFiSignal() {
+        guard let interface = CWWiFiClient.shared().interface(), interface.powerOn() else { return }
+        let rssi = interface.rssiValue()
+        // Zero means the interface had nothing to say, which is not the same as a signal
+        // of zero strength — passing it on would be reporting a reading that does not exist.
+        guard rssi != 0 else { return }
+        continuation.yield(.wifiSignal(rssi: rssi, ssid: interface.ssid()))
     }
 
     func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {

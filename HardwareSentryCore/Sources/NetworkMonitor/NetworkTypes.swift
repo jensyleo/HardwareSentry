@@ -23,6 +23,9 @@ public enum NetworkSourceEvent: Sendable, Equatable {
     case dhcpLeaseSnapshot([String: Date])
     /// Every system-wide network setting worth watching, read together — not a delta.
     case globalState(NetworkGlobalState)
+    /// A fresh signal reading for the joined network, from the poll. The monitor decides
+    /// whether it is worth saying anything about.
+    case wifiSignal(rssi: Int, ssid: String?)
     /// Whether the Wi-Fi radio itself is powered on, independent of any network.
     case wifiRadioPower(isOn: Bool)
     /// The name set in System Settings › General › Sharing — not the same as the "AirDrop

@@ -23,6 +23,9 @@ public enum NetworkEvent: String, NotificationEventKey {
     case serviceOrderChanged = "NetworkServiceOrderChanged"
     case wifiRadioOn = "WifiRadioOn"
     case wifiRadioOff = "WifiRadioOff"
+    case vpnConnected = "VPNConnected"
+    case vpnDisconnected = "VPNDisconnected"
+    case wifiSignalChanged = "AirportSignalChange"
     case ipAddressChanged = "IPAddressChange"
 
     public static let category: NotificationCategory = "Network"

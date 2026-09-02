@@ -38,6 +38,7 @@ public actor NetworkMonitor: Monitor {
     private var lastKnownComputerName: String?
     private var lastKnownGlobalState: NetworkGlobalState?
     private var lastKnownWiFiRadioOn: Bool?
+    private var signalWatcher = WiFiSignalWatcher()
     /// What the IP message last actually said. Compared as text rather than as addresses,
     /// because that is what decides whether re-showing it would tell anyone anything new:
     /// an address changing behind a switched-off IPv6 line changes nothing visible.
@@ -70,6 +71,9 @@ public actor NetworkMonitor: Monitor {
         case .reachability(let isReachable, let detail):
             await handleReachability(isReachable, detail: detail)
         case .wifiConnected(let ssid, let detail):
+            // Baselined from the reading that came with joining, so the first real
+            // movement is caught one poll sooner than it would be otherwise.
+            if let rssi = detail?.rssi { signalWatcher.baseline(WiFiSignalLevel(rssi: rssi)) }
             await context.notify(
                 NetworkEvent.wifiConnected.rawValue, subject: ssid,
                 title: "AirPort Connected",
@@ -88,6 +92,9 @@ public actor NetworkMonitor: Monitor {
                 icon: .asset("Network-Wifi-4", in: .module)
             )
         case .wifiDisconnected(let ssid):
+            // Forgotten rather than kept: comparing the next network's signal against
+            // this one's level would report a change that never happened.
+            signalWatcher.reset()
             await context.notify(
                 NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi",
                 title: "AirPort Disconnected",
@@ -108,6 +115,8 @@ public actor NetworkMonitor: Monitor {
             await handleGlobalState(state)
         case .wifiRadioPower(let isOn):
             await handleWiFiRadioPower(isOn)
+        case .wifiSignal(let rssi, let ssid):
+            await handleWiFiSignal(rssi: rssi, ssid: ssid)
         }
     }
 
@@ -149,6 +158,26 @@ public actor NetworkMonitor: Monitor {
 
         for (interfaceName, state) in links {
             let was = knownLinks[interfaceName]
+
+            // A VPN tunnel coming up is its own kind of news, not a link event: nobody
+            // plugged anything in, and "utun4 Link Up" says nothing a person can use.
+            if isVPNInterfaceName(interfaceName) {
+                if state.isActive, was?.isActive != true {
+                    await context.notify(
+                        NetworkEvent.vpnConnected.rawValue, subject: interfaceName,
+                        title: "VPN Connected", body: "Interface:\t\(interfaceName)",
+                        icon: .asset("Network-VPN-On", in: .module)
+                    )
+                } else if !state.isActive, was?.isActive == true {
+                    await context.notify(
+                        NetworkEvent.vpnDisconnected.rawValue, subject: interfaceName,
+                        title: "VPN Disconnected", body: "Interface:\t\(interfaceName)",
+                        icon: .asset("Network-VPN-Off", in: .module)
+                    )
+                }
+                continue
+            }
+
             if state.isActive, was?.isActive != true {
                 await context.notify(
                     NetworkEvent.linkUp.rawValue, subject: interfaceName,
@@ -279,6 +308,24 @@ public actor NetworkMonitor: Monitor {
     /// The radio's own power, which is a different fact from being on a network: the radio
     /// can be on with nothing joined, and turning it off is what explains every other
     /// network notification that follows.
+    /// Reports the signal moving between levels, and nothing else.
+    ///
+    /// The deciding lives in `WiFiSignalWatcher`, which is where the reasoning about
+    /// thresholds and the cooldown is written down and tested.
+    private func handleWiFiSignal(rssi: Int, ssid: String?) async {
+        guard let change = signalWatcher.consider(WiFiSignalLevel(rssi: rssi)) else { return }
+
+        await context.notify(
+            NetworkEvent.wifiSignalChanged.rawValue,
+            // Per network, not one shared subject: moving between two networks whose
+            // signal both wander should not read as one flapping thing.
+            subject: ssid ?? "WiFiSignal",
+            title: "Wi-Fi Signal Changed",
+            body: [ssid, change.summary].compactMap { $0 }.joined(separator: "\n"),
+            icon: .asset(change.level.iconName, in: .module)
+        )
+    }
+
     private func handleWiFiRadioPower(_ isOn: Bool) async {
         defer { lastKnownWiFiRadioOn = isOn }
         guard let previous = lastKnownWiFiRadioOn, previous != isOn else { return }

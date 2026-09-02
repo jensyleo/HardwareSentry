@@ -52,3 +52,46 @@ public struct LinkState: Sendable, Equatable {
         self.kind = kind
     }
 }
+
+/// Remembers what each interface was, so one that has already gone can still be described.
+///
+/// Exists because of a specific failure. Unplugging a USB-Ethernet adapter — or the dock it
+/// lives in — tears the interface out of `SCNetworkInterfaceCopyAll` almost immediately,
+/// often *before* its Link key changes. A live lookup at that moment finds nothing, the
+/// disconnect is dropped, and the stale "was active" state then surfaces on the next
+/// plug-in as a phantom disconnect followed by the real connect.
+///
+/// The live answer is always tried first, so a genuinely different device later reusing the
+/// same BSD name is classified afresh. This is consulted only when the interface has
+/// already vanished, which is exactly when the remembered answer is the right one.
+public struct InterfaceKindCache: Sendable {
+    private var remembered: [String: NetworkInterfaceKind] = [:]
+
+    public init() {}
+
+    /// Records what the live registry currently says, and returns the same set with
+    /// anything it has forgotten filled back in.
+    public mutating func reconcile(live: [String: NetworkInterfaceKind]) -> [String: NetworkInterfaceKind] {
+        remembered.merge(live) { _, fresh in fresh }
+        return remembered
+    }
+
+    /// Forgets an interface for good — used when it has been reported gone, so a BSD name
+    /// reused by different hardware much later starts from nothing.
+    public mutating func forget(_ bsdName: String) {
+        remembered.removeValue(forKey: bsdName)
+    }
+
+    public func kind(of bsdName: String) -> NetworkInterfaceKind? {
+        remembered[bsdName]
+    }
+}
+
+/// Whether a BSD interface name is one of the tunnels macOS gives a VPN.
+///
+/// A heuristic, and named as one: there is no public API that says "this interface is a
+/// VPN". These three prefixes are what macOS actually uses — `utun` for modern tunnels,
+/// `ppp` for the older ones, `ipsec` for IKEv2 — and nothing else on a Mac uses them.
+public func isVPNInterfaceName(_ bsdName: String) -> Bool {
+    ["utun", "ppp", "ipsec"].contains { bsdName.hasPrefix($0) }
+}

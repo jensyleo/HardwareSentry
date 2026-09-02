@@ -778,3 +778,222 @@ struct WiFiRadioPowerTests {
         #expect(events.isEmpty)
     }
 }
+
+@Suite("Wi-Fi signal levels")
+struct WiFiSignalLevelTests {
+    @Test("the thresholds are the ones macOS's own bars use")
+    func thresholdsMatchTheSystem() {
+        #expect(WiFiSignalLevel(rssi: -40) == .excellent)
+        #expect(WiFiSignalLevel(rssi: -55) == .excellent)
+        #expect(WiFiSignalLevel(rssi: -56) == .good)
+        #expect(WiFiSignalLevel(rssi: -65) == .good)
+        #expect(WiFiSignalLevel(rssi: -66) == .fair)
+        #expect(WiFiSignalLevel(rssi: -73) == .fair)
+        #expect(WiFiSignalLevel(rssi: -74) == .weak)
+        #expect(WiFiSignalLevel(rssi: -80) == .weak)
+        #expect(WiFiSignalLevel(rssi: -95) == .none)
+    }
+
+    @Test("a reading of zero is no answer, not a perfect signal")
+    func zeroIsNotFullBars() {
+        // The one value that must not be read literally: the interface uses it to say it
+        // had nothing to report.
+        #expect(WiFiSignalLevel(rssi: 0) == .none)
+    }
+
+    @Test("each level has its own artwork, and it is shipped")
+    func everyLevelHasArtwork() {
+        for level in WiFiSignalLevel.allCases {
+            #expect(
+                Bundle.module.url(forResource: level.iconName, withExtension: "png") != nil,
+                "missing \(level.iconName)"
+            )
+        }
+    }
+}
+
+@Suite("Wi-Fi signal watcher")
+struct WiFiSignalWatcherTests {
+    @Test("the first reading is a starting point, not news")
+    func firstReadingIsSilent() {
+        var watcher = WiFiSignalWatcher()
+        #expect(watcher.consider(.good) == nil)
+    }
+
+    @Test("drifting within one level says nothing")
+    func staysQuietWithinALevel() {
+        // A stationary laptop's RSSI wanders several dBm on its own; notifying on the
+        // number itself would notify forever.
+        var watcher = WiFiSignalWatcher()
+        _ = watcher.consider(WiFiSignalLevel(rssi: -60))
+        #expect(watcher.consider(WiFiSignalLevel(rssi: -58)) == nil)
+        #expect(watcher.consider(WiFiSignalLevel(rssi: -64)) == nil)
+    }
+
+    @Test("crossing a level says which way it went")
+    func reportsDirection() {
+        var watcher = WiFiSignalWatcher(cooldown: 0)
+        _ = watcher.consider(.good)
+
+        let worse = watcher.consider(.weak)
+        #expect(worse?.isImproving == false)
+        #expect(worse?.summary == "Signal ↓ degraded (1/4)")
+
+        let better = watcher.consider(.excellent)
+        #expect(better?.isImproving == true)
+        #expect(better?.summary == "Signal ↑ improved (4/4)")
+    }
+
+    @Test("a signal sitting on a threshold does not notify every poll")
+    func cooldownHoldsBackRepeats() {
+        var watcher = WiFiSignalWatcher(cooldown: 10)
+        let start = Date()
+        _ = watcher.consider(.good, now: start)
+
+        #expect(watcher.consider(.fair, now: start) != nil)
+        #expect(watcher.consider(.good, now: start.addingTimeInterval(2)) == nil)
+        #expect(watcher.consider(.fair, now: start.addingTimeInterval(5)) == nil)
+    }
+
+    @Test("news delayed by the cooldown is still delivered afterwards, not swallowed")
+    func cooldownDelaysRatherThanDiscards() {
+        // The baseline is deliberately not advanced during the cooldown. If it were, a
+        // signal that drifted from good to none during a quiet spell would never be
+        // reported at all.
+        var watcher = WiFiSignalWatcher(cooldown: 10)
+        let start = Date()
+        _ = watcher.consider(.excellent, now: start)
+        #expect(watcher.consider(.good, now: start) != nil)
+
+        #expect(watcher.consider(.none, now: start.addingTimeInterval(3)) == nil)
+        let afterwards = watcher.consider(.none, now: start.addingTimeInterval(11))
+        #expect(afterwards?.level == WiFiSignalLevel.none)
+        #expect(afterwards?.isImproving == false)
+    }
+
+    @Test("joining a network sets the starting point without announcing it")
+    func baselineIsSilent() {
+        var watcher = WiFiSignalWatcher(cooldown: 10)
+        watcher.baseline(.excellent)
+        #expect(watcher.consider(.excellent) == nil)
+        // And the cooldown does not apply to the first real movement after joining.
+        #expect(watcher.consider(.weak) != nil)
+    }
+
+    @Test("leaving a network forgets its level")
+    func resetForgetsTheNetwork() {
+        // Comparing the next network's signal against this one's level would report a
+        // change that never happened.
+        var watcher = WiFiSignalWatcher(cooldown: 0)
+        _ = watcher.consider(.excellent)
+        watcher.reset()
+        #expect(watcher.consider(.weak) == nil)
+    }
+}
+
+@Suite("VPN and interface classification")
+struct NetworkInterfaceIdentityTests {
+    @Test("the tunnel names macOS gives a VPN are recognised")
+    func vpnPrefixesAreRecognised() {
+        #expect(isVPNInterfaceName("utun4"))
+        #expect(isVPNInterfaceName("ppp0"))
+        #expect(isVPNInterfaceName("ipsec0"))
+    }
+
+    @Test("ordinary interfaces are not mistaken for a VPN")
+    func ordinaryInterfacesAreNot() {
+        for name in ["en0", "en1", "bridge100", "awdl0", "lo0"] {
+            #expect(!isVPNInterfaceName(name), "\(name) read as a VPN")
+        }
+    }
+
+    @Test("an interface torn out of the registry is still recognised as what it was")
+    func cacheSurvivesTheInterfaceVanishing() {
+        // The bug this prevents: unplugging a USB-Ethernet adapter removes it from the
+        // registry before its link key changes, so a live lookup finds nothing, the
+        // disconnect is dropped, and the stale state surfaces later as a phantom pair.
+        var cache = InterfaceKindCache()
+        _ = cache.reconcile(live: ["en5": .wired])
+
+        let afterUnplug = cache.reconcile(live: [:])
+        #expect(afterUnplug["en5"] == .wired)
+    }
+
+    @Test("the live answer wins, so reused names are classified afresh")
+    func liveAnswerTakesPrecedence() {
+        var cache = InterfaceKindCache()
+        _ = cache.reconcile(live: ["en5": .wired])
+        let now = cache.reconcile(live: ["en5": .wifi])
+        #expect(now["en5"] == .wifi)
+    }
+
+    @Test("forgetting an interface lets much later hardware start from nothing")
+    func forgettingClearsIt() {
+        var cache = InterfaceKindCache()
+        _ = cache.reconcile(live: ["en5": .wired])
+        cache.forget("en5")
+        #expect(cache.reconcile(live: [:])["en5"] == nil)
+    }
+}
+
+@Suite("VPN routing in the link diff")
+struct NetworkVPNRoutingTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("a tunnel coming up is a VPN notice, not a link notice")
+    func tunnelReportsAsVPN() async {
+        // Nobody plugged anything in, and "utun4 Link Up" says nothing a person can use.
+        let events = await run([
+            .linkSnapshot(["utun4": LinkState(isActive: false, kind: .other)]),
+            .linkSnapshot(["utun4": LinkState(isActive: true, kind: .other)])
+        ], expecting: 1)
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == "VPNConnected")
+        #expect(events.first?.title == "VPN Connected")
+        #expect(events.first?.body == "Interface:\tutun4")
+    }
+
+    @Test("a tunnel already up at launch is announced, then its going away is too")
+    func tunnelGoingDownReportsAsVPN() async {
+        // The first snapshot is part of the launch inventory, and a VPN already carrying
+        // your traffic is worth being told about — so this is two notices, not one.
+        let events = await run([
+            .linkSnapshot(["ipsec0": LinkState(isActive: true, kind: .other)]),
+            .linkSnapshot(["ipsec0": LinkState(isActive: false, kind: .other)])
+        ], expecting: 2)
+
+        #expect(events.map(\.name) == ["VPNConnected", "VPNDisconnected"])
+    }
+
+    @Test("a real interface still reports as a link, alongside a tunnel")
+    func realInterfacesAreUnaffected() async {
+        let events = await run([
+            .linkSnapshot([
+                "en0": LinkState(isActive: false, kind: .wifi),
+                "utun4": LinkState(isActive: false, kind: .other)
+            ]),
+            .linkSnapshot([
+                "en0": LinkState(isActive: true, kind: .wifi),
+                "utun4": LinkState(isActive: true, kind: .other)
+            ])
+        ], expecting: 2)
+
+        #expect(Set(events.map(\.name)) == ["NetworkLinkUp", "VPNConnected"])
+    }
+}
