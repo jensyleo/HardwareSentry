@@ -155,7 +155,11 @@ struct AudioMonitorTests {
         #expect(declared == [
             "AudioDefaultOutputChanged", "AudioDefaultInputChanged",
             "AudioDeviceConnected", "AudioDeviceDisconnected",
-            "AudioMicInUseChanged", "AudioMIDIDeviceAdded", "AudioMIDIDeviceRemoved"
+            "AudioMicInUseChanged", "AudioMIDIDeviceAdded", "AudioMIDIDeviceRemoved",
+            "AudioSampleRateChanged", "AudioVolumeCritical", "AudioJackChanged",
+            "AudioDataSourceChanged", "AudioDeviceStoppedResponding",
+            "AudioMicrophoneModeChanged",
+            "AudioHeadTrackingHeadphonesConnected", "AudioHeadTrackingHeadphonesDisconnected"
         ])
     }
 
@@ -184,5 +188,213 @@ struct AudioMonitorTests {
         await monitor.start()
         await monitor.stop()
         await monitor.stop()
+    }
+}
+
+@Suite("Audio device detail")
+struct AudioDeviceDetailTests {
+    @Test("a fixed-rate device does not pretend to offer a choice")
+    func singleRateRangeIsOmitted() {
+        // "48000–48000 Hz" is a fixed rate dressed up as a range.
+        let fixed = AudioDeviceDetail(sampleRateRange: 48000...48000)
+        #expect(fixed.sampleRateRangeNote == nil)
+
+        let variable = AudioDeviceDetail(sampleRateRange: 44100...192000)
+        #expect(variable.sampleRateRangeNote == "44100–192000 Hz")
+    }
+
+    @Test("latency is given in milliseconds as well as frames when the rate is known")
+    func latencyIsTranslated() {
+        // Frames alone mean nothing without the rate to divide by.
+        let known = AudioDeviceDetail(sampleRate: 48000, latencyFrames: 512)
+        #expect(known.latencyNote == "512 frames (~10.7 ms)")
+    }
+
+    @Test("latency without a rate is still reported, in the unit that is known")
+    func latencyWithoutRate() {
+        #expect(AudioDeviceDetail(latencyFrames: 512).latencyNote == "512 frames")
+    }
+
+    @Test("model and manufacturer read as one line rather than two opaque strings")
+    func modelAndManufacturerCombine() {
+        let both = AudioDeviceDetail(modelUID: "AppleUSBAudio:Scarlett", manufacturer: "Focusrite")
+        #expect(both.modelManufacturerNote == "Focusrite · AppleUSBAudio:Scarlett")
+
+        // A device that answers only one still gets a line.
+        #expect(AudioDeviceDetail(manufacturer: "Apple Inc.").modelManufacturerNote == "Apple Inc.")
+        #expect(AudioDeviceDetail().modelManufacturerNote == nil)
+    }
+
+    @Test("a device that answers nothing produces no lines at all")
+    func silenceWhenNothingIsKnown() {
+        let empty = AudioDeviceDetail()
+        #expect(empty.sampleRateNote == nil)
+        #expect(empty.outputChannelsNote == nil)
+        #expect(empty.muteNote == nil)
+        #expect(empty.bitDepthNote == nil)
+        #expect(empty.latencyNote == nil)
+    }
+
+    @Test("muted reads both ways, unlike the present-only lines elsewhere")
+    func muteReadsBothWays() {
+        // Whether the thing you just plugged in is muted is worth knowing either way.
+        #expect(AudioDeviceDetail(isMuted: true).muteNote == "Yes")
+        #expect(AudioDeviceDetail(isMuted: false).muteNote == "No")
+    }
+}
+
+@Suite("Dangerous output volume")
+struct AudioVolumeCriticalTests {
+    private func run(_ script: [AudioSourceEvent], expecting: Int, threshold: Int = 90) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = AudioMonitor(
+            source: ScriptedAudioSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: AudioMonitor.category
+            ),
+            volumeCriticalThreshold: threshold
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("crossing the threshold warns once")
+    func warnsOnCrossing() async {
+        let events = await run([
+            .outputVolume(name: "MacBook Air Speakers", percent: 50),
+            .outputVolume(name: "MacBook Air Speakers", percent: 95)
+        ], expecting: 1)
+
+        #expect(events.count == 1)
+        #expect(events.first?.name == "AudioVolumeCritical")
+        #expect(events.first?.title == "Volume Critically High")
+        #expect(events.first?.body == "MacBook Air Speakers:\t95%")
+    }
+
+    @Test("nudging around the threshold does not warn per keypress")
+    func hysteresisHoldsBackRepeats() async {
+        // Without this, each press of the volume key produces a warning.
+        let events = await run([
+            .outputVolume(name: "Speakers", percent: 95),
+            .outputVolume(name: "Speakers", percent: 89),
+            .outputVolume(name: "Speakers", percent: 95),
+            .outputVolume(name: "Speakers", percent: 100)
+        ], expecting: 1)
+        #expect(events.count == 1)
+    }
+
+    @Test("turning it properly down re-arms the warning")
+    func comingDownReArms() async {
+        // Ten points below is far enough that coming back means somebody actually turned
+        // it down rather than jiggling it.
+        let events = await run([
+            .outputVolume(name: "Speakers", percent: 95),
+            .outputVolume(name: "Speakers", percent: 70),
+            .outputVolume(name: "Speakers", percent: 95)
+        ], expecting: 2)
+        #expect(events.count == 2)
+    }
+
+    @Test("a volume already high at launch is warned about")
+    func alreadyHighAtLaunchWarns() async {
+        // Unlike a device inventory, this is a live hazard rather than a fact about what
+        // is plugged in — it deserves saying whether or not it just changed.
+        let events = await run([.outputVolume(name: "Speakers", percent: 100)], expecting: 1)
+        #expect(events.count == 1)
+    }
+
+    @Test("the threshold is configurable")
+    func thresholdIsConfigurable() async {
+        let events = await run([.outputVolume(name: "Speakers", percent: 75)], expecting: 1, threshold: 70)
+        #expect(events.count == 1)
+    }
+}
+
+@Suite("Audio device state events")
+struct AudioDeviceStateTests {
+    private func run(_ script: [AudioSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = AudioMonitor(
+            source: ScriptedAudioSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: AudioMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("a sample rate moving names both rates")
+    func sampleRateChangeNamesBoth() async {
+        let events = await run([
+            .sampleRateChanged(id: "uid", name: "Scarlett 2i2", from: 44100, to: 48000)
+        ], expecting: 1)
+
+        #expect(events.first?.name == "AudioSampleRateChanged")
+        #expect(events.first?.title == "Sample Rate Changed")
+        #expect(events.first?.body == "Scarlett 2i2:\t44100 Hz → 48000 Hz")
+    }
+
+    @Test("plugging into a jack and unplugging read as two things")
+    func jackDirectionsAreSeparate() async {
+        // A shared subject would make the second update the first banner rather than
+        // arriving as its own.
+        let events = await run([
+            .jackChanged(name: "Built-in Output", isConnected: true),
+            .jackChanged(name: "Built-in Output", isConnected: false)
+        ], expecting: 2)
+
+        #expect(events.map(\.title) == ["Audio Jack Connected", "Audio Jack Disconnected"])
+        #expect(events[0].subject != events[1].subject)
+    }
+
+    @Test("a device switching which socket it uses says which")
+    func dataSourceChangeNamesTheSource() async {
+        let events = await run([
+            .dataSourceChanged(name: "Built-in Output", source: "Headphones")
+        ], expecting: 1)
+
+        #expect(events.first?.name == "AudioDataSourceChanged")
+        #expect(events.first?.body == "Built-in Output\nHeadphones")
+    }
+
+    @Test("a device that stops answering is reported without being called disconnected")
+    func stoppedRespondingIsItsOwnThing() async {
+        // It is still in the device list — saying it disconnected would be wrong, and
+        // saying nothing would leave somebody wondering why audio stopped.
+        let events = await run([.deviceStoppedResponding(name: "Scarlett 2i2")], expecting: 1)
+        #expect(events.first?.name == "AudioDeviceStoppedResponding")
+        #expect(events.first?.title == "Audio Device Stopped Responding")
+    }
+
+    @Test("the microphone mode is named")
+    func microphoneModeIsNamed() async {
+        let events = await run([.microphoneModeChanged("Voice Isolation")], expecting: 1)
+        #expect(events.first?.name == "AudioMicrophoneModeChanged")
+        #expect(events.first?.body == "Voice Isolation")
+    }
+
+    @Test("head-tracking headphones use distinct events in each direction")
+    func headTrackingBothDirections() async {
+        let events = await run([
+            .headTrackingChanged(isActive: true),
+            .headTrackingChanged(isActive: false)
+        ], expecting: 2)
+
+        #expect(events.map(\.name) == [
+            "AudioHeadTrackingHeadphonesConnected",
+            "AudioHeadTrackingHeadphonesDisconnected"
+        ])
+        #expect(events[0].body.contains("spatial audio head tracking"))
     }
 }

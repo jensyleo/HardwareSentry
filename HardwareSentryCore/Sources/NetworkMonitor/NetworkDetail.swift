@@ -95,10 +95,11 @@ public struct WiFiDetail: Sendable, Equatable {
 /// What the system's own view of the network path said, at the moment reachability
 /// changed.
 ///
-/// These are the fields HG4MAC reports as four separate notifications. Offered here as
-/// lines on the reachability message instead: "the Internet came back, over cellular, on a
-/// connection you pay for by the megabyte" is one piece of news, and three notifications
-/// arriving together for one change is the thing this app exists to avoid.
+/// Offered two ways, because they answer two questions. As lines on the reachability
+/// message they describe the path at the moment connectivity moved — "the Internet came
+/// back, over cellular, on a connection you pay for by the megabyte" is one piece of news.
+/// As events of their own they report one of these moving while connectivity stays put,
+/// which the reachability message would never mention. Both are off by default.
 public struct NetworkPathDetail: Sendable, Equatable {
     /// "Wi-Fi", "Wired", "Cellular" — whichever carries the path.
     public let interfaceType: String?
@@ -109,8 +110,9 @@ public struct NetworkPathDetail: Sendable, Equatable {
     public let supportsIPv4: Bool
     public let supportsIPv6: Bool
     public let supportsDNS: Bool
-    /// "Minimal", "Moderate", "Good" — the system's own estimate of how usable the path
-    /// is, which is a different question from whether it reaches anywhere.
+    /// Why the path cannot be used, when something is blocking it — cellular denied, VPN
+    /// inactive. `NWPath` exposes usability only this way round, so a working path has
+    /// nothing here rather than a made-up "Good".
     public let linkQuality: String?
 
     public init(

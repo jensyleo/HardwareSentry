@@ -127,8 +127,142 @@ private final class Watcher: @unchecked Sendable {
             id: uid,
             name: name,
             transport: transport(for: id),
-            isInputCapable: hasStreams(id, scope: kAudioDevicePropertyScopeInput)
+            isInputCapable: hasStreams(id, scope: kAudioDevicePropertyScopeInput),
+            detail: detail(for: id, uid: uid)
         )
+    }
+
+    /// Everything the device will say about itself.
+    ///
+    /// Every read is best-effort: an aggregate device answers almost nothing, a virtual
+    /// one answers differently again, and a line that cannot be filled is left out rather
+    /// than filled with a placeholder.
+    private static func detail(for id: AudioDeviceID, uid: String) -> AudioDeviceDetail {
+        let rate = doubleProperty(id, kAudioDevicePropertyNominalSampleRate)
+        return AudioDeviceDetail(
+            outputChannels: channelCount(id, scope: kAudioDevicePropertyScopeOutput),
+            inputChannels: channelCount(id, scope: kAudioDevicePropertyScopeInput),
+            sampleRate: rate,
+            sampleRateRange: sampleRateRange(id),
+            uid: uid,
+            modelUID: stringProperty(id, kAudioDevicePropertyModelUID),
+            manufacturer: stringProperty(id, kAudioObjectPropertyManufacturer),
+            clockSource: clockSourceName(id),
+            isMuted: muteState(id),
+            bitDepth: bitDepth(id),
+            latencyFrames: uint32Property(id, kAudioDevicePropertyLatency).map(Int.init)
+        )
+    }
+
+    private static func doubleProperty(_ id: AudioDeviceID, _ selector: AudioObjectPropertySelector) -> Double? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var value: Double = 0
+        var size = UInt32(MemoryLayout<Double>.size)
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr else { return nil }
+        return value
+    }
+
+    private static func uint32Property(
+        _ id: AudioDeviceID,
+        _ selector: AudioObjectPropertySelector,
+        scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal
+    ) -> UInt32? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain
+        )
+        var value: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr else { return nil }
+        return value
+    }
+
+    /// Channels are counted across the buffer list rather than read as one number: a
+    /// device presents its channels as several buffers, and only their sum is the answer.
+    private static func channelCount(_ id: AudioDeviceID, scope: AudioObjectPropertyScope) -> Int? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreamConfiguration, mScope: scope,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(id, &address, 0, nil, &size) == noErr, size > 0 else { return nil }
+
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { raw.deallocate() }
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, raw) == noErr else { return nil }
+
+        let list = UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self))
+        let total = list.reduce(0) { $0 + Int($1.mNumberChannels) }
+        return total > 0 ? total : nil
+    }
+
+    private static func sampleRateRange(_ id: AudioDeviceID) -> ClosedRange<Double>? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyAvailableNominalSampleRates,
+            mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(id, &address, 0, nil, &size) == noErr, size > 0 else { return nil }
+
+        let count = Int(size) / MemoryLayout<AudioValueRange>.size
+        var ranges = [AudioValueRange](repeating: AudioValueRange(), count: count)
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &ranges) == noErr else { return nil }
+
+        guard let lowest = ranges.map(\.mMinimum).min(),
+              let highest = ranges.map(\.mMaximum).max(),
+              lowest <= highest
+        else { return nil }
+        return lowest...highest
+    }
+
+    private static func muteState(_ id: AudioDeviceID) -> Bool? {
+        uint32Property(id, kAudioDevicePropertyMute, scope: kAudioDevicePropertyScopeOutput).map { $0 != 0 }
+    }
+
+    /// Read from the stream's physical format, which is what the hardware actually moves —
+    /// the virtual format is always 32-bit float regardless of the device.
+    private static func bitDepth(_ id: AudioDeviceID) -> Int? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioStreamPropertyPhysicalFormat,
+            mScope: kAudioDevicePropertyScopeOutput, mElement: kAudioObjectPropertyElementMain
+        )
+        var format = AudioStreamBasicDescription()
+        var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &format) == noErr else { return nil }
+        return format.mBitsPerChannel > 0 ? Int(format.mBitsPerChannel) : nil
+    }
+
+    /// The clock source's name, looked up from its numeric ID.
+    ///
+    /// Devices with only one clock report the ID but often have no name list, so an
+    /// unnamed source is left out rather than shown as a bare number nobody can use.
+    private static func clockSourceName(_ id: AudioDeviceID) -> String? {
+        guard let source = uint32Property(id, kAudioDevicePropertyClockSource) else { return nil }
+
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyClockSourceNameForIDCFString,
+            mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain
+        )
+        // The translation carries pointers to both sides, so both have to outlive the
+        // call — hence the nested `withUnsafeMutablePointer` rather than inline `&`.
+        var sourceID = source
+        var name: CFString?
+        var size = UInt32(MemoryLayout<AudioValueTranslation>.size)
+
+        let succeeded = withUnsafeMutablePointer(to: &sourceID) { input in
+            withUnsafeMutablePointer(to: &name) { output in
+                var value = AudioValueTranslation(
+                    mInputData: UnsafeMutableRawPointer(input),
+                    mInputDataSize: UInt32(MemoryLayout<UInt32>.size),
+                    mOutputData: UnsafeMutableRawPointer(output),
+                    mOutputDataSize: UInt32(MemoryLayout<CFString?>.size)
+                )
+                return AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr
+            }
+        }
+        return succeeded ? name as String? : nil
     }
 
     private static func stringProperty(_ id: AudioDeviceID, _ selector: AudioObjectPropertySelector) -> String? {

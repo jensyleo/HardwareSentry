@@ -15,12 +15,20 @@ public actor AudioMonitor: Monitor {
         .init(name: AudioEvent.disconnected.rawValue, title: "Device disconnected (not USB/Bluetooth)", icon: .asset("AudioMonitor-Icon-Off", in: .module)),
         .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone started/stopped being used", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
         .init(name: AudioEvent.midiDeviceAdded.rawValue, title: "MIDI device added", icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.sampleRateChanged.rawValue, title: "Sample rate changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-SampleRate", in: .module)),
+        .init(name: AudioEvent.volumeCritical.rawValue, title: "Volume dangerously high", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)),
+        .init(name: AudioEvent.jackChanged.rawValue, title: "Something plugged into a jack", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.dataSourceChanged.rawValue, title: "Audio source changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.deviceStoppedResponding.rawValue, title: "Device stopped responding", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
+        .init(name: AudioEvent.microphoneModeChanged.rawValue, title: "Microphone mode changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
+        .init(name: AudioEvent.headTrackingConnected.rawValue, title: "Head-tracking headphones connected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.headTrackingDisconnected.rawValue, title: "Head-tracking headphones disconnected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
         .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI device removed", icon: .asset("AudioMonitor-Icon-Off", in: .module))
     ]
 
-    public static let fields: [MonitorFieldDescription] = [
-        .init(name: AudioField.transport.rawValue, title: "How it is connected")
-    ]
+    public static let fields: [MonitorFieldDescription] = AudioField.allCases.map {
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+    }
 
     private let source: any AudioSource
     private let context: MonitorContext
@@ -29,6 +37,10 @@ public actor AudioMonitor: Monitor {
     /// this wait. Configurable so tests don't wait a real second per case.
     private let micStopDebounceNanoseconds: UInt64
     private var watching: Task<Void, Never>?
+    /// The percentage at which the volume warning fires. Ninety is the original's figure.
+    private let volumeCriticalThreshold: Int
+    private var hasWarnedAboutVolume = false
+    private var lastVolumePercent: Int?
 
     private var knownDevices: [String: AudioDeviceSnapshot] = [:]
     /// Device IDs this monitor actually announced connecting — a device whose connect was
@@ -46,10 +58,16 @@ public actor AudioMonitor: Monitor {
     private var hasMicBaseline = false
     private var pendingMicStops: [String: Task<Void, Never>] = [:]
 
-    public init(source: any AudioSource, context: MonitorContext, micStopDebounce: Double = 1.0) {
+    public init(
+        source: any AudioSource,
+        context: MonitorContext,
+        micStopDebounce: Double = 1.0,
+        volumeCriticalThreshold: Int = 90
+    ) {
         self.source = source
         self.context = context
         self.micStopDebounceNanoseconds = UInt64(micStopDebounce * 1_000_000_000)
+        self.volumeCriticalThreshold = volumeCriticalThreshold
     }
 
     public func start() async {
@@ -68,6 +86,49 @@ public actor AudioMonitor: Monitor {
         watching = nil
         pendingMicStops.values.forEach { $0.cancel() }
         pendingMicStops.removeAll()
+    }
+
+    /// Warns once when the output volume crosses into territory that will damage hearing,
+    /// and stays quiet until it comes properly back down.
+    ///
+    /// The hysteresis is what makes this usable rather than infuriating: without it,
+    /// nudging the volume around the threshold produces a warning per keypress. Ten points
+    /// below is far enough that coming back means somebody actually turned it down.
+    private func handleOutputVolume(name: String, percent: Int) async {
+        defer { lastVolumePercent = percent }
+
+        if percent >= volumeCriticalThreshold {
+            guard !hasWarnedAboutVolume else { return }
+            hasWarnedAboutVolume = true
+            await context.notify(
+                AudioEvent.volumeCritical.rawValue, subject: name,
+                title: "Volume Critically High",
+                body: "\(name):\t\(percent)%",
+                icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)
+            )
+        } else if percent <= volumeCriticalThreshold - 10 {
+            hasWarnedAboutVolume = false
+        }
+    }
+
+    /// The lines describing a device, in the order the original prints them.
+    ///
+    /// Shared by the connect notification and the default-changed ones, because the same
+    /// device deserves the same description whichever brought it up.
+    private static func detailLines(for device: AudioDeviceSnapshot) -> [BodyLine] {
+        [
+            .field(AudioField.transport.rawValue, "Transport", device.transport.label),
+            .field(AudioField.channels.rawValue, "Output channels", device.detail.outputChannelsNote),
+            .field(AudioField.channels.rawValue, "Input channels", device.detail.inputChannelsNote),
+            .field(AudioField.sampleRate.rawValue, "Sample rate", device.detail.sampleRateNote),
+            .field(AudioField.deviceUID.rawValue, "Device UID", device.detail.uid),
+            .field(AudioField.modelManufacturer.rawValue, "Model", device.detail.modelManufacturerNote),
+            .field(AudioField.clockSource.rawValue, "Clock source", device.detail.clockSource),
+            .field(AudioField.sampleRateRange.rawValue, "Supported sample rates", device.detail.sampleRateRangeNote),
+            .field(AudioField.muteState.rawValue, "Muted", device.detail.muteNote),
+            .field(AudioField.bitDepth.rawValue, "Bit depth", device.detail.bitDepthNote),
+            .field(AudioField.latency.rawValue, "Latency", device.detail.latencyNote)
+        ]
     }
 
     private func handle(_ event: AudioSourceEvent) async {
@@ -89,6 +150,59 @@ public actor AudioMonitor: Monitor {
             await refreshMicNotifications()
         case .midiDeviceAdded(let name):
             await context.notify(AudioEvent.midiDeviceAdded.rawValue, subject: name, title: "MIDI Device Connected", body: name, icon: .asset("AudioMonitor-Icon", in: .module))
+        case .sampleRateChanged(_, let name, let from, let to):
+            await context.notify(
+                AudioEvent.sampleRateChanged.rawValue, subject: name,
+                title: "Sample Rate Changed",
+                body: String(format: "%@:\t%.0f Hz → %.0f Hz", name, from, to),
+                icon: .asset("AudioMonitor-Icon-SampleRate", in: .module)
+            )
+
+        case .outputVolume(let name, let percent):
+            await handleOutputVolume(name: name, percent: percent)
+
+        case .jackChanged(let name, let isConnected):
+            await context.notify(
+                AudioEvent.jackChanged.rawValue,
+                // Per direction, so plugging in and unplugging read as two things rather
+                // than one banner updating itself.
+                subject: "\(name)-\(isConnected ? "in" : "out")",
+                title: isConnected ? "Audio Jack Connected" : "Audio Jack Disconnected",
+                body: name,
+                icon: .asset(isConnected ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off", in: .module)
+            )
+
+        case .dataSourceChanged(let name, let source):
+            await context.notify(
+                AudioEvent.dataSourceChanged.rawValue, subject: name,
+                title: "Audio Source Changed",
+                body: "\(name)\n\(source)",
+                icon: .asset("AudioMonitor-Icon", in: .module)
+            )
+
+        case .deviceStoppedResponding(let name):
+            await context.notify(
+                AudioEvent.deviceStoppedResponding.rawValue, subject: name,
+                title: "Audio Device Stopped Responding", body: name,
+                icon: .asset("AudioMonitor-Icon-Off", in: .module)
+            )
+
+        case .microphoneModeChanged(let mode):
+            await context.notify(
+                AudioEvent.microphoneModeChanged.rawValue, subject: "MicrophoneMode",
+                title: "Microphone Mode Changed", body: mode,
+                icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)
+            )
+
+        case .headTrackingChanged(let isActive):
+            await context.notify(
+                (isActive ? AudioEvent.headTrackingConnected : AudioEvent.headTrackingDisconnected).rawValue,
+                subject: "HeadTracking",
+                title: isActive ? "Head-Tracking Headphones Connected" : "Head-Tracking Headphones Disconnected",
+                body: isActive ? "AirPods (or similar) with spatial audio head tracking are now active" : "",
+                icon: .asset(isActive ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off", in: .module)
+            )
+
         case .midiDeviceRemoved(let name):
             await context.notify(AudioEvent.midiDeviceRemoved.rawValue, subject: name, title: "MIDI Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
         }
@@ -120,10 +234,7 @@ public actor AudioMonitor: Monitor {
                 AudioEvent.connected.rawValue,
                 subject: id,
                 title: "Audio Device Connected",
-                body: await context.body([
-                    .always(device.name),
-                    .field(AudioField.transport.rawValue, "Transport", device.transport.label)
-                ]),
+                body: await context.body(Self.detailLines(for: device)),
                 icon: .asset("AudioMonitor-Icon", in: .module)
             )
         }
@@ -143,12 +254,23 @@ public actor AudioMonitor: Monitor {
         if kind == .output { lastKnownDefaultOutput = id } else { lastKnownDefaultInput = id }
         guard let lastKnown, lastKnown != id else { return } // first sighting — baseline only
 
+        let label = kind == .output ? "Default Output" : "Default Input"
+        let previousName = knownDevices[lastKnown]?.name
+
         await context.notify(
             kind == .output ? AudioEvent.defaultOutputChanged.rawValue : AudioEvent.defaultInputChanged.rawValue,
             subject: kind == .output ? "DefaultOutput" : "DefaultInput",
             title: kind == .output ? "Default Audio Output Changed" : "Default Audio Input Changed",
-            body: name,
-            icon: .asset("AudioMonitor-Icon", in: .module)
+            body: await context.body([
+                // The arrow when the device it replaced is still known, the plain name
+                // when it is not — a device that has just been unplugged is gone from the
+                // list, and "→ Speakers" with nothing before it reads as a fault.
+                .field(AudioField.deviceChangeArrow.rawValue, previousName.map { "\(label):\t\($0) → \(name)" }),
+                .always(previousName == nil ? name : "")
+            ] + (knownDevices[id].map(Self.detailLines(for:)) ?? [])),
+            // An input change should not show a speaker: this is the microphone's own
+            // notification, and the artwork is half of what makes it recognisable.
+            icon: .asset(kind == .output ? "AudioMonitor-Icon" : "AudioMonitor-Icon-MicIdle", in: .module)
         )
     }
 
