@@ -81,6 +81,12 @@ private final class Watcher: @unchecked Sendable {
             }
         )
 
+        // Named up front so a mirroring display can be described by the name of the
+        // display it mirrors, rather than by its numeric ID.
+        let nameOfDisplay = { (other: CGDirectDisplayID) -> String? in
+            screensByID[other]?.localizedName
+        }
+
         let snapshots = ids.map { id -> DisplaySnapshot in
             let screen = screensByID[id]
             let name = screen?.localizedName ?? "External Display"
@@ -93,7 +99,8 @@ private final class Watcher: @unchecked Sendable {
                 refreshHz: mode.map { $0.refreshRate } ?? 0,
                 rotation: CGDisplayRotation(id),
                 role: CGDisplayIsMain(id) != 0 ? .main : (CGDisplayIsInMirrorSet(id) != 0 ? .mirrored : .extended),
-                isAsleep: CGDisplayIsAsleep(id) != 0
+                isAsleep: CGDisplayIsAsleep(id) != 0,
+                detail: DisplayDetail(id: id, screen: screen, mode: mode, nameOfDisplay: nameOfDisplay)
             )
         }
         continuation.yield(.snapshot(snapshots))

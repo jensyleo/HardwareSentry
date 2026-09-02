@@ -20,8 +20,11 @@ public struct DisplaySnapshot: Sendable, Equatable {
     public let rotation: Double
     public let role: DisplayRole
     public let isAsleep: Bool
+    /// What the display could be described as, read once when it appeared. Absent for a
+    /// display seen only through a scripted snapshot in a test.
+    public let detail: DisplayDetail?
 
-    public init(id: String, name: String, width: Int, height: Int, refreshHz: Double, rotation: Double, role: DisplayRole, isAsleep: Bool) {
+    public init(id: String, name: String, width: Int, height: Int, refreshHz: Double, rotation: Double, role: DisplayRole, isAsleep: Bool, detail: DisplayDetail? = nil) {
         self.id = id
         self.name = name
         self.width = width
@@ -30,6 +33,7 @@ public struct DisplaySnapshot: Sendable, Equatable {
         self.rotation = rotation
         self.role = role
         self.isAsleep = isAsleep
+        self.detail = detail
     }
 
     /// Resolution + refresh rate + rotation, compared at the precision actually shown

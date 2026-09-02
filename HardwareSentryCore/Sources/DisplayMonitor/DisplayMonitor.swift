@@ -17,12 +17,9 @@ public actor DisplayMonitor: Monitor {
         .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false, icon: .asset("Display-On", in: .module))
     ]
 
-    public static let fields: [MonitorFieldDescription] = [
-        .init(name: DisplayField.resolution.rawValue, title: "Resolution"),
-        .init(name: DisplayField.refreshRate.rawValue, title: "Refresh rate"),
-        .init(name: DisplayField.rotation.rawValue, title: "Rotation"),
-        .init(name: DisplayField.role.rawValue, title: "Role (Main/Extended/Mirrored)")
-    ]
+    public static let fields: [MonitorFieldDescription] = DisplayField.allCases.map {
+        .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
+    }
 
     private let source: any DisplaySource
     private let context: MonitorContext
@@ -95,13 +92,7 @@ public actor DisplayMonitor: Monitor {
                 DisplayEvent.connected.rawValue,
                 subject: id,
                 title: "Display Connected",
-                body: await context.body([
-                    .always(display.name),
-                    .field(DisplayField.resolution.rawValue, "Resolution", Self.resolutionDetail(display)),
-                    .field(DisplayField.refreshRate.rawValue, "Refresh rate", Self.refreshDetail(display)),
-                    .field(DisplayField.rotation.rawValue, "Rotation", Self.rotationDetail(display)),
-                    .field(DisplayField.role.rawValue, "Role", Self.label(for: display.role))
-                ]),
+                body: await context.body(Self.connectLines(for: display)),
                 icon: .asset("Display-On", in: .module)
             )
         }
@@ -120,13 +111,20 @@ public actor DisplayMonitor: Monitor {
             guard let previous = known[id], let latest = current[id] else { continue }
 
             if previous.modeSignature != latest.modeSignature {
-                await context.notify(
-                    DisplayEvent.modeChanged.rawValue,
-                    subject: id,
-                    title: "Display Mode Changed",
-                    body: "\(latest.name)\n\(Self.describeModeChange(from: previous, to: latest))",
-                    icon: .asset("Display-On", in: .module)
-                )
+                let body = await context.body(Self.modeChangeLines(from: previous, to: latest))
+                // Every part of what moved can be switched off, and with all three off
+                // there is nothing left but the display's name — which would be a
+                // notification that says a display changed without saying how. Silence is
+                // the honest reading of "do not tell me about any of these".
+                if body != latest.name {
+                    await context.notify(
+                        DisplayEvent.modeChanged.rawValue,
+                        subject: id,
+                        title: "Display Mode Changed",
+                        body: body,
+                        icon: .asset("Display-On", in: .module)
+                    )
+                }
             }
             if previous.role != latest.role {
                 await context.notify(
@@ -151,6 +149,65 @@ public actor DisplayMonitor: Monitor {
         known = current
     }
 
+    /// Everything the connect notification can say about a display.
+    ///
+    /// Ordered as somebody reads a display: what it is, then how big, then how it is
+    /// running, then the identifiers that only matter when two monitors are identical.
+    static func connectLines(for display: DisplaySnapshot) -> [BodyLine] {
+        let detail = display.detail
+        return [
+            .always(display.name),
+            .field(DisplayField.resolution.rawValue, "Resolution", resolutionDetail(display)),
+            .field(DisplayField.refreshRate.rawValue, "Refresh rate", refreshDetail(display)),
+            .field(DisplayField.refreshRange.rawValue, "Refresh range", detail?.refreshRangeNote),
+            .field(DisplayField.rotation.rawValue, "Rotation", rotationDetail(display)),
+            .field(DisplayField.role.rawValue, "Role", label(for: display.role)),
+            .field(DisplayField.mirrorSource.rawValue, "Mirroring", detail?.mirrorNote),
+            .field(DisplayField.physicalSize.rawValue, "Size", detail?.physicalSizeNote),
+            .field(DisplayField.density.rawValue, "Density", detail?.densityNote(pixelWidth: display.width, pixelHeight: display.height)),
+            .field(DisplayField.scaling.rawValue, "Scaling", detail?.scalingNote(pixelWidth: display.width, pixelHeight: display.height)),
+            .field(DisplayField.colorSpace.rawValue, "Colour space", detail?.colorSpaceName),
+            .field(DisplayField.wideColor.rawValue, "Wide colour", detail?.displayP3Note),
+            .field(DisplayField.dynamicRange.rawValue, "Dynamic range", detail?.edrNote),
+            .field(DisplayField.builtIn.rawValue, "Built in", detail?.builtInNote),
+            .field(DisplayField.notch.rawValue, "Notch", detail?.notchNote),
+            .field(DisplayField.stereo.rawValue, "Stereo", detail?.stereoNote),
+            .field(DisplayField.identity.rawValue, "Identity", detail?.identityNote),
+            .field(DisplayField.uuid.rawValue, "Identifier", detail?.uuid)
+        ]
+    }
+
+    /// What moved, one switchable line each.
+    ///
+    /// Gated by the same three fields the connect notification uses, so somebody who does
+    /// not want refresh rates does not get told about them here either — the alternative
+    /// was a field switch that worked on one notification and not the other.
+    static func modeChangeLines(from previous: DisplaySnapshot, to latest: DisplaySnapshot) -> [BodyLine] {
+        var lines: [BodyLine] = [.always(latest.name)]
+        if previous.width != latest.width || previous.height != latest.height {
+            lines.append(.field(
+                DisplayField.resolution.rawValue,
+                "Resolution",
+                "\(previous.width)×\(previous.height) → \(latest.width)×\(latest.height)"
+            ))
+        }
+        if previous.refreshHz.rounded() != latest.refreshHz.rounded() {
+            lines.append(.field(
+                DisplayField.refreshRate.rawValue,
+                "Refresh rate",
+                "\(Int(previous.refreshHz.rounded())) Hz → \(Int(latest.refreshHz.rounded())) Hz"
+            ))
+        }
+        if previous.rotation.rounded() != latest.rotation.rounded() {
+            lines.append(.field(
+                DisplayField.rotation.rawValue,
+                "Rotation",
+                "\(Int(previous.rotation.rounded()))° → \(Int(latest.rotation.rounded()))°"
+            ))
+        }
+        return lines
+    }
+
     /// Each of these is nil when the display had nothing to report — a mode that could not
     /// be read comes back as zero, and "0×0" is noise, not information.
     static func resolutionDetail(_ display: DisplaySnapshot) -> String? {
@@ -168,20 +225,6 @@ public actor DisplayMonitor: Monitor {
     static func rotationDetail(_ display: DisplaySnapshot) -> String? {
         guard display.rotation.rounded() != 0 else { return nil }
         return "\(Int(display.rotation.rounded()))°"
-    }
-
-    static func describeModeChange(from previous: DisplaySnapshot, to latest: DisplaySnapshot) -> String {
-        var lines: [String] = []
-        if previous.width != latest.width || previous.height != latest.height {
-            lines.append("Resolution:\t\(previous.width)×\(previous.height) → \(latest.width)×\(latest.height)")
-        }
-        if previous.refreshHz.rounded() != latest.refreshHz.rounded() {
-            lines.append("Refresh rate:\t\(Int(previous.refreshHz.rounded())) Hz → \(Int(latest.refreshHz.rounded())) Hz")
-        }
-        if previous.rotation.rounded() != latest.rotation.rounded() {
-            lines.append("Rotation:\t\(Int(previous.rotation.rounded()))° → \(Int(latest.rotation.rounded()))°")
-        }
-        return lines.joined(separator: "\n")
     }
 
     static func label(for role: DisplayRole) -> String {
