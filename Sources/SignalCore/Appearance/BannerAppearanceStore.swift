@@ -47,7 +47,7 @@ public final class BannerAppearanceStore {
     }
 
     private enum Key: String, CaseIterable {
-        case corner, width, margin, spacing, visibleLifetime, opacity, textScale, material, isAnimated, sound, screen
+        case corner, width, margin, spacing, visibleLifetime, maximumVisible, revealSpacing, opacity, textScale, material, isAnimated, sound, screen
     }
 
     private func key(_ key: Key) -> String { "\(keyPrefix).\(key.rawValue)" }
@@ -58,6 +58,8 @@ public final class BannerAppearanceStore {
         defaults.set(Double(appearance.margin), forKey: key(.margin))
         defaults.set(Double(appearance.spacing), forKey: key(.spacing))
         defaults.set(appearance.visibleLifetime, forKey: key(.visibleLifetime))
+        defaults.set(appearance.maximumVisible, forKey: key(.maximumVisible))
+        defaults.set(appearance.revealSpacing, forKey: key(.revealSpacing))
         defaults.set(appearance.opacity, forKey: key(.opacity))
         defaults.set(appearance.textScale.rawValue, forKey: key(.textScale))
         defaults.set(appearance.material.rawValue, forKey: key(.material))
@@ -81,6 +83,8 @@ public final class BannerAppearanceStore {
             margin: CGFloat(number(.margin, Double(standard.margin))),
             spacing: CGFloat(number(.spacing, Double(standard.spacing))),
             visibleLifetime: number(.visibleLifetime, standard.visibleLifetime),
+            maximumVisible: defaults.object(forKey: key(.maximumVisible)) as? Int ?? standard.maximumVisible,
+            revealSpacing: number(.revealSpacing, standard.revealSpacing),
             opacity: number(.opacity, standard.opacity),
             textScale: (defaults.string(forKey: key(.textScale)).flatMap(BannerTextScale.init(rawValue:))) ?? standard.textScale,
             material: (defaults.string(forKey: key(.material)).flatMap(BannerMaterial.init(rawValue:))) ?? standard.material,

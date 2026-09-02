@@ -47,6 +47,16 @@ public struct StackChange: Sendable, Equatable {
 ///   every banner being seconds old — the newcomer waits its turn instead of being shown
 ///   somewhere nobody can see it.
 /// - A waiting banner's lifetime starts when it actually appears, not when it arrived.
+///
+/// Two limits shape a burst into something readable rather than a wall.
+///
+/// The first is a count, not just a height: a tall display fits fifteen banners, and
+/// fifteen banners is not a notification, it is a page of text that appears and vanishes.
+/// The second is spacing in time — banners are revealed one every fraction of a second, so
+/// they arrive in a row instead of all at once. That second limit is what makes them go
+/// away in a row too: banners revealed at the same instant expire at the same instant, so
+/// the whole screenful blinks out together and the next screenful takes its place. Staggered
+/// arrival gives staggered departure for free, and the stack rolls rather than flashing.
 public struct BannerStack: Sendable {
     public struct Slot: Sendable, Equatable {
         public let id: BannerID
@@ -70,6 +80,8 @@ public struct BannerStack: Sendable {
     public private(set) var visible: [Slot] = []
     private var queue: [Pending] = []
     private var nextID: UInt64 = 0
+    /// When the last banner went up, so the next one can be held back a moment.
+    private var lastRevealAt: Date?
 
     /// How much room there is to stack in. A `var` because the display can change size,
     /// or be swapped for another one, while banners are up.
@@ -78,6 +90,11 @@ public struct BannerStack: Sendable {
     /// How long a banner stays up. A `var` because a person can change it in a settings
     /// window while banners are already on screen.
     public var visibleLifetime: TimeInterval
+    /// The most that may be on screen at once, however much room there is. A `var` for
+    /// the same reason the lifetime is: it can be changed while banners are already up.
+    public var maximumVisible: Int
+    /// How long to leave between one banner appearing and the next.
+    public var revealSpacing: TimeInterval
     private let minimumReadableTime: TimeInterval
     private let queueLimitWhileLaunching: Int
     private let queueLimitWhenSteady: Int
@@ -86,6 +103,8 @@ public struct BannerStack: Sendable {
         availableHeight: CGFloat,
         spacing: CGFloat = 8,
         visibleLifetime: TimeInterval = 5,
+        maximumVisible: Int = 5,
+        revealSpacing: TimeInterval = 0.4,
         minimumReadableTime: TimeInterval = 4.5,
         queueLimitWhileLaunching: Int = 64,
         queueLimitWhenSteady: Int = 16
@@ -93,6 +112,8 @@ public struct BannerStack: Sendable {
         self.availableHeight = availableHeight
         self.spacing = spacing
         self.visibleLifetime = visibleLifetime
+        self.maximumVisible = max(1, maximumVisible)
+        self.revealSpacing = max(0, revealSpacing)
         self.minimumReadableTime = minimumReadableTime
         self.queueLimitWhileLaunching = queueLimitWhileLaunching
         self.queueLimitWhenSteady = queueLimitWhenSteady
@@ -119,12 +140,16 @@ public struct BannerStack: Sendable {
         let id = BannerID(value: nextID)
         var change = StackChange()
 
-        if !fits(height) {
+        // Nothing is evicted while a banner is being held back for spacing: a newcomer
+        // that is going to wait its turn anyway has no business cutting short something
+        // already on screen.
+        if mayReveal(at: now), !fits(height) {
             change.removed = evict(toFit: height, at: now)
         }
 
-        if fits(height) {
+        if mayReveal(at: now), fits(height) {
             visible.insert(Slot(id: id, event: event, height: height, revealedAt: now), at: 0)
+            lastRevealAt = now
             change.revealed.append(id)
             return (id, .revealed, change)
         }
@@ -179,6 +204,28 @@ public struct BannerStack: Sendable {
         return change
     }
 
+    /// Puts up whatever has been waiting and is now allowed to appear.
+    ///
+    /// Separate from `expire(at:)` because the two are answers to different questions —
+    /// something coming down, and something being due to go up — and a burst hits the
+    /// second far more often than the first.
+    @discardableResult
+    public mutating func revealDue(at now: Date) -> StackChange {
+        var change = StackChange()
+        change.revealed = drainQueue(at: now)
+        return change
+    }
+
+    /// When the next waiting banner may appear, so a host can schedule for it.
+    ///
+    /// Nil when nothing is waiting, or when what is waiting would not fit anyway — in that
+    /// case it is an expiry that will let it in, and `nextExpiry()` already covers that.
+    public func nextRevealTime() -> Date? {
+        guard let next = queue.first, fits(next.height), let lastRevealAt else { return nil }
+        let due = lastRevealAt.addingTimeInterval(revealSpacing)
+        return due
+    }
+
     /// When the next banner is due to come down, so a host can schedule a single timer
     /// rather than one per banner.
     public func nextExpiry() -> Date? {
@@ -196,9 +243,28 @@ public struct BannerStack: Sendable {
         return heights + spacing * CGFloat(visible.count - 1)
     }
 
+    /// Whether there is room, by count as well as by height.
+    ///
+    /// The count is checked first because it is the one that actually bites: a burst at
+    /// launch runs out of allowance long before it runs out of screen.
     private func fits(_ height: CGFloat) -> Bool {
+        guard visible.count < maximumVisible else { return false }
         let extra = visible.isEmpty ? height : occupiedHeight() + spacing + height
         return extra <= availableHeight
+    }
+
+    /// Whether enough time has passed since the last banner appeared.
+    ///
+    /// With a few milliseconds of slack, because a timer scheduled for exactly the moment
+    /// a banner is due will sometimes fire a hair before it — and a difference of a
+    /// microsecond should not cost the next banner a whole extra round trip through the
+    /// scheduler. Caught by a test that asked for the reveal at exactly the spacing and
+    /// was told no, thanks to a fraction of floating-point error in the date arithmetic.
+    private static let slack: TimeInterval = 0.005
+
+    private func mayReveal(at now: Date) -> Bool {
+        guard let lastRevealAt else { return true }
+        return now.timeIntervalSince(lastRevealAt) >= revealSpacing - Self.slack
     }
 
     /// Frees space by retiring banners that have already been up long enough to read,
@@ -222,18 +288,23 @@ public struct BannerStack: Sendable {
         return evicted
     }
 
-    /// Promotes waiting banners, oldest first, for as long as they fit. Stops at the
-    /// first one that does not, so that arrival order is preserved rather than letting a
-    /// small banner jump ahead of a large one that has been waiting longer.
+    /// Promotes waiting banners, oldest first, for as long as they fit and are allowed to
+    /// appear. Stops at the first one that does not, so that arrival order is preserved
+    /// rather than letting a small banner jump ahead of a large one that has been waiting
+    /// longer — and, with any spacing at all configured, stops after one, because the
+    /// second one's turn is by definition not yet.
     private mutating func drainQueue(at now: Date) -> [BannerID] {
         var revealed: [BannerID] = []
 
-        while let next = queue.first, fits(next.height) {
+        // One per pass, not as many as fit: revealing three at once is the wall this
+        // spacing exists to prevent, and the host comes back for the next one.
+        while let next = queue.first, fits(next.height), mayReveal(at: now) {
             queue.removeFirst()
             visible.insert(
                 Slot(id: next.id, event: next.event, height: next.height, revealedAt: now),
                 at: 0
             )
+            lastRevealAt = now
             revealed.append(next.id)
         }
 

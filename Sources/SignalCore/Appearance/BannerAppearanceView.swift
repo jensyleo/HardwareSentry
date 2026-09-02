@@ -85,6 +85,22 @@ public struct BannerAppearanceView: View {
                     format: { "\(Int($0))s" }
                 )
 
+                Stepper(
+                    "At most \(store.appearance.maximumVisible) at a time",
+                    value: $store.appearance.maximumVisible,
+                    in: BannerAppearance.maximumVisibleRange
+                )
+
+                slider(
+                    "One appears every",
+                    value: $store.appearance.revealSpacing,
+                    range: BannerAppearance.revealSpacingRange,
+                    format: { $0 < 0.05 ? "All at once" : String(format: "%.2fs", $0) }
+                )
+                Text("Anything over the limit waits its turn. Letting them in one at a time is also what makes them leave one at a time, instead of a whole screenful blinking out together.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Toggle("Slide in and out", isOn: $store.appearance.isAnimated)
 
                 Picker("Sound", selection: $store.appearance.sound) {

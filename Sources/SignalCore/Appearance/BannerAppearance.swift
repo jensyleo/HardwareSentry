@@ -109,7 +109,21 @@ public struct BannerAppearance: Sendable, Equatable {
     public var spacing: CGFloat { didSet { spacing = spacing.clamped(to: Self.spacingRange) } }
     public var visibleLifetime: TimeInterval { didSet { visibleLifetime = visibleLifetime.clamped(to: Self.lifetimeRange) } }
     public var opacity: Double { didSet { opacity = opacity.clamped(to: Self.opacityRange) } }
+    /// The most banners on screen at once.
+    ///
+    /// A count as well as a height, because a tall display fits about fifteen, and fifteen
+    /// banners is not a notification — it is a page of text that appears and vanishes.
+    public var maximumVisible: Int { didSet { maximumVisible = maximumVisible.clamped(to: Self.maximumVisibleRange) } }
+    /// How long to leave between one banner appearing and the next.
+    ///
+    /// The reason a burst reads as a stack rather than a flash. Banners revealed at the
+    /// same instant expire at the same instant, so the whole screenful blinks out together
+    /// and the next screenful replaces it; letting them in one at a time makes them leave
+    /// one at a time as well.
+    public var revealSpacing: TimeInterval { didSet { revealSpacing = revealSpacing.clamped(to: Self.revealSpacingRange) } }
 
+    public static let maximumVisibleRange: ClosedRange<Int> = 1...12
+    public static let revealSpacingRange: ClosedRange<TimeInterval> = 0...2
     public static let widthRange: ClosedRange<CGFloat> = 240...520
     public static let marginRange: ClosedRange<CGFloat> = 0...80
     public static let spacingRange: ClosedRange<CGFloat> = 0...32
@@ -126,6 +140,8 @@ public struct BannerAppearance: Sendable, Equatable {
         margin: CGFloat = 12,
         spacing: CGFloat = 8,
         visibleLifetime: TimeInterval = 5,
+        maximumVisible: Int = 5,
+        revealSpacing: TimeInterval = 0.4,
         opacity: Double = 1,
         textScale: BannerTextScale = .medium,
         material: BannerMaterial = .popover,
@@ -138,6 +154,8 @@ public struct BannerAppearance: Sendable, Equatable {
         self.margin = margin.clamped(to: Self.marginRange)
         self.spacing = spacing.clamped(to: Self.spacingRange)
         self.visibleLifetime = visibleLifetime.clamped(to: Self.lifetimeRange)
+        self.maximumVisible = maximumVisible.clamped(to: Self.maximumVisibleRange)
+        self.revealSpacing = revealSpacing.clamped(to: Self.revealSpacingRange)
         self.opacity = opacity.clamped(to: Self.opacityRange)
         self.textScale = textScale
         self.material = material

@@ -13,7 +13,8 @@ public final class BannerDelivery: NotificationDelivering {
     private var stack: BannerStack?
     private var controllers: [BannerID: BannerWindowController] = [:]
     private var events: [BannerID: NotificationEvent] = [:]
-    private var expiryTask: Task<Void, Never>?
+    /// One timer for both kinds of due work — something coming down, something going up.
+    private var tickTask: Task<Void, Never>?
 
     /// How banners should look and where they belong.
     ///
@@ -27,6 +28,14 @@ public final class BannerDelivery: NotificationDelivering {
             guard appearance != oldValue else { return }
             if appearance.visibleLifetime != oldValue.visibleLifetime {
                 stack?.visibleLifetime = appearance.visibleLifetime
+            }
+            if appearance.maximumVisible != oldValue.maximumVisible {
+                // Lowering it does not pull banners already up out from under anybody; it
+                // takes effect as they retire, which the next expiry sees to.
+                stack?.maximumVisible = appearance.maximumVisible
+            }
+            if appearance.revealSpacing != oldValue.revealSpacing {
+                stack?.revealSpacing = appearance.revealSpacing
             }
             // A different screen can be a different size, so what fits changes with it.
             if appearance.screen != oldValue.screen || appearance.margin != oldValue.margin {
@@ -165,12 +174,26 @@ public final class BannerDelivery: NotificationDelivering {
         event?.onInteraction?(interaction)
     }
 
-    private func expireDue() {
+    /// Does whatever has come due: retires banners whose time is up, and puts up whatever
+    /// has been waiting its turn.
+    ///
+    /// Both in one pass, in that order, because an expiry is what makes room for a reveal —
+    /// doing them separately would leave a gap on screen until the next timer.
+    private func tick() {
         guard let frame = visibleFrame(), var stack else { return }
 
-        let change = stack.expire(at: Date())
+        let now = Date()
+        var change = stack.expire(at: now)
+        let reveals = stack.revealDue(at: now)
+        change.revealed += reveals.revealed
         self.stack = stack
-        guard !change.isEmpty else { return }
+
+        guard !change.isEmpty else {
+            // Nothing was due after all — but something may still be waiting, so the timer
+            // has to be set again or the queue would stall until the next notification.
+            scheduleNextTick()
+            return
+        }
 
         let timedOut = change.removed.compactMap { events[$0] }
         apply(change, in: frame)
@@ -183,7 +206,9 @@ public final class BannerDelivery: NotificationDelivering {
         BannerStack(
             availableHeight: frame.height - appearance.margin * 2,
             spacing: appearance.spacing,
-            visibleLifetime: appearance.visibleLifetime
+            visibleLifetime: appearance.visibleLifetime,
+            maximumVisible: appearance.maximumVisible,
+            revealSpacing: appearance.revealSpacing
         )
     }
 
@@ -250,24 +275,26 @@ public final class BannerDelivery: NotificationDelivering {
             edge += (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
         }
 
-        scheduleNextExpiry()
+        scheduleNextTick()
     }
 
     /// One timer for the whole stack rather than one per banner: the policy already knows
-    /// which banner is due first.
-    private func scheduleNextExpiry() {
-        expiryTask?.cancel()
-        expiryTask = nil
+    /// what is due first, whether that is a banner coming down or one going up.
+    private func scheduleNextTick() {
+        tickTask?.cancel()
+        tickTask = nil
 
-        guard let due = stack?.nextExpiry() else { return }
+        guard let stack else { return }
+        let due = [stack.nextExpiry(), stack.nextRevealTime()].compactMap { $0 }.min()
+        guard let due else { return }
         let interval = due.timeIntervalSinceNow
 
-        expiryTask = Task { [weak self] in
+        tickTask = Task { [weak self] in
             if interval > 0 {
                 try? await Task.sleep(for: .seconds(interval))
             }
             guard !Task.isCancelled else { return }
-            self?.expireDue()
+            self?.tick()
         }
     }
 }
