@@ -1,4 +1,5 @@
 import CoreLocation
+import IOKit
 import CoreWLAN
 import Foundation
 import Network
@@ -108,6 +109,8 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     private var radioPollTask: Task<Void, Never>?
     private var interfaceKinds = InterfaceKindCache()
     private var signalPollTask: Task<Void, Never>?
+    private var adapterNotificationPort: IONotificationPortRef?
+    private var adapterIterator: io_iterator_t = 0
 
     private let signalPolling: SystemNetworkSource.SignalPolling
 
@@ -120,6 +123,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     }
 
     func start() {
+        startAdapterRemovalWatch()
         startReachability()
         startDynamicStore()
         startWiFi()
@@ -188,6 +192,9 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         locationManager?.delegate = nil
         radioPollTask?.cancel()
         signalPollTask?.cancel()
+        if adapterIterator != 0 { IOObjectRelease(adapterIterator); adapterIterator = 0 }
+        if let adapterNotificationPort { IONotificationPortDestroy(adapterNotificationPort) }
+        adapterNotificationPort = nil
         continuation.finish()
     }
 
@@ -328,12 +335,29 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
                   let interfaceName = entry[kSCPropInterfaceName as String] as? String
             else { continue }
 
+            // The lease lives under the interface's own DHCP key, not the service's.
+            let lease = SCDynamicStoreCopyValue(
+                store, "State:/Network/Interface/\(interfaceName)/DHCP" as CFString
+            ) as? [String: AnyObject]
+
             details[interfaceName] = ServiceDetail(
                 gateway: entry[kSCPropNetIPv4Router as String] as? String,
-                configurationMethod: entry[kSCPropNetIPv4ConfigMethod as String] as? String
+                configurationMethod: entry[kSCPropNetIPv4ConfigMethod as String] as? String,
+                dhcpLease: ServiceDetail.describeLease(
+                    start: lease?["LeaseStartTime"] as? Date,
+                    duration: (lease?["LeaseDuration"] as? NSNumber)?.doubleValue,
+                    server: (lease?["Option_54"] as? Data).flatMap(Self.describeIPv4Option)
+                )
             )
         }
         return details
+    }
+
+    /// A DHCP option carrying a four-byte IPv4 address — option 54 is the server that
+    /// granted the lease. Stored as raw bytes, because DHCP is a byte protocol.
+    private static func describeIPv4Option(_ data: Data) -> String? {
+        guard data.count == 4 else { return nil }
+        return data.map(String.init).joined(separator: ".")
     }
 
     private func readSearchDomains() -> [String] {
@@ -402,9 +426,11 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         try? client.startMonitoringEvent(with: .ssidDidChange)
         try? client.startMonitoringEvent(with: .powerDidChange)
         emitWiFiRadioPower()
+        emitWiFiInterfaceMode()
         startWiFiRadioPoll()
         startWiFiSignalPoll()
         emitPromiscuousInterfaces()
+        emitBondMemberStatus()
     }
 
     /// Reads the radio's power and reports it.
@@ -426,7 +452,10 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled else { return }
-                await MainActor.run { self?.emitWiFiRadioPower() }
+                await MainActor.run {
+                    self?.emitWiFiRadioPower()
+                    self?.emitWiFiInterfaceMode()
+                }
             }
         }
     }
@@ -445,6 +474,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
                 await MainActor.run {
                     self?.emitWiFiSignal()
                     self?.emitPromiscuousInterfaces()
+                    self?.emitBondMemberStatus()
                 }
             }
         }
@@ -469,6 +499,76 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         continuation.yield(.promiscuousSnapshot(capturing))
     }
 
+    /// Watches for a network adapter being torn down.
+    ///
+    /// IOKit rather than `SCDynamicStore`, because this is the one network fact that has
+    /// to be caught *before* it finishes: by the time the configuration store notices, the
+    /// interface is already gone and there is nothing left to name. `kIOTerminatedMessage`
+    /// arrives while the service is still there to be asked its name.
+    private func startAdapterRemovalWatch() {
+        guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
+        IONotificationPortSetDispatchQueue(port, .main)
+        adapterNotificationPort = port
+
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        var iterator: io_iterator_t = 0
+        IOServiceAddMatchingNotification(
+            port, kIOTerminatedNotification, IOServiceMatching("IONetworkInterface"),
+            { context, iterator in
+                Unmanaged<Watcher>.fromOpaque(context!).takeUnretainedValue().drainRemovals(iterator)
+            },
+            context, &iterator
+        )
+        adapterIterator = iterator
+        // Drained once and discarded: whatever is already terminated at launch was
+        // removed before this was watching, and announcing it would be reporting history.
+        drainRemovals(iterator, announce: false)
+    }
+
+    fileprivate func drainRemovals(_ iterator: io_iterator_t, announce: Bool = true) {
+        while case let service = IOIteratorNext(iterator), service != 0 {
+            defer { IOObjectRelease(service) }
+            guard announce else { continue }
+
+            let name = IORegistryEntryCreateCFProperty(service, "BSD Name" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? String
+            guard let name, !isVPNInterfaceName(name) else { continue }
+            continuation.yield(.adapterDetaching(interfaceName: name))
+            // Forgotten now rather than kept: the interface is genuinely gone, and a BSD
+            // name reused by different hardware later should start from nothing.
+            interfaceKinds.forget(name)
+        }
+    }
+
+    /// Reads how each bond member is faring.
+    ///
+    /// Needs `SCPreferences`, not `SCDynamicStore`: a bond is a configured thing rather
+    /// than a live state, and its member statuses hang off the configuration object.
+    /// Read on the same poll as the rest — there is no notification for it either.
+    private func emitBondMemberStatus() {
+        guard let preferences = SCPreferencesCreate(nil, "com.jensyleo.hardwaresentry" as CFString, nil),
+              let bonds = SCBondInterfaceCopyAll(preferences) as? [SCBondInterface],
+              !bonds.isEmpty
+        else { return }
+
+        var members: [String: BondMemberStatus] = [:]
+        for bond in bonds {
+            guard let status = SCBondInterfaceCopyStatus(bond),
+                  let interfaces = SCBondInterfaceGetMemberInterfaces(bond) as? [SCNetworkInterface]
+            else { continue }
+
+            for interface in interfaces {
+                guard let name = SCNetworkInterfaceGetBSDName(interface) as String?,
+                      let entry = SCBondStatusGetInterfaceStatus(status, interface) as? [String: AnyObject],
+                      let aggregation = entry[kSCBondStatusDeviceAggregationStatus as String] as? Int
+                else { continue }
+                members[name] = BondMemberStatus(aggregationStatus: aggregation)
+            }
+        }
+        guard !members.isEmpty else { return }
+        continuation.yield(.bondMemberSnapshot(members))
+    }
+
     private func emitWiFiSignal() {
         guard let interface = CWWiFiClient.shared().interface(), interface.powerOn() else { return }
         let rssi = interface.rssiValue()
@@ -480,6 +580,15 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
 
     func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
         emitWiFiRadioPower()
+        emitWiFiInterfaceMode()
+    }
+
+    /// The Mac's Wi-Fi interface changing role — client, ad-hoc, or acting as an access
+    /// point for Internet Sharing. Read on the same occasions as the power state, since
+    /// turning Internet Sharing on changes both.
+    private func emitWiFiInterfaceMode() {
+        guard let interface = CWWiFiClient.shared().interface() else { return }
+        continuation.yield(.wifiInterfaceMode(WiFiDetail(interface: interface).interfaceMode))
     }
 
     /// How long a "left the network" report is held back.

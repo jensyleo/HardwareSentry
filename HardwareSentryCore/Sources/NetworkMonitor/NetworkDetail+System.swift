@@ -106,8 +106,25 @@ extension NetworkPathDetail {
             isConstrained: path.isConstrained,
             supportsIPv4: path.supportsIPv4,
             supportsIPv6: path.supportsIPv6,
-            supportsDNS: path.supportsDNS
+            supportsDNS: path.supportsDNS,
+            linkQuality: Self.describe(quality: path.unsatisfiedReason)
         )
+    }
+
+    /// The system's own estimate of how usable the path is.
+    ///
+    /// `NWPath` exposes this only indirectly through why a path is unsatisfied, so a
+    /// satisfied path has nothing to report — which is the honest answer rather than a
+    /// made-up "Good".
+    private static func describe(quality reason: NWPath.UnsatisfiedReason) -> String? {
+        switch reason {
+        case .notAvailable: return nil
+        case .cellularDenied: return "Blocked — cellular not permitted"
+        case .wifiDenied: return "Blocked — Wi-Fi not permitted"
+        case .localNetworkDenied: return "Blocked — local network not permitted"
+        case .vpnInactive: return "Blocked — VPN inactive"
+        @unknown default: return nil
+        }
     }
 
     /// The first interface the path actually uses, in the order the system ranked them.

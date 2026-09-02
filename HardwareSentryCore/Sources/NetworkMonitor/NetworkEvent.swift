@@ -29,6 +29,17 @@ public enum NetworkEvent: String, NotificationEventKey {
     case linkSpeedChanged = "NetworkLinkSpeedChanged"
     case promiscuousModeChanged = "NetworkPromiscuousModeChanged"
     case adapterDetaching = "NetworkAdapterDetaching"
+    case bondMemberStatusChanged = "NetworkBondMemberStatusChanged"
+    case wifiHostAPModeChanged = "WifiHostAPModeChanged"
+    // The same four facts the reachability message can carry as lines, offered as events
+    // as well. Not a duplication in practice: the lines describe the path at the moment
+    // connectivity changed, while these fire when one of them moves on its own — a
+    // hotspot becoming metered without the Internet going anywhere. Both are off by
+    // default, so nobody gets both unless they ask.
+    case pathStatusChanged = "NetworkPathStatusChanged"
+    case pathExpensiveChanged = "NetworkPathExpensiveChanged"
+    case pathConstrainedChanged = "NetworkPathConstrainedChanged"
+    case pathQualityChanged = "NetworkPathQualityChanged"
     case ipAddressChanged = "IPAddressChange"
 
     public static let category: NotificationCategory = "Network"

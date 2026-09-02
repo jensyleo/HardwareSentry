@@ -1369,3 +1369,290 @@ struct PromiscuousModeTests {
         #expect(events.map(\.subject) == ["en0", "en5"])
     }
 }
+
+@Suite("Link aggregation members")
+struct BondMemberTests {
+    @Test("zero means nothing is wrong, which is checked before anything else")
+    func zeroIsHealthy() {
+        // The number is a bitmask of problems, so any non-zero value has at least one.
+        #expect(BondMemberStatus(aggregationStatus: 0) == .ok)
+        #expect(BondMemberStatus(aggregationStatus: 0).label == "OK")
+    }
+
+    @Test("each failure bit reads as the thing that is actually wrong")
+    func failuresAreNamed() {
+        #expect(BondMemberStatus(aggregationStatus: 0x1) == .linkInvalid)
+        #expect(BondMemberStatus(aggregationStatus: 0x2) == .noPartner)
+        #expect(BondMemberStatus(aggregationStatus: 0x4) == .notInActiveGroup)
+    }
+
+    @Test("a member with several problems reports the most fundamental one")
+    func worstProblemWins() {
+        // A member whose link is invalid has no useful partner either; saying the link is
+        // down is the actionable half.
+        #expect(BondMemberStatus(aggregationStatus: 0x3) == .linkInvalid)
+    }
+
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("the standing a member already had at launch is not announced")
+    func firstReadingIsSilent() async {
+        #expect(await run([.bondMemberSnapshot(["en5": .ok])], expecting: 0).isEmpty)
+    }
+
+    @Test("a member losing its partner is announced")
+    func degradingMemberIsAnnounced() async {
+        // A bond hides its own failures: pull one of two cables and everything keeps
+        // working at half the speed, with nothing else saying so.
+        let events = await run([
+            .bondMemberSnapshot(["en5": .ok]),
+            .bondMemberSnapshot(["en5": .noPartner])
+        ], expecting: 1)
+
+        #expect(events.first?.name == "NetworkBondMemberStatusChanged")
+        #expect(events.first?.title == "Link Aggregation Member Status Changed")
+        #expect(events.first?.body == "en5: No 802.3ad partner on switch port")
+    }
+
+    @Test("a member recovering is announced too, unlike promiscuous mode")
+    func recoveryIsAlsoNews() async {
+        // That the redundancy is back matters as much as losing it.
+        let events = await run([
+            .bondMemberSnapshot(["en5": .linkInvalid]),
+            .bondMemberSnapshot(["en5": .ok])
+        ], expecting: 1)
+
+        #expect(events.first?.body == "en5: OK")
+    }
+
+    @Test("a member appearing for the first time is not a change")
+    func newMemberIsNotAChange() async {
+        let events = await run([
+            .bondMemberSnapshot(["en5": .ok]),
+            .bondMemberSnapshot(["en5": .ok, "en6": .noPartner])
+        ], expecting: 0)
+        #expect(events.isEmpty)
+    }
+}
+
+@Suite("Adapter removal")
+struct AdapterRemovalTests {
+    @Test("an adapter being torn down is named while it can still be asked")
+    func detachingIsAnnounced() async {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: [.adapterDetaching(interfaceName: "en7")]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.isEmpty {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+
+        let events = await delivery.events
+        #expect(events.first?.name == "NetworkAdapterDetaching")
+        #expect(events.first?.title == "Network Adapter Being Removed")
+        #expect(events.first?.body == "en7")
+    }
+}
+
+@Suite("DHCP lease detail")
+struct DHCPLeaseTests {
+    private let start = Date(timeIntervalSince1970: 1_700_000_000)
+
+    @Test("a lease reads as the parts that are known, joined")
+    func partsAreJoined() {
+        let lease = ServiceDetail.describeLease(start: start, duration: 3600, server: "192.168.1.1")
+        #expect(lease?.contains("since ") == true)
+        #expect(lease?.contains("expires ") == true)
+        #expect(lease?.contains("server 192.168.1.1") == true)
+    }
+
+    @Test("a half-negotiated lease is described with what it has")
+    func partialLeaseStillReads() {
+        // The dictionary is filled in as the negotiation proceeds, so a start time with
+        // no server yet is normal rather than broken.
+        #expect(ServiceDetail.describeLease(start: start, duration: nil, server: nil)?.hasPrefix("since ") == true)
+        #expect(ServiceDetail.describeLease(start: nil, duration: nil, server: "10.0.0.1") == "server 10.0.0.1")
+    }
+
+    @Test("a lease with nothing known at all produces no line")
+    func emptyLeaseIsNoLine() {
+        #expect(ServiceDetail.describeLease(start: nil, duration: nil, server: nil) == nil)
+    }
+
+    @Test("a zero duration is not turned into an expiry in the past")
+    func zeroDurationHasNoExpiry() {
+        let lease = ServiceDetail.describeLease(start: start, duration: 0, server: nil)
+        #expect(lease?.contains("expires") == false)
+    }
+}
+
+@Suite("Interface type and line rate")
+struct InterfaceTypeTests {
+    private func report(type: String?, baudrate: Int?) -> IPAddressReport {
+        IPAddressReport(interfaces: [InterfaceAddresses(
+            bsdName: "en0", ipv4: ["10.0.0.2/24"], baudrate: baudrate, decodedType: type
+        )])
+    }
+
+    private var detail: IPAddressReport.Detail {
+        var detail = IPAddressReport.Detail()
+        detail.baudrate = true
+        detail.decodedType = true
+        return detail
+    }
+
+    @Test("the line rate is left off an Ethernet interface")
+    func ethernetSkipsBaudrate() {
+        // The Speed line already answers that better, and two answers to one question is
+        // worse than one.
+        let body = report(type: "Ethernet", baudrate: 1_000_000_000).body(detail: detail)
+        #expect(body.contains("Interface type:\tEthernet"))
+        #expect(!body.contains("Baudrate:"))
+    }
+
+    @Test("the line rate is shown for an interface with no media to describe")
+    func nonEthernetShowsBaudrate() {
+        let body = report(type: "PPP", baudrate: 56_000).body(detail: detail)
+        #expect(body.contains("Baudrate:\t56000 bps"))
+    }
+}
+
+@Suite("Path facts as their own events")
+struct NetworkPathEventTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("a connection becoming metered is announced without connectivity moving")
+    func meteredChangeIsItsOwnEvent() async {
+        // Tethering to a phone while the Internet stays up is not a reachability change,
+        // and this is the notification for exactly that.
+        let events = await run([
+            .reachability(isReachable: true, detail: NetworkPathDetail(interfaceType: "Wi-Fi")),
+            .reachability(isReachable: true, detail: NetworkPathDetail(interfaceType: "Wi-Fi", isExpensive: true))
+        ], expecting: 1)
+
+        #expect(events.first?.name == "NetworkPathExpensiveChanged")
+        #expect(events.first?.title == "Network Path Is Now Costly")
+    }
+
+    @Test("it is announced in both directions")
+    func meteredGoingAwayIsAlsoNews() async {
+        let events = await run([
+            .reachability(isReachable: true, detail: NetworkPathDetail(isExpensive: true)),
+            .reachability(isReachable: true, detail: NetworkPathDetail(isExpensive: false))
+        ], expecting: 1)
+        #expect(events.first?.title == "Network Path No Longer Costly")
+    }
+
+    @Test("Low Data Mode turning on is its own event")
+    func constrainedChangeIsItsOwnEvent() async {
+        let events = await run([
+            .reachability(isReachable: true, detail: NetworkPathDetail()),
+            .reachability(isReachable: true, detail: NetworkPathDetail(isConstrained: true))
+        ], expecting: 1)
+        #expect(events.first?.name == "NetworkPathConstrainedChanged")
+    }
+
+    @Test("moving from Wi-Fi to wired without losing the Internet is announced")
+    func pathStatusChangeIsAnnounced() async {
+        let events = await run([
+            .reachability(isReachable: true, detail: NetworkPathDetail(interfaceType: "Wi-Fi")),
+            .reachability(isReachable: true, detail: NetworkPathDetail(interfaceType: "Wired"))
+        ], expecting: 1)
+
+        #expect(events.first?.name == "NetworkPathStatusChanged")
+        #expect(events.first?.body == "Wi-Fi → Wired")
+    }
+
+    @Test("the first path reading is a baseline, not four notifications")
+    func firstReadingIsSilent() async {
+        let events = await run([
+            .reachability(isReachable: true, detail: NetworkPathDetail(
+                interfaceType: "Cellular", isExpensive: true, isConstrained: true
+            ))
+        ], expecting: 0)
+        #expect(events.isEmpty)
+    }
+}
+
+@Suite("Wi-Fi interface mode")
+struct WiFiInterfaceModeTests {
+    private func run(_ script: [NetworkSourceEvent], expecting: Int) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: script),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("the Mac becoming an access point is announced")
+    func becomingAnAccessPointIsAnnounced() async {
+        // A different fact from joining a network: the Mac is now serving one.
+        let events = await run([
+            .wifiInterfaceMode("Station (normal client)"),
+            .wifiInterfaceMode("Host AP (Internet Sharing)")
+        ], expecting: 1)
+
+        #expect(events.first?.name == "WifiHostAPModeChanged")
+        #expect(events.first?.title == "Wi-Fi Interface Mode Changed")
+        #expect(events.first?.body == "Station (normal client) → Host AP (Internet Sharing)")
+    }
+
+    @Test("the mode it was already in is not a change")
+    func firstReadingIsSilent() async {
+        #expect(await run([.wifiInterfaceMode("Station (normal client)")], expecting: 0).isEmpty)
+    }
+
+    @Test("a radio with no mode at all says nothing")
+    func absentModeIsSilent() async {
+        let events = await run([
+            .wifiInterfaceMode("Station (normal client)"),
+            .wifiInterfaceMode(nil)
+        ], expecting: 0)
+        #expect(events.isEmpty)
+    }
+}

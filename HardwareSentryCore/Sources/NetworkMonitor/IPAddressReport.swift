@@ -19,6 +19,14 @@ public struct InterfaceAddresses: Sendable, Equatable {
     public let mtu: Int?
     /// The interface's own hardware address.
     public let macAddress: String?
+    /// When the DHCP lease started, when it runs out, and which server granted it.
+    public let dhcpLease: String?
+    /// The line rate the kernel reports, for interfaces that have no Ethernet media to
+    /// describe — a modem or a tunnel, where "1000baseT" would mean nothing.
+    public let baudrate: Int?
+    /// "Ethernet", "IEEE80211", "Loopback" — the kernel's own name for the interface type,
+    /// which is a different fact from the friendly name and from the media.
+    public let decodedType: String?
 
     public init(
         bsdName: String,
@@ -28,7 +36,10 @@ public struct InterfaceAddresses: Sendable, Equatable {
         gateway: String? = nil,
         configurationMethod: String? = nil,
         mtu: Int? = nil,
-        macAddress: String? = nil
+        macAddress: String? = nil,
+        dhcpLease: String? = nil,
+        baudrate: Int? = nil,
+        decodedType: String? = nil
     ) {
         self.bsdName = bsdName
         self.friendlyName = friendlyName
@@ -38,6 +49,9 @@ public struct InterfaceAddresses: Sendable, Equatable {
         self.configurationMethod = configurationMethod
         self.mtu = mtu
         self.macAddress = macAddress
+        self.dhcpLease = dhcpLease
+        self.baudrate = baudrate
+        self.decodedType = decodedType
     }
 
     var displayName: String { friendlyName ?? bsdName }
@@ -100,6 +114,9 @@ public struct IPAddressReport: Sendable, Equatable {
         public var searchDomains = false
         /// The address an interface used to hold, when it has just changed.
         public var previousAddress = false
+        public var dhcpLease = false
+        public var baudrate = false
+        public var decodedType = false
 
         public init() {}
     }
@@ -145,6 +162,18 @@ public struct IPAddressReport: Sendable, Equatable {
             }
             if detail.macAddress, let mac = interface.macAddress {
                 lines.append("MAC address:\t\(mac)")
+            }
+            if detail.decodedType, let type = interface.decodedType {
+                lines.append("Interface type:\t\(type)")
+            }
+            if detail.dhcpLease, let lease = interface.dhcpLease {
+                lines.append("DHCP lease:\t\(lease)")
+            }
+            // Only for interfaces with no media to describe: on an Ethernet port the
+            // Speed line already says it better, and two answers to one question is
+            // worse than one.
+            if detail.baudrate, let baudrate = interface.baudrate, interface.decodedType != "Ethernet" {
+                lines.append("Baudrate:\t\(baudrate) bps")
             }
         }
 

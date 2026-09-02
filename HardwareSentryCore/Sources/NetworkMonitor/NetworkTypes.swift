@@ -28,6 +28,13 @@ public enum NetworkSourceEvent: Sendable, Equatable {
     case wifiSignal(rssi: Int, ssid: String?)
     /// Every interface currently in promiscuous mode — not a delta.
     case promiscuousSnapshot(Set<String>)
+    /// Every link-aggregation member and how it is faring — not a delta.
+    case bondMemberSnapshot([String: BondMemberStatus])
+    /// An interface the system is about to remove.
+    case adapterDetaching(interfaceName: String)
+    /// What mode the Wi-Fi interface is in, as its own signal — the Mac becoming an
+    /// access point is a different fact from joining one.
+    case wifiInterfaceMode(String?)
     /// Whether the Wi-Fi radio itself is powered on, independent of any network.
     case wifiRadioPower(isOn: Bool)
     /// The name set in System Settings › General › Sharing — not the same as the "AirDrop

@@ -2,12 +2,9 @@ import Foundation
 
 /// What the Wi-Fi interface said about the network it just joined.
 public struct WiFiDetail: Sendable, Equatable {
-    /// The access point's hardware address. Absent unless this app has been granted
-    /// Location access — macOS treats a BSSID as a location, because it is one. This app
-    /// does not ask for that permission, so in practice this line is usually empty; it is
-    /// offered rather than removed so it works for anyone who grants it by hand.
+    /// The access point's hardware address. Empty unless Location access has been
+    /// granted — macOS treats a BSSID as a location, because it is one.
     public let bssid: String?
-    /// "5 GHz, channel 44 (80 MHz)".
     /// "5 GHz" on its own. Kept apart from the channel because they answer different
     /// questions: the band is about interference and range, the channel about which slot
     /// inside it — and somebody watching for a 2.4 GHz fallback wants only the first.
@@ -112,6 +109,9 @@ public struct NetworkPathDetail: Sendable, Equatable {
     public let supportsIPv4: Bool
     public let supportsIPv6: Bool
     public let supportsDNS: Bool
+    /// "Minimal", "Moderate", "Good" — the system's own estimate of how usable the path
+    /// is, which is a different question from whether it reaches anywhere.
+    public let linkQuality: String?
 
     public init(
         interfaceType: String? = nil,
@@ -119,7 +119,8 @@ public struct NetworkPathDetail: Sendable, Equatable {
         isConstrained: Bool = false,
         supportsIPv4: Bool = false,
         supportsIPv6: Bool = false,
-        supportsDNS: Bool = false
+        supportsDNS: Bool = false,
+        linkQuality: String? = nil
     ) {
         self.interfaceType = interfaceType
         self.isExpensive = isExpensive
@@ -127,6 +128,7 @@ public struct NetworkPathDetail: Sendable, Equatable {
         self.supportsIPv4 = supportsIPv4
         self.supportsIPv6 = supportsIPv6
         self.supportsDNS = supportsDNS
+        self.linkQuality = linkQuality
     }
 
     /// Present-only: an ordinary connection is the unremarkable case.
@@ -184,6 +186,9 @@ public enum NetworkField: String, CaseIterable {
     case macAddress = "MACAddress"
     case dnsSearchDomains = "DNSSearchDomains"
     case previousAddress = "PreviousAddress"
+    case dhcpLease = "DHCPLease"
+    case baudrate = "Baudrate"
+    case decodedType = "DecodedType"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
@@ -216,6 +221,9 @@ public enum NetworkField: String, CaseIterable {
         case .macAddress: return "Hardware (MAC) address"
         case .dnsSearchDomains: return "DNS search domains"
         case .previousAddress: return "Show the address it replaced"
+        case .dhcpLease: return "DHCP lease detail (start, expiry, server)"
+        case .baudrate: return "Line rate (interfaces without Ethernet media)"
+        case .decodedType: return "Decoded interface type"
         }
     }
 

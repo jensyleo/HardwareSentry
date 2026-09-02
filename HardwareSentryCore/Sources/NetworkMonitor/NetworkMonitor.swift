@@ -52,6 +52,9 @@ public actor NetworkMonitor: Monitor {
     private var lastShownIPBody: String?
     private var lastIPReport: IPAddressReport?
     private var knownPromiscuous: Set<String>?
+    private var knownBondMembers: [String: BondMemberStatus]?
+    private var lastKnownInterfaceMode: String?
+    private var lastKnownPath: NetworkPathDetail?
     private var hadIPAddresses = false
 
     public init(source: any NetworkSource, context: MonitorContext, signalCooldown: TimeInterval = 10) {
@@ -142,12 +145,24 @@ public actor NetworkMonitor: Monitor {
             await handleWiFiRadioPower(isOn)
         case .promiscuousSnapshot(let interfaces):
             await handlePromiscuous(interfaces)
+        case .bondMemberSnapshot(let members):
+            await handleBondMembers(members)
+        case .wifiInterfaceMode(let mode):
+            await handleInterfaceMode(mode)
+        case .adapterDetaching(let interfaceName):
+            await context.notify(
+                NetworkEvent.adapterDetaching.rawValue, subject: interfaceName,
+                title: "Network Adapter Being Removed", body: interfaceName,
+                icon: .asset("Network-Interface-Off", in: .module)
+            )
         case .wifiSignal(let rssi, let ssid):
             await handleWiFiSignal(rssi: rssi, ssid: ssid)
         }
     }
 
     private func handleReachability(_ isReachable: Bool, detail: NetworkPathDetail?) async {
+        if let detail { await handlePathFacts(detail) }
+
         let previous = lastKnownReachable
         lastKnownReachable = isReachable
         guard let previous, previous != isReachable else { return } // first sighting — baseline only
@@ -280,6 +295,9 @@ public actor NetworkMonitor: Monitor {
         detail.macAddress = await context.isFieldEnabled(NetworkField.macAddress.rawValue)
         detail.searchDomains = await context.isFieldEnabled(NetworkField.dnsSearchDomains.rawValue)
         detail.previousAddress = await context.isFieldEnabled(NetworkField.previousAddress.rawValue)
+        detail.dhcpLease = await context.isFieldEnabled(NetworkField.dhcpLease.rawValue)
+        detail.baudrate = await context.isFieldEnabled(NetworkField.baudrate.rawValue)
+        detail.decodedType = await context.isFieldEnabled(NetworkField.decodedType.rawValue)
 
         let body = report.body(detail: detail, previous: lastIPReport)
         defer { lastIPReport = report }
@@ -392,6 +410,85 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.promiscuousModeChanged.rawValue, subject: interfaceName,
                 title: "Promiscuous Mode Enabled", body: interfaceName,
                 icon: .asset("Network-Interface-On", in: .module)
+            )
+        }
+    }
+
+    /// Reports a bond member whose standing changed.
+    ///
+    /// Reported in both directions, unlike promiscuous mode: a member recovering is the
+    /// news that the redundancy is back, which matters as much as losing it.
+    private func handleBondMembers(_ members: [String: BondMemberStatus]) async {
+        defer { knownBondMembers = members }
+        guard let previous = knownBondMembers else { return }
+
+        for (interfaceName, status) in members.sorted(by: { $0.key < $1.key })
+        where previous[interfaceName] != nil && previous[interfaceName] != status {
+            await context.notify(
+                NetworkEvent.bondMemberStatusChanged.rawValue, subject: interfaceName,
+                title: "Link Aggregation Member Status Changed",
+                body: "\(interfaceName): \(status.label)",
+                icon: .asset("Network-Interface-On", in: .module)
+            )
+        }
+    }
+
+    /// The Mac's Wi-Fi interface changing what it is doing — client, ad-hoc, or acting as
+    /// an access point for Internet Sharing.
+    private func handleInterfaceMode(_ mode: String?) async {
+        guard let mode else { return }
+        defer { lastKnownInterfaceMode = mode }
+        guard let previous = lastKnownInterfaceMode, previous != mode else { return }
+
+        await context.notify(
+            NetworkEvent.wifiHostAPModeChanged.rawValue, subject: "WiFiMode",
+            title: "Wi-Fi Interface Mode Changed",
+            body: "\(previous) → \(mode)",
+            icon: .asset("Network-Wifi-Radio-On", in: .module)
+        )
+    }
+
+    /// The path facts moving on their own, without connectivity itself changing.
+    ///
+    /// Separate from `handleReachability`, which describes the path at the moment
+    /// connectivity moved. A hotspot becoming metered while the Internet stays up is not
+    /// a reachability change, and these are the notifications for exactly that.
+    private func handlePathFacts(_ detail: NetworkPathDetail) async {
+        defer { lastKnownPath = detail }
+        guard let previous = lastKnownPath else { return }
+
+        if previous.isExpensive != detail.isExpensive {
+            await context.notify(
+                NetworkEvent.pathExpensiveChanged.rawValue, subject: "PathExpensive",
+                title: detail.isExpensive ? "Network Path Is Now Costly" : "Network Path No Longer Costly",
+                body: "e.g. an iPhone Personal Hotspot or metered connection",
+                icon: .asset("Network-Generic-On", in: .module)
+            )
+        }
+        if previous.isConstrained != detail.isConstrained {
+            await context.notify(
+                NetworkEvent.pathConstrainedChanged.rawValue, subject: "PathConstrained",
+                title: detail.isConstrained ? "Network Path Is Now Constrained" : "Network Path No Longer Constrained",
+                body: "Low Data Mode is active for this path",
+                icon: .asset("Network-Generic-On", in: .module)
+            )
+        }
+        if previous.interfaceType != detail.interfaceType,
+           let was = previous.interfaceType, let now = detail.interfaceType {
+            await context.notify(
+                NetworkEvent.pathStatusChanged.rawValue, subject: "PathStatus",
+                title: "Network Path Status Changed",
+                body: "\(was) → \(now)",
+                icon: .asset("Network-Generic-On", in: .module)
+            )
+        }
+        if previous.linkQuality != detail.linkQuality,
+           let was = previous.linkQuality, let now = detail.linkQuality {
+            await context.notify(
+                NetworkEvent.pathQualityChanged.rawValue, subject: "PathQuality",
+                title: "Network Link Quality Changed",
+                body: "\(was) → \(now)",
+                icon: .asset("Network-Generic-On", in: .module)
             )
         }
     }

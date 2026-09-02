@@ -27,6 +27,8 @@ extension IPAddressReport {
         var ipv6: [String: [String]] = [:]
         var mtus: [String: Int] = [:]
         var macAddresses: [String: String] = [:]
+        var baudrates: [String: Int] = [:]
+        var decodedTypes: [String: String] = [:]
 
         for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
             let interface = pointer.pointee
@@ -43,7 +45,10 @@ extension IPAddressReport {
             if family == UInt8(AF_LINK) {
                 if let mac = Self.hardwareAddress(of: addressPointer) { macAddresses[name] = mac }
                 if let data = interface.ifa_data {
-                    mtus[name] = Int(data.assumingMemoryBound(to: if_data.self).pointee.ifi_mtu)
+                    let stats = data.assumingMemoryBound(to: if_data.self).pointee
+                    mtus[name] = Int(stats.ifi_mtu)
+                    if stats.ifi_baudrate > 0 { baudrates[name] = Int(stats.ifi_baudrate) }
+                    decodedTypes[name] = Self.typeName(stats.ifi_type)
                 }
                 continue
             }
@@ -69,7 +74,10 @@ extension IPAddressReport {
                 gateway: perInterface[name]?.gateway,
                 configurationMethod: perInterface[name]?.configurationMethod,
                 mtu: mtus[name],
-                macAddress: macAddresses[name]
+                macAddress: macAddresses[name],
+                dhcpLease: perInterface[name]?.dhcpLease,
+                baudrate: baudrates[name],
+                decodedType: decodedTypes[name]
             )
         }, dnsSearchDomains: searchDomains)
     }
@@ -94,6 +102,24 @@ extension IPAddressReport {
         // IPv6 addresses come back with the scope appended ("fe80::1%en0"); the interface
         // is already the line's own label, so repeating it inside the address is noise.
         return text.split(separator: "%").first.map(String.init) ?? text
+    }
+
+    /// The kernel's own name for an interface type, from `net/if_types.h`.
+    ///
+    /// Only the handful a Mac actually reports. Anything else comes back as its raw
+    /// number, which is more use than nothing when an unfamiliar interface shows up.
+    private static func typeName(_ type: UInt8) -> String {
+        switch Int32(type) {
+        case IFT_ETHER: return "Ethernet"
+        case IFT_LOOP: return "Loopback"
+        case IFT_L2VLAN: return "VLAN"
+        case IFT_IEEE1394: return "FireWire"
+        case IFT_BRIDGE: return "Bridge"
+        case IFT_PPP: return "PPP"
+        case IFT_OTHER: return "Other"
+        case IFT_CELLULAR: return "Cellular"
+        default: return "Type \(type)"
+        }
     }
 
     /// The six bytes of a link-layer address, as "a4:83:e7:1c:9d:5b".
@@ -134,9 +160,31 @@ extension SystemNetworkSource {
 public struct ServiceDetail: Sendable, Equatable {
     public let gateway: String?
     public let configurationMethod: String?
+    public let dhcpLease: String?
 
-    public init(gateway: String? = nil, configurationMethod: String? = nil) {
+    public init(gateway: String? = nil, configurationMethod: String? = nil, dhcpLease: String? = nil) {
         self.gateway = gateway
         self.configurationMethod = configurationMethod
+        self.dhcpLease = dhcpLease
+    }
+
+    /// How a lease reads on one line: only the parts that are actually known, joined.
+    ///
+    /// A lease with a start time and no server is normal — the dictionary is filled in as
+    /// the negotiation proceeds — so the parts are gathered rather than demanded together.
+    public static func describeLease(start: Date?, duration: TimeInterval?, server: String?) -> String? {
+        var parts: [String] = []
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+
+        if let start { parts.append("since \(formatter.string(from: start))") }
+        if let start, let duration, duration > 0 {
+            parts.append("expires \(formatter.string(from: start.addingTimeInterval(duration)))")
+        }
+        if let server { parts.append("server \(server)") }
+
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 }
