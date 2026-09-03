@@ -11,6 +11,19 @@ struct HistoryEntry: Identifiable, Codable, Sendable, Equatable {
     let body: String
     let at: Date
 
+    /// Title and body on one line, for a table cell.
+    ///
+    /// The monitors lay their bodies out as "Label:<tab>value" over several lines, which
+    /// is right for a banner and wrong for a row; the tabs and newlines become spaces and
+    /// a dash joins the title to the rest.
+    var oneLine: String {
+        let flattened = body
+            .replacingOccurrences(of: "\n", with: " — ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+        return flattened.isEmpty ? title : "\(title) — \(flattened)"
+    }
+
     init(event: NotificationEvent, at: Date) {
         self.id = UUID()
         self.category = event.category.rawValue
@@ -37,18 +50,111 @@ final class NotificationHistoryStore {
     /// ones fall off the end rather than the file growing without limit.
     private let limit: Int
     @ObservationIgnored private let fileURL: URL?
+    @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var saveTask: Task<Void, Never>?
 
-    init(limit: Int = 200, directory: URL? = nil) {
+    private var revision = 0
+
+    init(limit: Int = 2000, directory: URL? = nil, defaults: UserDefaults = .standard) {
         self.limit = limit
+        self.defaults = defaults
         self.fileURL = (directory ?? Self.defaultDirectory).map { $0.appending(path: "history.json") }
+        defaults.register(defaults: [
+            Self.isEnabledKey: true,
+            Self.retentionDaysKey: 7.0
+        ])
         self.entries = load()
+        pruneByAge()
+    }
+
+    // MARK: - What is kept, and for how long
+
+    /// Whether anything is written down at all.
+    ///
+    /// Somebody who does not want a record of what their hardware did should be able to
+    /// say so — and switching it off stops the recording rather than merely hiding it,
+    /// because a hidden log is still a log.
+    var isEnabled: Bool {
+        get {
+            _ = revision
+            return defaults.bool(forKey: Self.isEnabledKey)
+        }
+        set {
+            defaults.set(newValue, forKey: Self.isEnabledKey)
+            revision += 1
+            // Switching it off empties what is already there. Keeping a week of history
+            // after being told to stop keeping history would be the wrong reading of it.
+            if !newValue { clear() }
+        }
+    }
+
+    /// How many days of history to keep.
+    ///
+    /// Age rather than a count, which is what somebody actually means by "keep a week":
+    /// two hundred entries is a fortnight on a quiet Mac and an afternoon on a busy one.
+    /// A count limit still exists behind it, so a pathological day cannot fill a disk.
+    var retentionDays: Double {
+        get {
+            _ = revision
+            return defaults.double(forKey: Self.retentionDaysKey)
+        }
+        set {
+            defaults.set(newValue, forKey: Self.retentionDaysKey)
+            revision += 1
+            pruneByAge()
+        }
+    }
+
+    /// Which modules are worth remembering.
+    ///
+    /// Per module rather than all-or-nothing, because the modules differ enormously in how
+    /// much they say: a Mac with several volumes writes a dozen lines every launch, and
+    /// somebody keeping history to answer "when did that disk last disconnect" would
+    /// rather not scroll past them.
+    func isRecorded(_ category: String) -> Bool {
+        _ = revision
+        // Absent means yes: a module added by a later version starts out remembered
+        // rather than silently missing from a log somebody is relying on.
+        guard let stored = defaults.object(forKey: Self.categoryKey(category)) as? Bool else { return true }
+        return stored
+    }
+
+    func setRecorded(_ recorded: Bool, for category: String) {
+        defaults.set(recorded, forKey: Self.categoryKey(category))
+        revision += 1
+    }
+
+    func setRecorded(_ recorded: Bool, forAll categories: [String]) {
+        for category in categories { defaults.set(recorded, forKey: Self.categoryKey(category)) }
+        revision += 1
     }
 
     func record(_ event: NotificationEvent, at date: Date) {
+        guard isEnabled, isRecorded(event.category.rawValue) else { return }
         entries.insert(HistoryEntry(event: event, at: date), at: 0)
         if entries.count > limit { entries.removeLast(entries.count - limit) }
         scheduleSave()
+    }
+
+    /// Drops anything older than the retention window.
+    ///
+    /// Run at launch and whenever the window is shortened, rather than on a timer: nothing
+    /// reads the history between those two moments, so a background task pruning it would
+    /// be work nobody was waiting for.
+    func pruneByAge() {
+        guard retentionDays > 0 else { return }
+        let cutoff = Date().addingTimeInterval(-retentionDays * 24 * 60 * 60)
+        let kept = entries.filter { $0.at >= cutoff }
+        guard kept.count != entries.count else { return }
+        entries = kept
+        scheduleSave()
+    }
+
+    private static let isEnabledKey = "History.Enabled"
+    private static let retentionDaysKey = "History.RetentionDays"
+
+    private static func categoryKey(_ category: String) -> String {
+        "History.Record.\(category)"
     }
 
     func clear() {

@@ -30,7 +30,11 @@ struct SettingsView: View {
             EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
-            HistoryView(store: history)
+            HistoryView(
+                store: history,
+                modules: events.modules,
+                isModuleEnabled: { events.isEnabled($0) }
+            )
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
         }
         // Every dimension is a minimum and a preference, never a fixed value: a fixed one
