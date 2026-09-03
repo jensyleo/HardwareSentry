@@ -12,6 +12,7 @@ struct HelpView: View {
     @State private var topics: [HelpTopic] = HelpLibrary.prose
     @State private var selection: HelpTopic.ID? = HelpLibrary.prose.first?.id
     @State private var query = ""
+    @Environment(\.dismissWindow) private var dismissWindow
 
     private var matches: [HelpTopic] {
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -50,6 +51,24 @@ struct HelpView: View {
             }
         }
         .frame(minWidth: 760, minHeight: 520)
+        .toolbar {
+            // Placed rather than left to the window's own close button: this is a
+            // reference window somebody dips into and out of while working, and "Done"
+            // says that plainly.
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismissWindow(id: HardwareSentryApp.helpWindowID) }
+            }
+        }
+        .background {
+            // A toolbar-hosted button's own `.keyboardShortcut` does not reliably reach
+            // the responder chain on macOS — confirmed live: the visible Done button
+            // above closes the window on click, but Escape did nothing until this was
+            // added alongside it. A zero-size button in the ordinary view hierarchy gets
+            // the shortcut where the toolbar one didn't.
+            Button("") { dismissWindow(id: HardwareSentryApp.helpWindowID) }
+                .keyboardShortcut(.escape, modifiers: [])
+                .opacity(0)
+        }
         .task {
             // Appended once the monitors have been asked what they can do, so the
             // reference is this build's real inventory rather than a copy that drifts.
