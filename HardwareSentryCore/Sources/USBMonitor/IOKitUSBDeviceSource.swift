@@ -167,13 +167,14 @@ private final class RegistryWatcher: @unchecked Sendable {
             specVersion: number(service, "bcdUSB").map(UInt16.init(truncatingIfNeeded:)),
             isTunnelled: boolean(service, "IOUSBHostControllerIsTunnelled")
                 ?? boolean(service, "Tunnelled") ?? false,
-            // Both of these walk up to four parents to find a property that lives on the
-            // port rather than the device, and both feed one field ("Port") that is off
-            // by default — so for a hub, the device this is reported for most often, this
-            // is IOKit IPC spent finding a value nobody has asked to see. Left in for
-            // every other device, where it is one lookup among the ordinary handful.
-            isPortRemovable: isHub ? nil : Self.portProperty(service, "removable"),
-            connectorType: isHub ? nil : Self.connectorType(service)
+            // Unlike `mediumType` above, this one can genuinely apply to a hub — a hub
+            // has a port too, and can be removable or built-in same as anything else. The
+            // "Port info" checkbox in Settings → USB is what decides whether this line
+            // shows; that promise has to hold for every device the checkbox covers,
+            // hub included, so this is read unconditionally rather than skipped for
+            // hubs the way the storage-medium walk is.
+            isPortRemovable: Self.portProperty(service, "removable"),
+            connectorType: Self.connectorType(service)
         )
     }
 
