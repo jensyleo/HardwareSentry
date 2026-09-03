@@ -103,7 +103,7 @@ public actor BluetoothMonitor: Monitor {
                 // The row this device's own kind owns; the generic one only for a kind
                 // this application has no artwork for.
                 (kind?.connectedEvent ?? BluetoothEvent.connected).rawValue, subject: name,
-                title: await context.connectionTitle(
+                title: context.connectionTitle(
                     medium: "Bluetooth",
                     type: kind?.label,
                     action: "Connected"
@@ -134,7 +134,7 @@ public actor BluetoothMonitor: Monitor {
             let kind = lastKindByName.removeValue(forKey: name)
             await context.notify(
                 BluetoothEvent.disconnected.rawValue, subject: name,
-                title: await context.connectionTitle(
+                title: context.connectionTitle(
                     medium: "Bluetooth",
                     type: lastKindByName[name]?.label,
                     action: "Disconnected"

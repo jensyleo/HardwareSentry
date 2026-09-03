@@ -68,7 +68,7 @@ public actor USBMonitor: Monitor {
                 subject: device.name,
                 // The device's own class, when it said — "USB Hub Connected" — and the
                 // generic wording when it did not, which is most of them.
-                title: await context.connectionTitle(
+                title: context.connectionTitle(
                     medium: "USB",
                     type: device.kind?.settingsTitle,
                     action: "Connected"
@@ -99,7 +99,7 @@ public actor USBMonitor: Monitor {
             await context.notify(
                 USBEvent.disconnected.rawValue,
                 subject: device.name,
-                title: await context.connectionTitle(
+                title: context.connectionTitle(
                     medium: "USB",
                     type: device.kind?.settingsTitle,
                     action: "Disconnected"

@@ -4,8 +4,25 @@ import Testing
 
 @Suite("VolumeKind")
 struct VolumeKindTests {
-    private func infer(_ proto: String? = nil, _ media: String? = nil, _ mediaKind: String? = nil, _ size: UInt64? = nil) -> VolumeKind? {
-        VolumeKind.infer(protocolName: proto, mediaName: media, mediaKind: mediaKind, sizeBytes: size)
+    private func infer(_ proto: String? = nil, _ media: String? = nil, _ mediaKind: String? = nil, _ size: UInt64? = nil, isInternal: Bool = false) -> VolumeKind? {
+        VolumeKind.infer(protocolName: proto, mediaName: media, mediaKind: mediaKind, sizeBytes: size, isInternal: isInternal)
+    }
+
+    @Test("internal storage is never guessed external, however large it reports itself")
+    func internalStorageIsNeverGuessedExternal() {
+        // Confirmed live in this application's own notification history: every APFS
+        // sibling of the boot container ("Preboot", "VM", "Update", "xarts", "Hardware")
+        // reports the SAME size as the container as a whole — on this Mac, comfortably
+        // over the 400 GB threshold below — and arrived as "External Disk Mounted" until
+        // this was fixed. HG4MAC hit and fixed the identical bug on 23-jul-2026.
+        let containerSize: UInt64 = 494_384_795_648 // this Mac's actual container size
+        #expect(infer(nil, nil, nil, containerSize) == .externalDisk)
+        #expect(infer(nil, nil, nil, containerSize, isInternal: true) == nil)
+
+        // Internal storage is excluded unconditionally, ahead of every other signal —
+        // matching HG4MAC's own ordering — not merely exempted from the size guess.
+        #expect(infer("USB", "External HDD", nil, nil, isInternal: true) == nil)
+        #expect(infer(nil, "Secure Digital", nil, nil, isInternal: true) == nil)
     }
 
     @Test("optical media and network shares are read from standard fields, not guessed")

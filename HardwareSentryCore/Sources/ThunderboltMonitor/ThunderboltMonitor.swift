@@ -75,7 +75,7 @@ public actor ThunderboltMonitor: Monitor {
                 // with no artwork of its own.
                 (device.kind?.connectedEvent ?? ThunderboltEvent.connected).rawValue,
                 subject: device.name,
-                title: await context.connectionTitle(
+                title: context.connectionTitle(
                     medium: "Thunderbolt",
                     type: device.typeLabel,
                     action: "Connected"
@@ -104,7 +104,7 @@ public actor ThunderboltMonitor: Monitor {
             await context.notify(
                 ThunderboltEvent.disconnected.rawValue,
                 subject: name,
-                title: await context.connectionTitle(
+                title: context.connectionTitle(
                     medium: "Thunderbolt",
                     type: ThunderboltDevice.label(forBaseClass: baseClass),
                     action: "Disconnected"

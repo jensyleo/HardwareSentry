@@ -232,6 +232,12 @@ private final class Watcher: @unchecked Sendable {
               let description = DADiskCopyDescription(disk) as? [String: Any]
         else { return nil }
 
+        // Every APFS sibling in the boot container — Preboot, VM, Update, xarts,
+        // iSCPreboot, Data/home, and "/" itself — reports the SAME large size as the
+        // container as a whole, which used to satisfy the size guess below and mark all
+        // of them "External Disk". Internal storage is never any of the four removable
+        // kinds this classifies, so it is excluded before the guess ever runs, the same
+        // fix HG4MAC shipped for the identical bug.
         return VolumeKind.infer(
             protocolName: description[kDADiskDescriptionDeviceProtocolKey as String] as? String,
             mediaName: [
@@ -239,7 +245,8 @@ private final class Watcher: @unchecked Sendable {
                 description[kDADiskDescriptionDeviceModelKey as String] as? String
             ].compactMap { $0 }.joined(separator: " "),
             mediaKind: description[kDADiskDescriptionMediaKindKey as String] as? String,
-            sizeBytes: sizeBytes
+            sizeBytes: sizeBytes,
+            isInternal: description[kDADiskDescriptionDeviceInternalKey as String] as? Bool ?? false
         )
     }
 

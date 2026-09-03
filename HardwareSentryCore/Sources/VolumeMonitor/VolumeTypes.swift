@@ -188,8 +188,17 @@ public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
         protocolName: String?,
         mediaName: String?,
         mediaKind: String?,
-        sizeBytes: UInt64?
+        sizeBytes: UInt64?,
+        isInternal: Bool = false
     ) -> VolumeKind? {
+        // Every APFS sibling of the boot container — Preboot, VM, Update, xarts,
+        // iSCPreboot, Data/home, and "/" itself — reports the SAME large size as the
+        // container as a whole, which would otherwise satisfy the size guess below and
+        // tag every one of them "External Disk". Internal storage is never any of the
+        // four removable kinds this infers, checked first and unconditionally, matching
+        // the fix HG4MAC shipped for the identical, dated bug (23-jul-2026).
+        guard !isInternal else { return nil }
+
         // Optical media and network shares are unambiguous: both are standard fields with
         // no guesswork, unlike everything below them.
         if let kind = mediaKind?.lowercased(),
