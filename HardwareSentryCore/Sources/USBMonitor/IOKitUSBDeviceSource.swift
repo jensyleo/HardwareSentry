@@ -56,9 +56,27 @@ private final class RegistryWatcher: @unchecked Sendable {
 
         let context = Unmanaged.passUnretained(self).toOpaque()
 
+        // `kIOFirstPublishNotification`, not `kIOMatchedNotification`: reported live as
+        // HardwareSentry taking over a second longer than HG4MAC to say anything about a
+        // hub that was just plugged in. `kIOMatchedNotification` waits for the whole
+        // driver-matching process to finish — probing, selecting a driver, starting it —
+        // which for a hub, coordinating downstream port power, is real, measurable time.
+        // `kIOFirstPublishNotification` fires the moment the object first appears in the
+        // registry, already after USB enumeration has read the device descriptor, so the
+        // name/vendor/class/VID:PID properties read below are unaffected. HG4MAC uses this
+        // exact notification for exactly this reason.
+        //
+        // The one honest trade: `USBDeviceRequiredCurrent`/`AvailableCurrent` are set by
+        // the host driver as it negotiates power, a step `kIOFirstPublishNotification`
+        // fires ahead of — HG4MAC does not read these at all, so there is no prior
+        // behaviour to compare against. If they are not there yet, `detail(_:)` below
+        // already leaves the "Power" line out rather than showing a wrong number; the
+        // trade is a "Power" line that occasionally does not appear on the very first
+        // announcement, against a delay of over a second on every one.
+        //
         // A matching dictionary is consumed by each registration, so each one gets its own.
         IOServiceAddMatchingNotification(
-            port, kIOMatchedNotification, IOServiceMatching(Self.deviceClass),
+            port, kIOFirstPublishNotification, IOServiceMatching(Self.deviceClass),
             { context, iterator in
                 Unmanaged<RegistryWatcher>.fromOpaque(context!)
                     .takeUnretainedValue()
