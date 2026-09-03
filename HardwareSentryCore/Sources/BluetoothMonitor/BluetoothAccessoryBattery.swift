@@ -131,11 +131,36 @@ public extension BluetoothAccessoryBattery {
     }
 
     /// Asks for one undocumented value, or gives nothing.
+    ///
+    /// Crashed live, confirmed by its own crash report: these four selectors return a
+    /// small integer, not an object, and `perform(_:)` — the same as a plain
+    /// `performSelector:` — treats whatever bit pattern comes back as a pointer and asks
+    /// ARC to retain it. For a battery reading of 100 that pattern is the address 0x64,
+    /// which is not a valid object and crashes the moment ARC touches it. HG4MAC hits the
+    /// same undocumented selectors and never had this problem, because it never calls
+    /// them this way — its own comment says exactly why: "the return type is a small
+    /// integer, not an object; a plain performSelector: would misinterpret it." It builds
+    /// an `NSInvocation` instead, which Swift is not allowed to do at all
+    /// (`OBJC_SWIFT_UNAVAILABLE` on every `NSInvocation`-related declaration) — so this
+    /// reaches for the one thing Swift can do that plain `perform(_:)` cannot: read the
+    /// method's own implementation pointer and call it through a function type that
+    /// matches its real, narrow return type, the same way `objc_msgSend` would.
     private static func percent(_ device: IOBluetoothDevice, _ name: String) -> Int? {
         let selector = NSSelectorFromString(name)
         guard device.responds(to: selector) else { return nil }
-        guard let value = device.perform(selector)?.takeUnretainedValue() as? NSNumber else { return nil }
-        let percent = value.intValue
+        guard let method = class_getInstanceMethod(type(of: device), selector) else { return nil }
+
+        // The same defence HG4MAC's own comment describes needing, against a macOS
+        // update ever widening this undocumented return type: read the declared return
+        // type and refuse to call through the wrong function shape rather than guess.
+        // All four known selectors return `int8_t` ("c").
+        let returnType = method_copyReturnType(method)
+        defer { free(returnType) }
+        guard String(cString: returnType) == "c" else { return nil }
+
+        typealias Int8IMP = @convention(c) (AnyObject, Selector) -> Int8
+        let implementation = unsafeBitCast(method_getImplementation(method), to: Int8IMP.self)
+        let percent = Int(implementation(device, selector))
         // These answer with a negative number when there is no reading, and an accessory
         // is never above full.
         return (0...100).contains(percent) ? percent : nil
