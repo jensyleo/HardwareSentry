@@ -30,7 +30,11 @@ private func device(_ id: String, name: String = "Device", transport: AudioTrans
 
 @Suite("AudioMonitor")
 struct AudioMonitorTests {
-    private func run(_ script: [AudioSourceEvent], settleFor debounce: Double = 0.05) async -> [NotificationEvent] {
+    private func run(
+        _ script: [AudioSourceEvent],
+        settleFor debounce: Double = 0.05,
+        notifiesVirtualDevices: Bool = false
+    ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = AudioMonitor(
@@ -43,7 +47,8 @@ struct AudioMonitorTests {
                 // every count below would be measuring the sweep as well as the change.
                 announcesWhatIsAlreadyThere: false
             ),
-            micStopDebounce: debounce
+            micStopDebounce: debounce,
+            notifiesVirtualDevices: notifiesVirtualDevices
         )
 
         await monitor.start()
@@ -84,6 +89,52 @@ struct AudioMonitorTests {
     func suppressedDeviceNeverFiresDisconnect() async {
         let events = await run([
             .deviceSnapshot([device("1", transport: .usb)]),
+            .deviceSnapshot([])
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("a virtual or aggregate device is not announced by default")
+    func virtualDeviceIsSuppressedByDefault() async {
+        let events = await run([
+            .deviceSnapshot([]),
+            .deviceSnapshot([device("1", name: "ZoomAudioDevice", transport: .virtual)]),
+            .deviceSnapshot([device("2", name: "Multi-Output Device", transport: .aggregate)])
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("a virtual or aggregate device is announced once asked for, and takes effect live")
+    func virtualDeviceCanBeSwitchedOnWhileRunning() async {
+        // Not run() — this needs to flip the setting mid-flight, which only apply() does.
+        let delivery = CollectingDelivery()
+        let monitor = AudioMonitor(
+            source: ScriptedAudioSource(script: [
+                .deviceSnapshot([]),
+                .deviceSnapshot([device("1", name: "ZoomAudioDevice", transport: .virtual)])
+            ]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: AudioMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            )
+        )
+        await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true)
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.isEmpty {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+
+        let events = await delivery.events
+        #expect(events.count == 1)
+        #expect(events.first?.name == "AudioDeviceConnected")
+    }
+
+    @Test("a suppressed virtual device disconnecting never fires a stray disconnect")
+    func suppressedVirtualDeviceNeverFiresDisconnect() async {
+        let events = await run([
+            .deviceSnapshot([device("1", transport: .virtual)]),
             .deviceSnapshot([])
         ])
         #expect(events.isEmpty)
@@ -323,7 +374,7 @@ struct AudioVolumeCriticalTests {
             ),
             volumeCriticalThreshold: 90
         )
-        await monitor.apply(volumeCriticalThreshold: 70)
+        await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))

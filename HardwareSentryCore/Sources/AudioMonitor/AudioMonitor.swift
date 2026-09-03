@@ -45,6 +45,10 @@ public actor AudioMonitor: Monitor {
     /// Above this percentage the "Volume Critical" warning fires; ten points below it the
     /// warning re-arms. Changeable while running, so moving the slider takes effect now.
     private var volumeCriticalThreshold: Int
+    /// Off by default: a virtual/aggregate device is not something that arrived or left,
+    /// and most people who see "Audio Device Connected: Zoom Audio Device" once do not
+    /// want to see it again every time that app runs.
+    private var notifiesVirtualDevices: Bool
     private var hasWarnedAboutVolume = false
     private var lastVolumePercent: Int?
 
@@ -68,17 +72,20 @@ public actor AudioMonitor: Monitor {
         source: any AudioSource,
         context: MonitorContext,
         micStopDebounce: Double = 1.0,
-        volumeCriticalThreshold: Int = 90
+        volumeCriticalThreshold: Int = 90,
+        notifiesVirtualDevices: Bool = false
     ) {
         self.source = source
         self.context = context
         self.micStopDebounceNanoseconds = UInt64(micStopDebounce * 1_000_000_000)
         self.volumeCriticalThreshold = volumeCriticalThreshold
+        self.notifiesVirtualDevices = notifiesVirtualDevices
     }
 
-    /// Called when the slider moves, so the change applies without a relaunch.
-    public func apply(volumeCriticalThreshold: Int) {
+    /// Called when a setting changes, so it applies without a relaunch.
+    public func apply(volumeCriticalThreshold: Int, notifiesVirtualDevices: Bool) {
         self.volumeCriticalThreshold = volumeCriticalThreshold
+        self.notifiesVirtualDevices = notifiesVirtualDevices
     }
 
     public func start() async {
@@ -240,6 +247,7 @@ public actor AudioMonitor: Monitor {
         for id in currentIDs.subtracting(knownIDs) {
             let device = current[id]!
             guard !device.transport.isCoveredByAnotherMonitor else { continue }
+            guard notifiesVirtualDevices || !device.transport.isVirtualOrAggregate else { continue }
             reportedConnectedIDs.insert(id)
             await context.notify(
                 AudioEvent.connected.rawValue,

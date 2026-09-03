@@ -105,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             powerHealthNotify: tuning.powerHealthNotify,
             volumeLowSpacePercent: tuning.lowSpacePercent,
             audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent),
+            audioNotifiesVirtualDevices: tuning.notifiesVirtualAudioDevices,
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
@@ -122,7 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     powerHealthNotify: tuning.powerHealthNotify,
                     volumeLowSpacePercent: tuning.lowSpacePercent,
                     volumeExclusions: tuning.volumeExclusions,
-                    audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent)
+                    audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent),
+                    audioNotifiesVirtualDevices: tuning.notifiesVirtualAudioDevices
                 )
             }
         }

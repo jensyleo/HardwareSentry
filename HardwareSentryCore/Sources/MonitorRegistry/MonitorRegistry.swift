@@ -35,6 +35,7 @@ public actor MonitorRegistry {
     private let powerHealthStore: any PowerHealthStore
     private let volumeLowSpacePercent: Double
     private let audioVolumeCriticalPercent: Int
+    private let audioNotifiesVirtualDevices: Bool
     private let scannerStatusInterval: Duration
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
     private let networkSignalCooldown: TimeInterval
@@ -59,6 +60,7 @@ public actor MonitorRegistry {
         powerHealthStore: any PowerHealthStore = UserDefaultsPowerHealthStore(),
         volumeLowSpacePercent: Double = 5,
         audioVolumeCriticalPercent: Int = 90,
+        audioNotifiesVirtualDevices: Bool = false,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
         networkSignalCooldown: TimeInterval = 10,
@@ -75,6 +77,7 @@ public actor MonitorRegistry {
         self.powerHealthStore = powerHealthStore
         self.volumeLowSpacePercent = volumeLowSpacePercent
         self.audioVolumeCriticalPercent = audioVolumeCriticalPercent
+        self.audioNotifiesVirtualDevices = audioNotifiesVirtualDevices
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
         self.networkSignalCooldown = networkSignalCooldown
@@ -90,14 +93,15 @@ public actor MonitorRegistry {
         powerHealthNotify: PowerHealthNotifySettings,
         volumeLowSpacePercent: Double,
         volumeExclusions: VolumeExclusions,
-        audioVolumeCriticalPercent: Int
+        audioVolumeCriticalPercent: Int,
+        audioNotifiesVirtualDevices: Bool
     ) async {
         for monitor in monitors {
             if let power = monitor as? PowerMonitor {
                 await power.apply(refire: powerRefire, healthCheck: powerHealthCheck, healthNotify: powerHealthNotify)
             }
             if let audio = monitor as? AudioMonitor {
-                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent)
+                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent, notifiesVirtualDevices: audioNotifiesVirtualDevices)
             }
             if let volume = monitor as? VolumeMonitor {
                 await volume.apply(
@@ -174,7 +178,8 @@ public actor MonitorRegistry {
             AudioMonitor(
                 source: CoreAudioSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
-                volumeCriticalThreshold: audioVolumeCriticalPercent
+                volumeCriticalThreshold: audioVolumeCriticalPercent,
+                notifiesVirtualDevices: audioNotifiesVirtualDevices
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),

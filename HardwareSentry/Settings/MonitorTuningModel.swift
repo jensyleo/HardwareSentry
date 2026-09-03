@@ -32,6 +32,7 @@ final class MonitorTuningModel {
             Self.healthNotifyHoursKey: 8.0,
             Self.lowSpacePercentKey: 5.0,
             Self.audioVolumeCriticalKey: 90.0,
+            Self.virtualAudioDevicesKey: false,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -50,6 +51,7 @@ final class MonitorTuningModel {
         healthNotifyHours = defaults.double(forKey: Self.healthNotifyHoursKey)
         lowSpacePercent = defaults.double(forKey: Self.lowSpacePercentKey)
         audioVolumeCriticalPercent = defaults.double(forKey: Self.audioVolumeCriticalKey)
+        notifiesVirtualAudioDevices = defaults.bool(forKey: Self.virtualAudioDevicesKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -110,6 +112,13 @@ final class MonitorTuningModel {
     /// ninety percent into studio headphones is not ninety percent into a laptop speaker.
     var audioVolumeCriticalPercent: Double {
         didSet { defaults.set(audioVolumeCriticalPercent, forKey: Self.audioVolumeCriticalKey); onChange?() }
+    }
+
+    /// A Multi-Output/Aggregate device, or a driver an app like Zoom or Teams installs to
+    /// capture what is playing, is software rather than something that arrived or left —
+    /// off by default so it does not read as a plugged-in device.
+    var notifiesVirtualAudioDevices: Bool {
+        didSet { defaults.set(notifiesVirtualAudioDevices, forKey: Self.virtualAudioDevicesKey); onChange?() }
     }
 
     /// How often a network scanner is asked what it is doing.
@@ -188,6 +197,7 @@ final class MonitorTuningModel {
     private static let healthNotifyHoursKey = "Power.HealthNotifyHours"
     private static let lowSpacePercentKey = "Volume.LowSpacePercent"
     private static let audioVolumeCriticalKey = "Audio.VolumeCriticalPercent"
+    private static let virtualAudioDevicesKey = "Audio.NotifiesVirtualDevices"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

@@ -349,6 +349,11 @@ private struct ModuleDetail: View {
                         caption: "Warn when the default output goes above this level. It re-arms ten points below, so hovering at the line does not warn twice.",
                         unit: "%"
                     )
+
+                    Toggle("Notify for virtual/aggregate devices", isOn: $tuning.notifiesVirtualAudioDevices)
+                    Text("A Multi-Output/Aggregate device built in Audio MIDI Setup, or a driver an app like Zoom or Teams installs to capture what is playing, is software rather than a device that arrived or left \u{2014} off by default so \u{201C}Connected\u{201D} keeps meaning hardware.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 

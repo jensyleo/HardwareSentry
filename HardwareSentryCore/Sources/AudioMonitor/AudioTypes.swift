@@ -21,6 +21,12 @@ public enum AudioTransport: Sendable, Equatable {
     /// USB/Bluetooth Monitor already announce these devices connecting/disconnecting.
     public var isCoveredByAnotherMonitor: Bool { self == .usb || self == .bluetooth }
 
+    /// Software, not hardware: a Multi-Output/Aggregate device somebody built in Audio
+    /// MIDI Setup, or a driver an app like Zoom or Teams installs so it can capture what
+    /// is playing. Neither one arrived or left the room, which is why whether to hear
+    /// about them is its own switch rather than being lumped in with real devices.
+    public var isVirtualOrAggregate: Bool { self == .virtual || self == .aggregate }
+
     public var label: String {
         switch self {
         case .usb: return "USB"
