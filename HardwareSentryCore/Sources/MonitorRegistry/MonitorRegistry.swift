@@ -37,6 +37,8 @@ public actor MonitorRegistry {
     private let audioVolumeCriticalPercent: Int
     private let audioNotifiesVirtualDevices: Bool
     private let cameraNotifiesVirtualDevices: Bool
+    private let audioNotifiesUSBDevices: Bool
+    private let cameraNotifiesUSBDevices: Bool
     private let scannerStatusInterval: Duration
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
     private let networkSignalCooldown: TimeInterval
@@ -63,6 +65,8 @@ public actor MonitorRegistry {
         audioVolumeCriticalPercent: Int = 90,
         audioNotifiesVirtualDevices: Bool = false,
         cameraNotifiesVirtualDevices: Bool = false,
+        audioNotifiesUSBDevices: Bool = true,
+        cameraNotifiesUSBDevices: Bool = true,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
         networkSignalCooldown: TimeInterval = 10,
@@ -81,6 +85,8 @@ public actor MonitorRegistry {
         self.audioVolumeCriticalPercent = audioVolumeCriticalPercent
         self.audioNotifiesVirtualDevices = audioNotifiesVirtualDevices
         self.cameraNotifiesVirtualDevices = cameraNotifiesVirtualDevices
+        self.audioNotifiesUSBDevices = audioNotifiesUSBDevices
+        self.cameraNotifiesUSBDevices = cameraNotifiesUSBDevices
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
         self.networkSignalCooldown = networkSignalCooldown
@@ -98,17 +104,19 @@ public actor MonitorRegistry {
         volumeExclusions: VolumeExclusions,
         audioVolumeCriticalPercent: Int,
         audioNotifiesVirtualDevices: Bool,
-        cameraNotifiesVirtualDevices: Bool
+        cameraNotifiesVirtualDevices: Bool,
+        audioNotifiesUSBDevices: Bool,
+        cameraNotifiesUSBDevices: Bool
     ) async {
         for monitor in monitors {
             if let power = monitor as? PowerMonitor {
                 await power.apply(refire: powerRefire, healthCheck: powerHealthCheck, healthNotify: powerHealthNotify)
             }
             if let audio = monitor as? AudioMonitor {
-                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent, notifiesVirtualDevices: audioNotifiesVirtualDevices)
+                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent, notifiesVirtualDevices: audioNotifiesVirtualDevices, notifiesUSBDevices: audioNotifiesUSBDevices)
             }
             if let camera = monitor as? CameraMonitor {
-                await camera.apply(notifiesVirtualDevices: cameraNotifiesVirtualDevices)
+                await camera.apply(notifiesVirtualDevices: cameraNotifiesVirtualDevices, notifiesUSBDevices: cameraNotifiesUSBDevices)
             }
             if let volume = monitor as? VolumeMonitor {
                 await volume.apply(
@@ -161,7 +169,8 @@ public actor MonitorRegistry {
             CameraMonitor(
                 source: AVFoundationCameraSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
-                notifiesVirtualDevices: cameraNotifiesVirtualDevices
+                notifiesVirtualDevices: cameraNotifiesVirtualDevices,
+                notifiesUSBDevices: cameraNotifiesUSBDevices
             ),
             DisplayMonitor(
                 // The experimental video-link poll runs only when its notification is
@@ -187,7 +196,8 @@ public actor MonitorRegistry {
                 source: CoreAudioSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 volumeCriticalThreshold: audioVolumeCriticalPercent,
-                notifiesVirtualDevices: audioNotifiesVirtualDevices
+                notifiesVirtualDevices: audioNotifiesVirtualDevices,
+                notifiesUSBDevices: audioNotifiesUSBDevices
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),

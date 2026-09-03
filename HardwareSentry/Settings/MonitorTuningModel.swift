@@ -34,6 +34,8 @@ final class MonitorTuningModel {
             Self.audioVolumeCriticalKey: 90.0,
             Self.virtualAudioDevicesKey: false,
             Self.virtualCameraDevicesKey: false,
+            Self.usbAudioDevicesKey: true,
+            Self.usbCameraDevicesKey: true,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -54,6 +56,8 @@ final class MonitorTuningModel {
         audioVolumeCriticalPercent = defaults.double(forKey: Self.audioVolumeCriticalKey)
         notifiesVirtualAudioDevices = defaults.bool(forKey: Self.virtualAudioDevicesKey)
         notifiesVirtualCameraDevices = defaults.bool(forKey: Self.virtualCameraDevicesKey)
+        notifiesUSBAudioDevices = defaults.bool(forKey: Self.usbAudioDevicesKey)
+        notifiesUSBCameraDevices = defaults.bool(forKey: Self.usbCameraDevicesKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -127,6 +131,18 @@ final class MonitorTuningModel {
     /// than one that is actually plugged in or built in.
     var notifiesVirtualCameraDevices: Bool {
         didSet { defaults.set(notifiesVirtualCameraDevices, forKey: Self.virtualCameraDevicesKey); onChange?() }
+    }
+
+    /// On by default: the improvement over HG4MAC's own behaviour asked for directly — a
+    /// USB audio device used to be left to USB Monitor's generic notice alone, and this is
+    /// what lets whoever preferred that quieter pairing go back to it.
+    var notifiesUSBAudioDevices: Bool {
+        didSet { defaults.set(notifiesUSBAudioDevices, forKey: Self.usbAudioDevicesKey); onChange?() }
+    }
+
+    /// Same, for a camera arriving over USB.
+    var notifiesUSBCameraDevices: Bool {
+        didSet { defaults.set(notifiesUSBCameraDevices, forKey: Self.usbCameraDevicesKey); onChange?() }
     }
 
     /// How often a network scanner is asked what it is doing.
@@ -207,6 +223,8 @@ final class MonitorTuningModel {
     private static let audioVolumeCriticalKey = "Audio.VolumeCriticalPercent"
     private static let virtualAudioDevicesKey = "Audio.NotifiesVirtualDevices"
     private static let virtualCameraDevicesKey = "Camera.NotifiesVirtualDevices"
+    private static let usbAudioDevicesKey = "Audio.NotifiesUSBDevices"
+    private static let usbCameraDevicesKey = "Camera.NotifiesUSBDevices"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

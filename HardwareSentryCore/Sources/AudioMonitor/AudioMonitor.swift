@@ -50,6 +50,11 @@ public actor AudioMonitor: Monitor {
     /// and most people who see "Audio Device Connected: Zoom Audio Device" once do not
     /// want to see it again every time that app runs.
     private var notifiesVirtualDevices: Bool
+    /// On by default: the improvement over HG4MAC's own long-standing behaviour asked for
+    /// directly — a USB audio device used to be left to USB Monitor's generic notice
+    /// alone. Configurable rather than simply changed outright, for whoever preferred the
+    /// old, quieter pairing.
+    private var notifiesUSBDevices: Bool
     private var hasWarnedAboutVolume = false
     private var lastVolumePercent: Int?
 
@@ -74,19 +79,22 @@ public actor AudioMonitor: Monitor {
         context: MonitorContext,
         micStopDebounce: Double = 1.0,
         volumeCriticalThreshold: Int = 90,
-        notifiesVirtualDevices: Bool = false
+        notifiesVirtualDevices: Bool = false,
+        notifiesUSBDevices: Bool = true
     ) {
         self.source = source
         self.context = context
         self.micStopDebounceNanoseconds = UInt64(micStopDebounce * 1_000_000_000)
         self.volumeCriticalThreshold = volumeCriticalThreshold
         self.notifiesVirtualDevices = notifiesVirtualDevices
+        self.notifiesUSBDevices = notifiesUSBDevices
     }
 
     /// Called when a setting changes, so it applies without a relaunch.
-    public func apply(volumeCriticalThreshold: Int, notifiesVirtualDevices: Bool) {
+    public func apply(volumeCriticalThreshold: Int, notifiesVirtualDevices: Bool, notifiesUSBDevices: Bool) {
         self.volumeCriticalThreshold = volumeCriticalThreshold
         self.notifiesVirtualDevices = notifiesVirtualDevices
+        self.notifiesUSBDevices = notifiesUSBDevices
     }
 
     public func start() async {
@@ -249,6 +257,7 @@ public actor AudioMonitor: Monitor {
             let device = current[id]!
             guard !device.transport.isCoveredByAnotherMonitor else { continue }
             guard notifiesVirtualDevices || !device.transport.isVirtualOrAggregate else { continue }
+            guard notifiesUSBDevices || device.transport != .usb else { continue }
             reportedConnectedIDs.insert(id)
             await context.notify(
                 AudioEvent.connected.rawValue,

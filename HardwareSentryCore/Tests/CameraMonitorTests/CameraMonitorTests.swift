@@ -31,7 +31,8 @@ struct CameraMonitorTests {
         _ script: [CameraSourceEvent],
         stopDebounce: Double = 0.02,
         settleSeconds: Double = 0,
-        notifiesVirtualDevices: Bool = false
+        notifiesVirtualDevices: Bool = false,
+        notifiesUSBDevices: Bool = true
     ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
@@ -39,7 +40,8 @@ struct CameraMonitorTests {
             source: ScriptedCameraSource(script: script),
             context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category),
             stopDebounce: stopDebounce,
-            notifiesVirtualDevices: notifiesVirtualDevices
+            notifiesVirtualDevices: notifiesVirtualDevices,
+            notifiesUSBDevices: notifiesUSBDevices
         )
 
         await monitor.start()
@@ -86,7 +88,7 @@ struct CameraMonitorTests {
             ]),
             context: MonitorContext(dispatcher: NotificationDispatcher(delivery: delivery), category: CameraMonitor.category)
         )
-        await monitor.apply(notifiesVirtualDevices: true)
+        await monitor.apply(notifiesVirtualDevices: true, notifiesUSBDevices: true)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))
@@ -114,6 +116,27 @@ struct CameraMonitorTests {
         ])
         #expect(events.count == 1)
         #expect(events.first?.name == "CameraConnected")
+    }
+
+    @Test("a USB camera is announced by default, alongside whatever USB Monitor says")
+    func usbCameraIsAnnouncedByDefault() async {
+        let events = await run([
+            .connected(uid: "cam-1", name: "Composite Webcam", detail: CameraDetail(transport: "USB"))
+        ])
+        #expect(events.count == 1)
+        #expect(events.first?.name == "CameraConnected")
+    }
+
+    @Test("a USB camera can be switched back to USB Monitor's own notice alone")
+    func usbCameraCanBeSuppressedAgain() async {
+        let events = await run(
+            [
+                .connected(uid: "cam-1", name: "Composite Webcam", detail: CameraDetail(transport: "USB")),
+                .disconnected(uid: "cam-1", name: "Composite Webcam")
+            ],
+            notifiesUSBDevices: false
+        )
+        #expect(events.isEmpty)
     }
 
     @Test("the first running snapshot is a silent baseline")

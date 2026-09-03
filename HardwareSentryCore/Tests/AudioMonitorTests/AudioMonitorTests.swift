@@ -33,7 +33,8 @@ struct AudioMonitorTests {
     private func run(
         _ script: [AudioSourceEvent],
         settleFor debounce: Double = 0.05,
-        notifiesVirtualDevices: Bool = false
+        notifiesVirtualDevices: Bool = false,
+        notifiesUSBDevices: Bool = true
     ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
@@ -48,7 +49,8 @@ struct AudioMonitorTests {
                 announcesWhatIsAlreadyThere: false
             ),
             micStopDebounce: debounce,
-            notifiesVirtualDevices: notifiesVirtualDevices
+            notifiesVirtualDevices: notifiesVirtualDevices,
+            notifiesUSBDevices: notifiesUSBDevices
         )
 
         await monitor.start()
@@ -112,6 +114,30 @@ struct AudioMonitorTests {
         #expect(events.isEmpty)
     }
 
+    @Test("a USB audio device can be switched back to USB Monitor's own notice alone")
+    func usbTransportCanBeSuppressedAgain() async {
+        let events = await run(
+            [
+                .deviceSnapshot([]),
+                .deviceSnapshot([device("1", transport: .usb)])
+            ],
+            notifiesUSBDevices: false
+        )
+        #expect(events.isEmpty)
+    }
+
+    @Test("a suppressed USB device disconnecting never fires a stray disconnect, once turned off")
+    func suppressedUSBDeviceNeverFiresDisconnect() async {
+        let events = await run(
+            [
+                .deviceSnapshot([device("1", transport: .usb)]),
+                .deviceSnapshot([])
+            ],
+            notifiesUSBDevices: false
+        )
+        #expect(events.isEmpty)
+    }
+
     @Test("a virtual or aggregate device is not announced by default")
     func virtualDeviceIsSuppressedByDefault() async {
         let events = await run([
@@ -137,7 +163,7 @@ struct AudioMonitorTests {
                 announcesWhatIsAlreadyThere: false
             )
         )
-        await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true)
+        await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true, notifiesUSBDevices: true)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))
@@ -392,7 +418,7 @@ struct AudioVolumeCriticalTests {
             ),
             volumeCriticalThreshold: 90
         )
-        await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false)
+        await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false, notifiesUSBDevices: true)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))

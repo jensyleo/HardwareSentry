@@ -107,6 +107,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent),
             audioNotifiesVirtualDevices: tuning.notifiesVirtualAudioDevices,
             cameraNotifiesVirtualDevices: tuning.notifiesVirtualCameraDevices,
+            audioNotifiesUSBDevices: tuning.notifiesUSBAudioDevices,
+            cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices,
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
@@ -126,7 +128,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     volumeExclusions: tuning.volumeExclusions,
                     audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent),
                     audioNotifiesVirtualDevices: tuning.notifiesVirtualAudioDevices,
-                    cameraNotifiesVirtualDevices: tuning.notifiesVirtualCameraDevices
+                    cameraNotifiesVirtualDevices: tuning.notifiesVirtualCameraDevices,
+                    audioNotifiesUSBDevices: tuning.notifiesUSBAudioDevices,
+                    cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices
                 )
             }
         }

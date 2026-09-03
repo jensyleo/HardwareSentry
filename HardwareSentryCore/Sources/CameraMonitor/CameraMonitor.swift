@@ -40,9 +40,15 @@ public actor CameraMonitor: Monitor {
     /// that starts and stops, not a camera that arrived or left the room — the same
     /// reasoning as `AudioMonitor`'s equivalent switch, which this reuses the wording of.
     private var notifiesVirtualDevices: Bool
-    /// UIDs a connect was suppressed for, so the matching disconnect is suppressed too
-    /// rather than reporting the departure of an arrival nobody was told about.
-    private var suppressedVirtualUIDs: Set<String> = []
+    /// On by default: this is the improvement over HG4MAC's own long-standing behaviour
+    /// asked for directly — a camera arriving over USB used to be left to USB Monitor's
+    /// generic notice alone. Configurable rather than simply changed outright, for
+    /// whoever preferred the old, quieter pairing.
+    private var notifiesUSBDevices: Bool
+    /// UIDs a connect was suppressed for — whether because it was virtual or because it
+    /// arrived over USB with that switch off — so the matching disconnect is suppressed
+    /// too rather than reporting the departure of an arrival nobody was told about.
+    private var suppressedUIDs: Set<String> = []
 
     private var currentlyRunning: Set<String> = []
     private var runningNames: [String: String] = [:]
@@ -54,17 +60,20 @@ public actor CameraMonitor: Monitor {
         source: any CameraSource,
         context: MonitorContext,
         stopDebounce: Double = 1.0,
-        notifiesVirtualDevices: Bool = false
+        notifiesVirtualDevices: Bool = false,
+        notifiesUSBDevices: Bool = true
     ) {
         self.source = source
         self.context = context
         self.stopDebounceNanoseconds = UInt64(stopDebounce * 1_000_000_000)
         self.notifiesVirtualDevices = notifiesVirtualDevices
+        self.notifiesUSBDevices = notifiesUSBDevices
     }
 
-    /// Called when the setting changes, so it applies without a relaunch.
-    public func apply(notifiesVirtualDevices: Bool) {
+    /// Called when a setting changes, so it applies without a relaunch.
+    public func apply(notifiesVirtualDevices: Bool, notifiesUSBDevices: Bool) {
         self.notifiesVirtualDevices = notifiesVirtualDevices
+        self.notifiesUSBDevices = notifiesUSBDevices
     }
 
     public func start() async {
@@ -89,7 +98,11 @@ public actor CameraMonitor: Monitor {
         switch event {
         case .connected(let uid, let name, let detail):
             guard notifiesVirtualDevices || detail?.transport != "Virtual" else {
-                suppressedVirtualUIDs.insert(uid)
+                suppressedUIDs.insert(uid)
+                return
+            }
+            guard notifiesUSBDevices || detail?.transport != "USB" else {
+                suppressedUIDs.insert(uid)
                 return
             }
             await context.notify(
@@ -114,7 +127,7 @@ public actor CameraMonitor: Monitor {
         case .disconnected(let uid, let name):
             pendingStops.removeValue(forKey: uid)?.cancel()
             lastNotifiedRunning.remove(uid)
-            guard suppressedVirtualUIDs.remove(uid) == nil else { return }
+            guard suppressedUIDs.remove(uid) == nil else { return }
             await context.notify(
                 CameraEvent.disconnected.rawValue, subject: uid,
                 title: "Camera Disconnected", body: name,

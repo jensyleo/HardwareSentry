@@ -340,6 +340,11 @@ private struct ModuleDetail: View {
 
             if module.category.rawValue == "Camera", title == titles.first {
                 Section {
+                    Toggle("Notify for USB devices independently of USB Monitor", isOn: $tuning.notifiesUSBCameraDevices)
+                    Text("On by default: a USB webcam gets its own \u{201C}Camera Connected\u{201D} \u{2014} resolution, manufacturer, whether Center Stage is active \u{2014} alongside whatever USB Monitor already says, rather than only the generic USB notice. Switch off to go back to leaving USB cameras to USB Monitor alone.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Toggle("Notify for virtual devices", isOn: $tuning.notifiesVirtualCameraDevices)
                     Text("A camera an app makes up \u{2014} OBS Virtual Camera, a video-call plugin \u{2014} is software rather than a camera that arrived, off by default for the same reason as Audio's equivalent switch. An iPhone used as a webcam is unaffected: Continuity Camera reports its own transport, never this one.")
                         .font(.caption)
@@ -359,6 +364,11 @@ private struct ModuleDetail: View {
 
                     Toggle("Notify for virtual/aggregate devices", isOn: $tuning.notifiesVirtualAudioDevices)
                     Text("A Multi-Output/Aggregate device built in Audio MIDI Setup, or a driver an app like Zoom or Teams installs to capture what is playing, is software rather than a device that arrived or left \u{2014} off by default so \u{201C}Connected\u{201D} keeps meaning hardware.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Notify for USB devices independently of USB Monitor", isOn: $tuning.notifiesUSBAudioDevices)
+                    Text("On by default: a USB audio interface gets its own \u{201C}Audio Device Connected\u{201D} \u{2014} sample rate, channel count, whether it became the default \u{2014} alongside whatever USB Monitor already says. Switch off to go back to leaving USB audio devices to USB Monitor alone.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
