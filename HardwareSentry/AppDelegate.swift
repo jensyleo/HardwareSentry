@@ -106,7 +106,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
-            connectionNaming: tuning.connectionNaming
+            connectionNaming: tuning.connectionNaming,
+            volumeExclusions: tuning.volumeExclusions
         )
         // Changed numbers reach the running monitors rather than waiting for a relaunch.
         tuning.onChange = { [weak self] in
@@ -115,7 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await registry.apply(
                     powerRefire: tuning.powerRefire,
                     powerHealthCheck: tuning.powerHealthCheck,
-                    volumeLowSpacePercent: tuning.lowSpacePercent
+                    volumeLowSpacePercent: tuning.lowSpacePercent,
+                    volumeExclusions: tuning.volumeExclusions
                 )
             }
         }

@@ -8,22 +8,26 @@ import SignalCore
 public actor AudioMonitor: Monitor {
     public static let category = AudioEvent.category
 
+    /// In the original's order and its words. Micro-detail worth keeping: the original
+    /// pairs the microphone's two states as one row and the head-tracking pair as one, but
+    /// this keeps them apart — an "in use" notification and an "idle" one are the two
+    /// halves of a privacy signal, and somebody may reasonably want only the first.
     public static let events: [MonitorEventDescription] = [
-        .init(name: AudioEvent.defaultOutputChanged.rawValue, title: "Default output device changed", icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default input device changed", icon: .asset("AudioMonitor-Icon-MicIdle", in: .module)),
-        .init(name: AudioEvent.connected.rawValue, title: "Device connected (not USB/Bluetooth)", icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.disconnected.rawValue, title: "Device disconnected (not USB/Bluetooth)", icon: .asset("AudioMonitor-Icon-Off", in: .module)),
-        .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone started/stopped being used", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
-        .init(name: AudioEvent.midiDeviceAdded.rawValue, title: "MIDI device added", icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.sampleRateChanged.rawValue, title: "Sample rate changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-SampleRate", in: .module)),
-        .init(name: AudioEvent.volumeCritical.rawValue, title: "Volume dangerously high", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)),
-        .init(name: AudioEvent.jackChanged.rawValue, title: "Something plugged into a jack", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.dataSourceChanged.rawValue, title: "Audio source changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.deviceStoppedResponding.rawValue, title: "Device stopped responding", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
-        .init(name: AudioEvent.microphoneModeChanged.rawValue, title: "Microphone mode changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
-        .init(name: AudioEvent.headTrackingConnected.rawValue, title: "Head-tracking headphones connected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.headTrackingDisconnected.rawValue, title: "Head-tracking headphones disconnected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
-        .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI device removed", icon: .asset("AudioMonitor-Icon-Off", in: .module))
+        .init(name: AudioEvent.connected.rawValue, title: "Connected", icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.disconnected.rawValue, title: "Disconnected/Muted", icon: .asset("AudioMonitor-Icon-Off", in: .module)),
+        .init(name: AudioEvent.defaultOutputChanged.rawValue, title: "Default Output Changed", icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default Input Changed", icon: .asset("AudioMonitor-Icon-MicIdle", in: .module)),
+        .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone In Use / Idle", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
+        .init(name: AudioEvent.sampleRateChanged.rawValue, title: "Sample Rate Changed", icon: .asset("AudioMonitor-Icon-SampleRate", in: .module)),
+        .init(name: AudioEvent.volumeCritical.rawValue, title: "Volume Critical", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)),
+        .init(name: AudioEvent.jackChanged.rawValue, title: "Audio Jack Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.dataSourceChanged.rawValue, title: "Audio Source Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.deviceStoppedResponding.rawValue, title: "Device Stopped Responding", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
+        .init(name: AudioEvent.microphoneModeChanged.rawValue, title: "Microphone Mode Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
+        .init(name: AudioEvent.headTrackingConnected.rawValue, title: "Head-Tracking Headphones", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.headTrackingDisconnected.rawValue, title: "Head-Tracking Headphones Gone", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
+        .init(name: AudioEvent.midiDeviceAdded.rawValue, title: "MIDI Device Connected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
+        .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI Device Disconnected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module))
     ]
 
     public static let fields: [MonitorFieldDescription] = AudioField.allCases.map {

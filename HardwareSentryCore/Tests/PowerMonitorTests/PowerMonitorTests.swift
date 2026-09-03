@@ -141,18 +141,14 @@ struct PowerMonitorTests {
     func eventsAreDeclaredWithDefaults() {
         let byName = Dictionary(uniqueKeysWithValues: PowerMonitor.events.map { ($0.name, $0.enabledByDefault) })
 
-        #expect(byName == [
-            "PowerChange": true,
-            "PowerFullyCharged": true,
-            "PowerWarning": true,
-            "PowerSystemSleep": false,
-            "PowerSystemWake": false,
-            "PowerScreensSleep": false,
-            "PowerScreensWake": false,
-            "PowerLowPowerMode": false,
-            "PowerAdapterChanged": true,
-            "PowerBatteryHealth": true
-        ])
+        // One row per rung of the gauge, draining and charging, then the states about the
+        // battery itself and the system's own sleeping and waking.
+        #expect(Set(byName.keys) == Set(PowerEvent.allCases.map(\.rawValue)))
+        #expect(PowerRung.all.count == 22)
+        #expect(PowerRung.all.allSatisfy { byName[$0.event.rawValue] == true })
+        #expect(byName["PowerPluggedIn"] == true)
+        #expect(byName["PowerChange"] == true)
+        #expect(byName["PowerBatteryHealth"] == true)
     }
 
     @Test("a Mac with no battery is not told a charge level it does not have")
@@ -518,5 +514,46 @@ struct PowerSourceDetailTests {
     func unsettledTimeIsSilent() {
         #expect(PowerSourceDetail(minutesRemaining: 0, isCharging: false).timeNote == nil)
         #expect(PowerSourceDetail(minutesRemaining: nil).timeNote == nil)
+    }
+}
+
+@Suite("PowerRung · one row per rung of the gauge")
+struct PowerRungTests {
+    @Test("eleven rungs draining and eleven charging, each with artwork that exists")
+    func everyRungIsDeclared() {
+        #expect(PowerRung.all.count == 22)
+
+        for rung in PowerRung.all {
+            let declared = PowerMonitor.events.first { $0.name == rung.event.rawValue }
+            #expect(declared != nil, "\(rung) has no row")
+            // `.asset` gives no icon for a name that resolves to nothing, so this catches
+            // a typo in an artwork name as well as a missing row.
+            #expect(declared?.icon != .none, "\(rung) has no icon")
+            #expect(declared?.title == rung.settingsTitle)
+        }
+    }
+
+    @Test("a charging battery and a draining one are not the same row")
+    func chargingIsItsOwnRung() {
+        // Same percentage, different picture and different switch: showing a full battery
+        // the moment a nearly-empty Mac is plugged in would be actively misleading.
+        #expect(PowerRung(percentage: 50, isCharging: false).iconBaseName == "Power-50")
+        #expect(PowerRung(percentage: 50, isCharging: true).iconBaseName == "Power-Charging-50")
+        #expect(PowerRung(percentage: 50, isCharging: false).event != PowerRung(percentage: 50, isCharging: true).event)
+    }
+
+    @Test("a reading is rounded to the rung the artwork comes in")
+    func percentagesRound() {
+        #expect(PowerRung.rung(forPercentage: 87, isCharging: false).percentage == 90)
+        #expect(PowerRung.rung(forPercentage: 84, isCharging: false).percentage == 80)
+        #expect(PowerRung.rung(forPercentage: 3, isCharging: true).percentage == 0)
+        // And clamped, because a source that reports 110 exists and there is no icon for it.
+        #expect(PowerRung.rung(forPercentage: 110, isCharging: false).percentage == 100)
+        #expect(PowerRung.rung(forPercentage: -5, isCharging: false).percentage == 0)
+    }
+
+    @Test("the module's icon is not whichever rung happens to be declared first")
+    func moduleIconIsDeclared() {
+        #expect(PowerMonitor.icon == .asset("Power-Plugged", in: .module))
     }
 }

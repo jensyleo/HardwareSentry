@@ -64,7 +64,8 @@ public actor VolumeMonitor: Monitor {
     /// passed through here first was pulled out, not ejected.
     private var pathsExpectingUnmount: Set<String> = []
     private var expectedUnmountExpiries: [String: Task<Void, Never>] = [:]
-    private let exclusions: VolumeExclusions
+    /// A `var` because the list is edited in a settings window while this is running.
+    private var exclusions: VolumeExclusions
     private var unreadableTracker = UnreadableDiskTracker()
     /// How long a promised unmount is believed before the path goes back to being one a
     /// surprise removal can be reported for.
@@ -98,9 +99,12 @@ public actor VolumeMonitor: Monitor {
     /// threshold should not re-announce a volume that is already known to be low, and
     /// lowering it should not announce recovery on a volume whose free space never moved.
     /// Either way the next free-space reading settles it.
-    public func apply(lowSpaceThresholdPercent percent: Double) {
+    public func apply(lowSpaceThresholdPercent percent: Double, exclusions: VolumeExclusions) {
         lowSpaceThresholdPercent = percent
         lowSpaceRecoverPercent = percent + 5
+        // A volume already announced stays announced: adding it to the list means "stop
+        // telling me about this", not "pretend the last hour did not happen".
+        self.exclusions = exclusions
     }
 
     /// The path and name an event is about, when it is about one volume.

@@ -238,6 +238,10 @@ private struct ModuleDetail: View {
                 }
             }
 
+            if module.category.rawValue == "Volume", title == titles.first {
+                IgnoredDrivesEditor(drives: $tuning.ignoredDrives)
+            }
+
             if module.category.rawValue == "Network", title == "Wi-Fi" {
                 Section {
                     slider(
@@ -478,5 +482,66 @@ private struct ThermalSimulator: View {
         ForEach(ThermalState.allCases, id: \.self) { state in
             Text(state.label).tag(state)
         }
+    }
+}
+
+
+/// The volumes whose comings and goings are not worth a notification.
+///
+/// Worth its own editor because the alternative is switching the whole module off. A Time
+/// Machine disk that mounts on a schedule, or a virtual-machine image that mounts every
+/// time a VM starts, is a notification nobody caused — and losing every other volume's
+/// notifications to silence that one is a bad trade.
+private struct IgnoredDrivesEditor: View {
+    @Binding var drives: [String]
+    @State private var selection: String?
+    @State private var typed = ""
+
+    var body: some View {
+        Section("Ignored Drives") {
+            Text("A volume whose name or mount path matches one of these is never announced — neither arriving nor leaving. A trailing * matches anything after it, so \"VM *\" covers every disk image whose name starts that way.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            List(selection: $selection) {
+                ForEach(drives, id: \.self) { drive in
+                    Text(drive).tag(drive)
+                }
+            }
+            .frame(minHeight: 90)
+
+            HStack {
+                TextField("Volume name or mount path", text: $typed)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                Button("Add", action: add)
+                    // A bare "*" would silence the module while appearing to run, and a
+                    // duplicate would sit in the list doing nothing twice.
+                    .disabled(!canAdd)
+                Button("Remove") {
+                    guard let selection else { return }
+                    drives.removeAll { $0 == selection }
+                    self.selection = nil
+                }
+                .disabled(selection == nil)
+            }
+
+            if typed.trimmingCharacters(in: .whitespaces) == "*" {
+                Text("A pattern of just \"*\" would silence every volume, which is what switching the module off is for.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private var canAdd: Bool {
+        let pattern = typed.trimmingCharacters(in: .whitespaces)
+        return !pattern.isEmpty && pattern != "*" && !drives.contains(pattern)
+    }
+
+    private func add() {
+        guard canAdd else { return }
+        drives.append(typed.trimmingCharacters(in: .whitespaces))
+        typed = ""
     }
 }

@@ -3,6 +3,7 @@ import MonitorRegistry
 import PowerMonitor
 import SentryContract
 import ScannerMonitor
+import VolumeMonitor
 import Observation
 
 /// The handful of numbers that change how often a monitor speaks, rather than whether it
@@ -46,6 +47,7 @@ final class MonitorTuningModel {
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
         wifiSignalCooldownSeconds = defaults.double(forKey: Self.wifiSignalCooldownKey)
+        ignoredDrives = defaults.stringArray(forKey: Self.ignoredDrivesKey) ?? []
         connectionNaming = defaults.string(forKey: Self.connectionNamingKey)
             .flatMap(ConnectionNaming.init(rawValue:)) ?? .mediumAndType
     }
@@ -88,6 +90,20 @@ final class MonitorTuningModel {
 
     /// How connection notifications name what arrived, for USB, Bluetooth and
     /// Thunderbolt. Read at launch, since it is handed to each monitor when it is built.
+    /// Volumes whose comings and goings are not worth a notification.
+    ///
+    /// A Time Machine disk that mounts on a schedule, or a virtual-machine image that
+    /// mounts every time a VM starts, is a notification nobody caused and nobody wants.
+    /// Held as one string per line, which is what a list somebody edits by hand should be.
+    var ignoredDrives: [String] {
+        didSet {
+            defaults.set(ignoredDrives, forKey: Self.ignoredDrivesKey)
+            onChange?()
+        }
+    }
+
+    var volumeExclusions: VolumeExclusions { VolumeExclusions(patterns: ignoredDrives) }
+
     var connectionNaming: ConnectionNaming {
         didSet { defaults.set(connectionNaming.rawValue, forKey: Self.connectionNamingKey) }
     }
@@ -133,4 +149,5 @@ final class MonitorTuningModel {
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"
     private static let wifiSignalCooldownKey = "Network.WifiSignalCooldownSeconds"
     private static let connectionNamingKey = "HardwareSentry.ConnectionNaming"
+    private static let ignoredDrivesKey = "Volume.IgnoredDrives"
 }

@@ -38,6 +38,7 @@ public actor MonitorRegistry {
     private let networkSignalCooldown: TimeInterval
     private let videoLinkPollInterval: Duration
     private let connectionNaming: ConnectionNaming
+    private let volumeExclusions: VolumeExclusions
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -58,7 +59,8 @@ public actor MonitorRegistry {
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
         networkSignalCooldown: TimeInterval = 10,
         videoLinkPollInterval: Duration = .seconds(5),
-        connectionNaming: ConnectionNaming = .mediumAndType
+        connectionNaming: ConnectionNaming = .mediumAndType,
+        volumeExclusions: VolumeExclusions = VolumeExclusions()
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
@@ -72,20 +74,25 @@ public actor MonitorRegistry {
         self.networkSignalCooldown = networkSignalCooldown
         self.videoLinkPollInterval = videoLinkPollInterval
         self.connectionNaming = connectionNaming
+        self.volumeExclusions = volumeExclusions
     }
 
     /// Passes changed tuning to the monitors that care about it, without rebuilding them.
     public func apply(
         powerRefire: PowerRefireSettings,
         powerHealthCheck: PowerHealthCheckSettings,
-        volumeLowSpacePercent: Double
+        volumeLowSpacePercent: Double,
+        volumeExclusions: VolumeExclusions
     ) async {
         for monitor in monitors {
             if let power = monitor as? PowerMonitor {
                 await power.apply(refire: powerRefire, healthCheck: powerHealthCheck)
             }
             if let volume = monitor as? VolumeMonitor {
-                await volume.apply(lowSpaceThresholdPercent: volumeLowSpacePercent)
+                await volume.apply(
+                    lowSpaceThresholdPercent: volumeLowSpacePercent,
+                    exclusions: volumeExclusions
+                )
             }
         }
     }
@@ -160,6 +167,7 @@ public actor MonitorRegistry {
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
+                exclusions: volumeExclusions,
                 lowSpaceThresholdPercent: volumeLowSpacePercent
             ),
             PowerMonitor(

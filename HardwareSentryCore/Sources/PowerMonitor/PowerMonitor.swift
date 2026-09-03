@@ -8,18 +8,35 @@ import SignalCore
 public actor PowerMonitor: Monitor {
     public static let category = PowerEvent.category
 
+    /// In the original's order: the adapter, then every rung of the gauge draining and
+    /// charging, then the states that are about the battery rather than its level, then
+    /// the system's own sleeping and waking.
     public static let events: [MonitorEventDescription] = [
+        .init(name: PowerEvent.pluggedIn.rawValue, title: "Plugged In", icon: .asset("Power-Plugged", in: .module))
+    ] + PowerRung.all.map { rung in
+        .init(
+            name: rung.event.rawValue,
+            title: rung.settingsTitle,
+            icon: .asset(rung.iconBaseName, in: .module)
+        )
+    } + [
+        .init(name: PowerEvent.batteryFailure.rawValue, title: "Battery Failure", icon: .asset("Power-BatteryFailure", in: .module)),
+        .init(name: PowerEvent.noBattery.rawValue, title: "No Battery", icon: .asset("Power-NoBattery", in: .module)),
+        .init(name: PowerEvent.lowPowerModeChanged.rawValue, title: "Low Power Mode", icon: .asset("Power-LowPowerMode", in: .module)),
+        .init(name: PowerEvent.adapterChanged.rawValue, title: "Adapter Changed", icon: .asset("Power-AdapterChanged", in: .module)),
+        .init(name: PowerEvent.systemSleep.rawValue, title: "System Sleep", icon: .asset("Power-LowPowerMode", in: .module)),
+        .init(name: PowerEvent.systemWake.rawValue, title: "System Wake", icon: .asset("Power-AdapterChanged", in: .module)),
+        .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) Sleep", icon: .asset("Power-LowPowerMode", in: .module)),
+        .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) Wake", icon: .asset("Power-AdapterChanged", in: .module)),
+        // Two of this application's own, which the original does not have as rows.
         .init(name: PowerEvent.sourceChanged.rawValue, title: "Power source changed", icon: .asset("Power-Plugged", in: .module)),
         .init(name: PowerEvent.fullyCharged.rawValue, title: "Battery fully charged", icon: .asset("Power-100", in: .module)),
         .init(name: PowerEvent.lowBatteryWarning.rawValue, title: "Battery low", icon: .asset("Power-10", in: .module)),
-        .init(name: PowerEvent.systemSleep.rawValue, title: "System going to sleep", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module)),
-        .init(name: PowerEvent.systemWake.rawValue, title: "System woke up", enabledByDefault: false, icon: .asset("Power-AdapterChanged", in: .module)),
-        .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) went to sleep", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module)),
-        .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) woke up", enabledByDefault: false, icon: .asset("Power-AdapterChanged", in: .module)),
-        .init(name: PowerEvent.lowPowerModeChanged.rawValue, title: "Low Power Mode toggled", enabledByDefault: false, icon: .asset("Power-LowPowerMode", in: .module)),
-        .init(name: PowerEvent.adapterChanged.rawValue, title: "Power adapter changed", icon: .asset("Power-AdapterChanged", in: .module)),
         .init(name: PowerEvent.batteryHealth.rawValue, title: "Battery health report", icon: .asset("Power-BatteryFailure", in: .module))
     ]
+
+    /// Said outright: the first row is the adapter, and this module is about more.
+    public static let icon: NotificationIcon = .asset("Power-Plugged", in: .module)
 
     public static let fields: [MonitorFieldDescription] = PowerField.allCases.map {
         .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault)
