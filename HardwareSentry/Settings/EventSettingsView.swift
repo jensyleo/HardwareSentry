@@ -20,6 +20,8 @@ struct EventSettingsView: View {
     @Bindable var tuning: MonitorTuningModel
     /// Fires one thermal transition on demand. See `ThermalSimulator`.
     let simulateThermal: (ThermalState, ThermalState) -> Void
+    /// Reads the battery now, rather than waiting for the next scheduled check.
+    let checkBatteryHealthNow: () -> Void
 
     @State private var selection: String?
     /// Which of the selected module's tabs is showing, by name.
@@ -46,7 +48,7 @@ struct EventSettingsView: View {
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, pane: $pane)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, checkBatteryHealthNow: checkBatteryHealthNow, pane: $pane)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -180,6 +182,7 @@ private struct ModuleDetail: View {
     @Bindable var iconOverrides: IconOverrideStore
     @Bindable var tuning: MonitorTuningModel
     let simulateThermal: (ThermalState, ThermalState) -> Void
+    let checkBatteryHealthNow: () -> Void
     @Binding var pane: String
 
     private var titles: [String] { ModulePane.titles(for: module) }
@@ -238,8 +241,75 @@ private struct ModuleDetail: View {
                 }
             }
 
+            if module.category.rawValue == "Power", title == titles.first {
+                Section("Repeat and re-check") {
+                    Toggle("Repeat the power status periodically", isOn: $tuning.repeatsPowerStatus)
+                    if tuning.repeatsPowerStatus {
+                        // Steppers rather than sliders throughout this section: these are
+                        // numbers somebody arrives with ("every fifteen minutes", "every
+                        // thirty days"), not ones they want to find by feel.
+                        Stepper(
+                            "Every \(Int(tuning.refireMinutes)) minutes",
+                            value: $tuning.refireMinutes,
+                            in: 1...1440,
+                            step: 5
+                        )
+                        Toggle("Only while on battery", isOn: $tuning.refireOnlyOnBattery)
+                    }
+
+                    Toggle("Check the battery's health regularly", isOn: $tuning.checksBatteryHealth)
+                    if tuning.checksBatteryHealth {
+                        Stepper(
+                            "Every \(Int(tuning.healthCheckDays)) days",
+                            value: $tuning.healthCheckDays,
+                            in: 1...365,
+                            step: 1
+                        )
+                        Text("Reports only when the reading has moved, so a battery that is holding up stays quiet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack {
+                        Button("Check Now", action: checkBatteryHealthNow)
+                        Spacer()
+                        if let last = tuning.lastBatteryCheck {
+                            Text("Last checked \(last.formatted(.relative(presentation: .named)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
             if module.category.rawValue == "Volume", title == titles.first {
+                Section("Low disk space") {
+                    Stepper(
+                        "Warn when free space falls below \(Int(tuning.lowSpacePercent))%",
+                        value: $tuning.lowSpacePercent,
+                        in: 1...50,
+                        step: 1
+                    )
+                    Text("Recovery is announced five points higher, so a volume hovering around the line is not reported over and over.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 IgnoredDrivesEditor(drives: $tuning.ignoredDrives)
+            }
+
+            if module.category.rawValue == "Scanner", title == titles.first {
+                Section("Status polling") {
+                    Stepper(
+                        "Ask what it is doing every \(Int(tuning.scannerStatusSeconds))s",
+                        value: $tuning.scannerStatusSeconds,
+                        in: 2...300,
+                        step: 1
+                    )
+                    Text("Only when the scan and feeder notifications are switched on, and only for scanners that speak AirScan. Each check is one request to the scanner, so a short interval is real traffic. Takes effect the next time the application starts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if module.category.rawValue == "Display", title == titles.first {

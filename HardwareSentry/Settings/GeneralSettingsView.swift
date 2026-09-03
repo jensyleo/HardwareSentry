@@ -7,8 +7,6 @@ import UniformTypeIdentifiers
 struct GeneralSettingsView: View {
     @Bindable var model: GeneralSettingsModel
     @Bindable var tuning: MonitorTuningModel
-    /// Reads the battery now, rather than waiting for the next scheduled check.
-    let checkBatteryHealthNow: () -> Void
     @State private var message: String?
 
     var body: some View {
@@ -59,68 +57,11 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Power") {
-                Toggle("Repeat the power status periodically", isOn: $tuning.repeatsPowerStatus)
-                if tuning.repeatsPowerStatus {
-                    // Stepper rather than a slider: this is a number somebody has in mind
-                    // ("every fifteen minutes"), not one they want to find by feel.
-                    Stepper(
-                        "Every \(Int(tuning.refireMinutes)) minutes",
-                        value: $tuning.refireMinutes,
-                        in: 1...1440,
-                        step: 5
-                    )
-                    Toggle("Only while on battery", isOn: $tuning.refireOnlyOnBattery)
-                }
-
-                Toggle("Check the battery's health regularly", isOn: $tuning.checksBatteryHealth)
-                if tuning.checksBatteryHealth {
-                    Stepper(
-                        "Every \(Int(tuning.healthCheckDays)) days",
-                        value: $tuning.healthCheckDays,
-                        in: 1...365,
-                        step: 1
-                    )
-                    Text("Reports only when the reading has moved, so a battery that is holding up stays quiet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack {
-                    Button("Check Now", action: checkBatteryHealthNow)
-                    Spacer()
-                    if let last = tuning.lastBatteryCheck {
-                        Text("Last checked \(last.formatted(.relative(presentation: .named)))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            Section("Volumes") {
-                Stepper(
-                    "Warn when free space falls below \(Int(tuning.lowSpacePercent))%",
-                    value: $tuning.lowSpacePercent,
-                    in: 1...50,
-                    step: 1
-                )
-                Text("Recovery is announced five points higher, so a volume hovering around the line is not reported over and over.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Network scanners") {
-                Stepper(
-                    "Ask what it is doing every \(Int(tuning.scannerStatusSeconds))s",
-                    value: $tuning.scannerStatusSeconds,
-                    in: 2...300,
-                    step: 1
-                )
-                Text("Only when the scan and feeder notifications are switched on, and only for scanners that speak AirScan. Each check is one request to the scanner, so a short interval is real traffic. Takes effect the next time the application starts.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
+            // Power's schedule, the low-space threshold and the scanner poll interval used
+            // to sit here. They moved to their own modules' tabs: a setting about one
+            // module belongs beside that module's notifications, where somebody who has
+            // just switched Low Disk Space on is already looking. What is left is either
+            // about the application itself or about several modules at once.
             Section("Profile") {
                 Text("Back up or restore every custom icon and every on/off setting — which modules run, their notification toggles, and what each message includes — in one file.")
                     .font(.caption)

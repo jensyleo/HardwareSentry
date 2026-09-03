@@ -21,13 +21,13 @@ struct SettingsView: View {
         TabView {
             // First, and in this order, because it is the one tab about the application
             // itself rather than about the notifications it sends.
-            GeneralSettingsView(model: general, tuning: tuning, checkBatteryHealthNow: checkBatteryHealthNow)
+            GeneralSettingsView(model: general, tuning: tuning)
                 .tabItem { Label("General", systemImage: "gearshape") }
 
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, checkBatteryHealthNow: checkBatteryHealthNow)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
             HistoryView(
