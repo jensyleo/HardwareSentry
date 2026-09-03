@@ -106,6 +106,26 @@ final class BannerWindowController {
         }
     }
 
+    /// Re-asserts this banner's place in front-to-back order, without touching its
+    /// position or restarting its own reveal animation.
+    ///
+    /// Confirmed live, reproduced on screen: a burst of banners arriving close enough
+    /// together — exactly what independent USB and Camera/Audio notices for one physical
+    /// connect now produce — could leave one banner's window behind a newer one even
+    /// after its frame moved to the correct, non-overlapping slot. `present(at:enteringFrom:)`
+    /// calls `orderFrontRegardless()` for a banner that is newly appearing, but `move(to:)`
+    /// never did, so an existing banner's place in the window server's own front-to-back
+    /// order was fixed the moment it first appeared and never touched again — correct only
+    /// as long as no later banner's brief construction work (building the SwiftUI content,
+    /// which can pump AppKit's run loop) let a second `present`/`apply` pass interleave
+    /// before the first had finished. Called for every visible banner on every
+    /// repositioning pass, oldest first, so the stack's own order — newest nearest the
+    /// corner — is also always the window order, independent of whatever briefly
+    /// interleaved to produce a stale one.
+    func bringToFront() {
+        panel.orderFrontRegardless()
+    }
+
     private func frame(at origin: NSPoint) -> NSRect {
         NSRect(origin: origin, size: panel.frame.size)
     }

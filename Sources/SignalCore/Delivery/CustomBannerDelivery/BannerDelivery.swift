@@ -275,6 +275,17 @@ public final class BannerDelivery: NotificationDelivering {
             edge += (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
         }
 
+        // A separate pass, after every banner already has its correct, non-overlapping
+        // frame: re-asserts window front-to-back order to match the stack's own order,
+        // oldest first so the newest — nearest the corner — ends up frontmost. Confirmed
+        // live, reproduced on screen, as the fix for a banner left behind a newer one:
+        // `move(to:)` repositions a window but was never the thing that also re-fronted
+        // it, so a stale front-to-back order from however the windows happened to be
+        // created could survive even once every frame was correct again.
+        for slot in stack.visible.reversed() {
+            controllers[slot.id]?.bringToFront()
+        }
+
         scheduleNextTick()
     }
 
