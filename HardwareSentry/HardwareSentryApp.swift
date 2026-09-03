@@ -60,6 +60,33 @@ struct HardwareSentryApp: App {
             HelpView(registry: delegate.registry)
         }
         .defaultSize(width: 860, height: 620)
+        .commands {
+            HelpMenuCommands()
+        }
+    }
+}
+
+/// Replaces AppKit's own Help menu item.
+///
+/// A `Window` scene makes SwiftUI stand up the ordinary macOS menu bar — File, Edit, View,
+/// Window, Help — even though this application otherwise lives entirely in the status
+/// item. Its Help entry is AppKit's default, which does nothing but announce that no help
+/// book is registered ("Help isn't available for HardwareSentry"), confirmed live: the
+/// status item's own Help button is a second, separate route to the same window, and never
+/// touches this one. Replacing the group is what makes the menu bar's Help menu actually
+/// open it, rather than leaving both entries — this one broken, the other easy to miss —
+/// pointing at the same feature from two different corners of the screen.
+struct HelpMenuCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .help) {
+            Button("HardwareSentry Help") {
+                openWindow(id: HardwareSentryApp.helpWindowID)
+                NSApplication.shared.activate()
+            }
+            .keyboardShortcut("?", modifiers: .command)
+        }
     }
 }
 
