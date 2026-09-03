@@ -12,7 +12,12 @@ struct HelpView: View {
     @State private var topics: [HelpTopic] = HelpLibrary.prose
     @State private var selection: HelpTopic.ID? = HelpLibrary.prose.first?.id
     @State private var query = ""
-    @Environment(\.dismissWindow) private var dismissWindow
+    /// Closes this window. Not `dismissWindow(id:)`: that closes a specific window
+    /// identity from anywhere, which is right for a menu command reaching in from
+    /// outside; this button is inside the window it closes, and `dismiss` is what a
+    /// `Window` scene's own content uses to close itself — the same choice ROMForge's
+    /// `HelpView` makes, and this one is meant to match it.
+    @Environment(\.dismiss) private var dismiss
 
     private var matches: [HelpTopic] {
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -30,45 +35,50 @@ struct HelpView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $selection) {
-                ForEach(matches) { topic in
-                    Label(topic.title, systemImage: topic.symbol).tag(topic.id)
+        VStack(spacing: 0) {
+            NavigationSplitView {
+                List(selection: $selection) {
+                    ForEach(matches) { topic in
+                        Label(topic.title, systemImage: topic.symbol).tag(topic.id)
+                    }
+                }
+                .searchable(text: $query, placement: .sidebar, prompt: "Search help")
+                .navigationSplitViewColumnWidth(min: 220, ideal: 240)
+                .overlay {
+                    if matches.isEmpty {
+                        ContentUnavailableView.search(text: query)
+                    }
+                }
+            } detail: {
+                if let topic = topics.first(where: { $0.id == selection }) {
+                    TopicPage(topic: topic)
+                } else {
+                    ContentUnavailableView("Pick a topic", systemImage: "book")
                 }
             }
-            .searchable(text: $query, placement: .sidebar, prompt: "Search help")
-            .navigationSplitViewColumnWidth(min: 220, ideal: 240)
-            .overlay {
-                if matches.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            // Not a toolbar item: confirmed live that a toolbar-hosted button's own
+            // `.keyboardShortcut` does not reliably reach the responder chain on macOS,
+            // and a toolbar can end up hidden by the system's own "Customize Toolbar…"
+            // state, taking a button that lives only there down with it. A footer in the
+            // ordinary view body has neither problem — same placement as ROMForge's own
+            // `HelpView`, and `AppSettingsView`'s "Done"/hidden "Close" pair there.
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
             }
-        } detail: {
-            if let topic = topics.first(where: { $0.id == selection }) {
-                TopicPage(topic: topic)
-            } else {
-                ContentUnavailableView("Pick a topic", systemImage: "book")
-            }
+            .padding()
+
+            Button("Close") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+                .frame(width: 0, height: 0)
         }
         .frame(minWidth: 760, minHeight: 520)
-        .toolbar {
-            // Placed rather than left to the window's own close button: this is a
-            // reference window somebody dips into and out of while working, and "Done"
-            // says that plainly.
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismissWindow(id: HardwareSentryApp.helpWindowID) }
-            }
-        }
-        .background {
-            // A toolbar-hosted button's own `.keyboardShortcut` does not reliably reach
-            // the responder chain on macOS — confirmed live: the visible Done button
-            // above closes the window on click, but Escape did nothing until this was
-            // added alongside it. A zero-size button in the ordinary view hierarchy gets
-            // the shortcut where the toolbar one didn't.
-            Button("") { dismissWindow(id: HardwareSentryApp.helpWindowID) }
-                .keyboardShortcut(.escape, modifiers: [])
-                .opacity(0)
-        }
         .task {
             // Appended once the monitors have been asked what they can do, so the
             // reference is this build's real inventory rather than a copy that drifts.
