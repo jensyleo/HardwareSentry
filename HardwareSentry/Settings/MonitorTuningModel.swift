@@ -30,6 +30,8 @@ final class MonitorTuningModel {
             Self.healthEnabledKey: true,
             Self.healthDaysKey: 7.0,
             Self.lowSpacePercentKey: 5.0,
+            Self.audioVolumeCriticalKey: 90.0,
+            Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
             Self.wifiSignalCooldownKey: 10.0,
@@ -44,6 +46,8 @@ final class MonitorTuningModel {
         checksBatteryHealth = defaults.bool(forKey: Self.healthEnabledKey)
         healthCheckDays = defaults.double(forKey: Self.healthDaysKey)
         lowSpacePercent = defaults.double(forKey: Self.lowSpacePercentKey)
+        audioVolumeCriticalPercent = defaults.double(forKey: Self.audioVolumeCriticalKey)
+        videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
         wifiSignalCooldownSeconds = defaults.double(forKey: Self.wifiSignalCooldownKey)
@@ -74,6 +78,24 @@ final class MonitorTuningModel {
 
     var lowSpacePercent: Double {
         didSet { defaults.set(lowSpacePercent, forKey: Self.lowSpacePercentKey); onChange?() }
+    }
+
+    /// How often the log is asked whether a video link appeared.
+    ///
+    /// Read at launch: the interval is handed to the detector's polling task when the
+    /// module starts.
+    var videoLinkSeconds: Double {
+        didSet { defaults.set(videoLinkSeconds, forKey: Self.videoLinkSecondsKey); onChange?() }
+    }
+
+    var videoLinkPollInterval: Duration { .seconds(max(1, Int(videoLinkSeconds))) }
+
+    /// Above this output level the "Volume Critical" warning fires.
+    ///
+    /// Adjustable because what counts as dangerously loud depends on what is plugged in:
+    /// ninety percent into studio headphones is not ninety percent into a laptop speaker.
+    var audioVolumeCriticalPercent: Double {
+        didSet { defaults.set(audioVolumeCriticalPercent, forKey: Self.audioVolumeCriticalKey); onChange?() }
     }
 
     /// How often a network scanner is asked what it is doing.
@@ -145,6 +167,8 @@ final class MonitorTuningModel {
     private static let healthEnabledKey = "Power.EnableHealthCheck"
     private static let healthDaysKey = "Power.HealthCheckDays"
     private static let lowSpacePercentKey = "Volume.LowSpacePercent"
+    private static let audioVolumeCriticalKey = "Audio.VolumeCriticalPercent"
+    private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"
     private static let wifiSignalCooldownKey = "Network.WifiSignalCooldownSeconds"

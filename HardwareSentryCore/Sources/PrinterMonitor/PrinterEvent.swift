@@ -32,6 +32,8 @@ public enum PrinterField: String, CaseIterable {
     case jobPrinter = "JobPrinter"
     case jobOwner = "JobOwner"
     case jobSize = "JobSize"
+    /// Where this job sits in the queue's ordering.
+    case jobPriority = "JobPriority"
     /// Every consumable and its level, on the supply warning.
     case supplyLevels = "SupplyLevels"
 
@@ -46,6 +48,7 @@ public enum PrinterField: String, CaseIterable {
         case .jobPrinter: return "Which printer the job went to"
         case .jobOwner: return "Who submitted it"
         case .jobSize: return "Job size"
+        case .jobPriority: return "Job priority (on Print Job Started)"
         case .supplyLevels: return "Every supply and its level"
         }
     }
@@ -63,7 +66,7 @@ public enum PrinterField: String, CaseIterable {
         switch self {
         case .jobPrinter, .supplyLevels: return true
         case .location, .model, .connection, .shared, .capabilities,
-             .jobOwner, .jobSize:
+             .jobOwner, .jobSize, .jobPriority:
             return false
         }
     }

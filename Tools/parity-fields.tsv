@@ -1,0 +1,38 @@
+# Where the original's optional-line preference key does not match a HardwareSentry field
+# by name. Everything not listed here is matched automatically by flattening both names
+# (case and punctuation dropped), so only the abbreviations and renames need saying.
+#
+# A few of the original's SHOW_ keys are not extra lines at all: four of Camera's are
+# on/off switches for four whole notifications. Those map to the event, and the audit
+# accepts either.
+#
+# original key	HardwareSentry field or event
+HWG_BT_SHOW_HFPFEATURES_KEY	HandsFree
+HWG_BT_SHOW_RSSI_KEY	Signal
+HWG_BT_SHOW_VIDPID_KEY	Identity
+HWG_CAMERA_SHOW_BG_REPLACEMENT_KEY	CameraBackgroundReplacementChanged
+HWG_DISPLAY_SHOW_EDID_KEY	Identity
+HWG_DISPLAY_SHOW_EDR_KEY	DynamicRange
+HWG_DISPLAY_SHOW_SCALE_RATIO_KEY	Scaling
+HWG_DISPLAY_SHOW_VRR_KEY	RefreshRange
+HWG_DISPLAY_SHOW_WIDEGAMUT_KEY	WideColor
+HWG_GAMEPAD_SHOW_LIGHTBAR_KEY	LightColor
+HWG_IP_SHOW_DHCP_DETAIL_KEY	DHCPLease
+HWG_IP_SHOW_OLDNEW_KEY	PreviousAddress
+HWG_POWER_ADAPTER_SHOW_DETAILS_KEY	AdapterIdentity
+HWG_POWER_SHOW_CYCLES_KEY	CycleCount
+HWG_POWER_SHOW_HEALTH_CONDITION_KEY	BatteryCondition
+HWG_POWER_SHOW_MAXERR_KEY	BatteryErrorMargin
+HWG_POWER_SHOW_PERCENTAGE_KEY	ChargeLevel
+HWG_PRINTER_SHOW_JOB_PRIORITY_KEY	JobPriority
+HWG_SCANNER_SHOW_JOB_REASONS_KEY	StatusReasons
+HWG_USB_SHOW_CLASS_KEY	Type
+HWG_USB_SHOW_CURRENT_KEY	Power
+HWG_USB_SHOW_MANUFACTURER_KEY	Vendor
+HWG_USB_SHOW_NUMCONFIGS_KEY	Configurations
+HWG_VOLUME_LOWSPACE_SHOW_IMPORTANTUSAGE_KEY	PurgeableSpace
+HWG_VOLUME_SHOW_FSTYPE_KEY	FileSystem
+HWG_VOLUME_SHOW_SMART_KEY	Health
+HWG_WIFI_SHOW_HWADDR_KEY	WiFiHardwareAddress
+HWG_WIFI_SHOW_SNR_KEY	SignalQuality
+HWG_WIFI_SHOW_TXPOWER_KEY	TransmitPower

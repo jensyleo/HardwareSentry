@@ -242,6 +242,33 @@ private struct ModuleDetail: View {
                 IgnoredDrivesEditor(drives: $tuning.ignoredDrives)
             }
 
+            if module.category.rawValue == "Display", title == titles.first {
+                Section("Early physical-link detection (experimental)") {
+                    Text("A cable can be plugged in seconds before macOS has a display to report. The kernel log mentions the link first, so it is read as an early warning — before \u{201C}Display Connected\u{201D}, not instead of it. Experimental because it depends on log wording that Apple has never documented and can change in any update; when it stops matching, the early notice simply stops arriving and nothing else is affected. Whether it arrives at all is the \u{201C}Video link detected\u{201D} checkbox on the Icons tab.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    slider(
+                        "Poll every",
+                        value: $tuning.videoLinkSeconds,
+                        range: 1...60,
+                        caption: "How often the system log is checked for a video link (1–60 s). Only used while \u{201C}Video link detected\u{201D} is switched on."
+                    )
+                }
+            }
+
+            if module.category.rawValue == "Audio", title == titles.first {
+                Section {
+                    slider(
+                        "Volume Critical threshold",
+                        value: $tuning.audioVolumeCriticalPercent,
+                        range: 50...100,
+                        caption: "Warn when the default output goes above this level. It re-arms ten points below, so hovering at the line does not warn twice.",
+                        unit: "%"
+                    )
+                }
+            }
+
             if module.category.rawValue == "Network", title == "Wi-Fi" {
                 Section {
                     slider(
@@ -327,15 +354,18 @@ private struct ModuleDetail: View {
         _ title: String,
         value: Binding<Double>,
         range: ClosedRange<Double>,
-        caption: String
+        caption: String,
+        /// Spelled out by the caller: the helper started life with seconds baked in, and
+        /// the first slider that was not a duration read "90 s" for a percentage.
+        unit: String = "s"
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.headline)
             HStack {
                 Slider(value: value, in: range, step: 1)
-                Text("\(Int(value.wrappedValue)) s")
+                Text("\(Int(value.wrappedValue))\(unit)")
                     .monospacedDigit()
-                    .frame(width: 40, alignment: .trailing)
+                    .frame(width: 44, alignment: .trailing)
             }
             Text(caption)
                 .font(.caption)

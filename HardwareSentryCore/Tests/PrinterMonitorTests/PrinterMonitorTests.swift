@@ -544,6 +544,18 @@ struct PrintJobTests {
         #expect(PrintJob(id: 1, title: "a", printerName: "p").sizeNote == nil)
     }
 
+    @Test("a job's priority is only mentioned when somebody set it")
+    func priorityWording() {
+        // 50 is what CUPS gives every job nobody prioritised, so a line saying it would
+        // appear on every job and distinguish nothing.
+        #expect(PrintJob(id: 1, title: "a", printerName: "p", priority: 50).priorityNote == nil)
+        #expect(PrintJob(id: 1, title: "a", printerName: "p", priority: 90).priorityNote == "priority 90")
+        #expect(PrintJob(id: 1, title: "a", printerName: "p", priority: 1).priorityNote == "priority 1")
+        // Out of range means CUPS gave nothing useful, not a job of priority zero.
+        #expect(PrintJob(id: 1, title: "a", printerName: "p", priority: 0).priorityNote == nil)
+        #expect(PrintJob(id: 1, title: "a", printerName: "p").priorityNote == nil)
+    }
+
     @Test("every event and field it can raise is declared for preferences to find")
     func eventsAndFieldsAreDeclared() {
         let events = Dictionary(uniqueKeysWithValues: PrinterMonitor.events.map { ($0.name, $0.enabledByDefault) })

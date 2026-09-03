@@ -51,6 +51,15 @@ cd HardwareSentryCore && swift test
 cd SignalCore && swift test
 ```
 
+A third check compares what this application can notify about against HG4MAC, so nothing
+is quietly lost in the rewrite:
+
+```
+Tools/parity-audit.sh [path-to-HG4MAC]
+```
+
+It exits non-zero on a gap. See `PARITY.md` for what it covers and what it cannot.
+
 ## Licence
 
 GNU General Public License v3 — see `LICENSE`.

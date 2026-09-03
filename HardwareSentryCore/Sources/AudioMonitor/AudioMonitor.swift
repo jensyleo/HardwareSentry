@@ -42,7 +42,9 @@ public actor AudioMonitor: Monitor {
     private let micStopDebounceNanoseconds: UInt64
     private var watching: Task<Void, Never>?
     /// The percentage at which the volume warning fires. Ninety is the original's figure.
-    private let volumeCriticalThreshold: Int
+    /// Above this percentage the "Volume Critical" warning fires; ten points below it the
+    /// warning re-arms. Changeable while running, so moving the slider takes effect now.
+    private var volumeCriticalThreshold: Int
     private var hasWarnedAboutVolume = false
     private var lastVolumePercent: Int?
 
@@ -71,6 +73,11 @@ public actor AudioMonitor: Monitor {
         self.source = source
         self.context = context
         self.micStopDebounceNanoseconds = UInt64(micStopDebounce * 1_000_000_000)
+        self.volumeCriticalThreshold = volumeCriticalThreshold
+    }
+
+    /// Called when the slider moves, so the change applies without a relaunch.
+    public func apply(volumeCriticalThreshold: Int) {
         self.volumeCriticalThreshold = volumeCriticalThreshold
     }
 

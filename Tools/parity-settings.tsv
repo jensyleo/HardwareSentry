@@ -1,0 +1,26 @@
+# The original's tuning knobs — the settings that are neither "show this line" nor
+# "notify me about this", but a number, a mode or a remembered date.
+#
+# This is the axis that went wrong most often during the rewrite, and always the same way:
+# the knob existed in the core with a sensible default and nothing in the settings window
+# could reach it, so the only way to change it was not to. Two were found exactly like
+# that (the ignored-drives list and the volume-critical threshold), which is why they are
+# checked here now.
+#
+# Left: the original's UserDefaults key. Right: where the same thing lives here — a
+# UserDefaults key, or `-` for one that is deliberately not carried over, with the reason.
+#
+# original key	here	note
+HWGAudioVolumeCriticalThresholdPercent	Audio.VolumeCriticalPercent
+HWGIPUseFriendlyNames	FriendlyNames	a per-notification line here rather than one global switch, so it can be asked for on the notifications that benefit and not on the rest
+HWGPerformanceMode	HardwareSentry.PerformanceMode
+HWGPerformanceCustomSnapshot	HardwareSentry.PerformanceCustomSnapshot
+HWGPowerHealthCheckIntervalValue	Power.HealthCheckDays
+HWGPowerHealthCheckIntervalUnit	Power.HealthCheckDays	one unit here (days) instead of a value-plus-unit pair; the pair let somebody pick "0 months", which means never but does not say so
+HWGPowerLastHealthCheckDate	Power.LastHealthCheck
+HWGScannerScanStatusPollInterval	Scanner.StatusIntervalSeconds
+HWGVolumeLowSpaceThresholdPercent	Volume.LowSpacePercent
+HWGWifiSignalCooldown	Network.WifiSignalCooldownSeconds
+HWGWifiSignalPollInterval	Network.WifiSignalPollSeconds
+HWGDisplayEarlyDetectionEnabled	Display-On	the event's own checkbox is the switch here, rather than a second control that could disagree with it: with the notification off the detector is never started
+HWGDisplayEarlyDetectionIntervalSeconds	Display.VideoLinkPollSeconds

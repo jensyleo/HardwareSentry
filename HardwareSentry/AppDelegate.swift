@@ -103,9 +103,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             powerRefire: tuning.powerRefire,
             powerHealthCheck: tuning.powerHealthCheck,
             volumeLowSpacePercent: tuning.lowSpacePercent,
+            audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent),
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
+            videoLinkPollInterval: tuning.videoLinkPollInterval,
             connectionNaming: tuning.connectionNaming,
             volumeExclusions: tuning.volumeExclusions
         )
@@ -117,7 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     powerRefire: tuning.powerRefire,
                     powerHealthCheck: tuning.powerHealthCheck,
                     volumeLowSpacePercent: tuning.lowSpacePercent,
-                    volumeExclusions: tuning.volumeExclusions
+                    volumeExclusions: tuning.volumeExclusions,
+                    audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent)
                 )
             }
         }

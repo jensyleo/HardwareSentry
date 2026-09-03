@@ -1,0 +1,15 @@
+# Where HardwareSentry deliberately does not use the original's notification name.
+#
+# Every notification the original can raise must appear on the left of this file or be
+# matched by name; `parity-audit.sh` fails otherwise. The point is that losing a
+# notification becomes a failed check rather than something noticed months later by
+# somebody running both applications side by side.
+#
+# One original name, tab, then the HardwareSentry events that cover it, comma-separated.
+#
+# original	HardwareSentry	why
+AirportSignalChange	AirportSignalNone,AirportSignalWeak,AirportSignalFair,AirportSignalGood,AirportSignalExcellent	one row per strength band instead of a single "it changed", so a person can ask to hear about losing the signal without hearing every fluctuation
+BluetoothSignalChange	BluetoothSignalNone,BluetoothSignalWeak,BluetoothSignalFair,BluetoothSignalGood,BluetoothSignalExcellent	as above, for paired Bluetooth devices
+ThermalStateChanged	ThermalNominal,ThermalFair,ThermalSerious,ThermalCritical	one row per pressure level: "tell me when it gets serious" is the request, and a single switch cannot express it
+DarkWakeThermalEmergency	ThermalDarkWakeEmergency	renamed for the prefix every event in the module carries
+AudioMicInUse	AudioMicInUseChanged	renamed: it fires when the microphone starts *and* stops being used, which the original name reads as only the former

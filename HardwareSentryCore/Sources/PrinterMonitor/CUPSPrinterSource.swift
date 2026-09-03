@@ -115,7 +115,8 @@ public struct CUPSPrinterSource: PrinterSource {
                 // for a caller that can fill it, and this source leaves it empty rather
                 // than offering a switch that could never produce a line.
                 sizeKilobytes: Int(job.size) > 0 ? Int(job.size) : nil,
-                state: state(of: job.state)
+                state: state(of: job.state),
+                priority: Int(job.priority)
             )
         }
     }

@@ -209,7 +209,8 @@ public actor PrinterMonitor: Monitor {
         await context.body([
             .field(PrinterField.jobPrinter.rawValue, "Printer", job.printerName),
             .field(PrinterField.jobOwner.rawValue, "Submitted by", job.user),
-            .field(PrinterField.jobSize.rawValue, "Size", job.sizeNote)
+            .field(PrinterField.jobSize.rawValue, "Size", job.sizeNote),
+            .field(PrinterField.jobPriority.rawValue, "Priority", job.priorityNote)
         ])
     }
 

@@ -14,6 +14,14 @@ let package = Package(
         .package(path: "../../SignalCore")
     ],
     targets: [
+        // Prints the catalogue as JSON, for `Tools/parity-audit.sh`. An executable rather
+        // than a test so the audit can be run on its own, without a build of the app.
+        .executableTarget(
+            name: "sentry-inventory",
+            dependencies: ["MonitorRegistry", "SentryContract"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+
         // What every monitor is allowed to know about. Deliberately small: a monitor
         // depends on this and on nothing else of the application.
         .target(

@@ -32,6 +32,11 @@ public struct PrintJob: Sendable, Equatable {
     /// would be a switch in the settings window that could never produce a line.
     public let sizeKilobytes: Int?
     public let state: PrintJobState
+    /// CUPS job priority, 1 to 100, 50 being the default nobody set.
+    ///
+    /// Only worth reading when several jobs are competing for the same queue, which is why
+    /// the line it feeds is off unless asked for.
+    public let priority: Int?
 
     public init(
         id: Int,
@@ -39,7 +44,8 @@ public struct PrintJob: Sendable, Equatable {
         printerName: String,
         user: String? = nil,
         sizeKilobytes: Int? = nil,
-        state: PrintJobState = .pending
+        state: PrintJobState = .pending,
+        priority: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -47,12 +53,21 @@ public struct PrintJob: Sendable, Equatable {
         self.user = user
         self.sizeKilobytes = sizeKilobytes
         self.state = state
+        self.priority = priority
     }
 
     /// "Untitled document" rather than an empty line: a job submitted without a name still
     /// needs to be identifiable in a notification.
     var displayTitle: String {
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled document" : title
+    }
+
+    /// Nothing for a job at the default priority: "priority 50" on every job would be a
+    /// line that never says anything, and the setting exists for the case where one job
+    /// was deliberately pushed ahead of another.
+    var priorityNote: String? {
+        guard let priority, (1...100).contains(priority), priority != 50 else { return nil }
+        return "priority \(priority)"
     }
 
     var sizeNote: String? {

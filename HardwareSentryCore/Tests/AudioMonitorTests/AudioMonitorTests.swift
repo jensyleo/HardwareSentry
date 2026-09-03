@@ -308,6 +308,30 @@ struct AudioVolumeCriticalTests {
         #expect(events.count == 1)
     }
 
+    @Test("moving the threshold takes effect without a relaunch")
+    func thresholdAppliesWhileRunning() async {
+        // The gap this closes: the threshold lived in the core with a default of 90 and
+        // nothing in the settings window could reach it, so the only way to change it was
+        // not to. Now the slider has to reach a running monitor.
+        let delivery = CollectingDelivery()
+        let source = ScriptedAudioSource(script: [.outputVolume(name: "Speakers", percent: 75)])
+        let monitor = AudioMonitor(
+            source: source,
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: AudioMonitor.category
+            ),
+            volumeCriticalThreshold: 90
+        )
+        await monitor.apply(volumeCriticalThreshold: 70)
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.isEmpty {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+        #expect(await delivery.events.count == 1)
+    }
+
     @Test("the threshold is configurable")
     func thresholdIsConfigurable() async {
         let events = await run([.outputVolume(name: "Speakers", percent: 75)], expecting: 1, threshold: 70)

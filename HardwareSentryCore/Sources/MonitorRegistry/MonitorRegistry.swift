@@ -33,6 +33,7 @@ public actor MonitorRegistry {
     private let powerHealthCheck: PowerHealthCheckSettings
     private let powerHealthStore: any PowerHealthStore
     private let volumeLowSpacePercent: Double
+    private let audioVolumeCriticalPercent: Int
     private let scannerStatusInterval: Duration
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
     private let networkSignalCooldown: TimeInterval
@@ -55,6 +56,7 @@ public actor MonitorRegistry {
         powerHealthCheck: PowerHealthCheckSettings = PowerHealthCheckSettings(),
         powerHealthStore: any PowerHealthStore = UserDefaultsPowerHealthStore(),
         volumeLowSpacePercent: Double = 5,
+        audioVolumeCriticalPercent: Int = 90,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
         networkSignalCooldown: TimeInterval = 10,
@@ -69,6 +71,7 @@ public actor MonitorRegistry {
         self.powerHealthCheck = powerHealthCheck
         self.powerHealthStore = powerHealthStore
         self.volumeLowSpacePercent = volumeLowSpacePercent
+        self.audioVolumeCriticalPercent = audioVolumeCriticalPercent
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
         self.networkSignalCooldown = networkSignalCooldown
@@ -82,11 +85,15 @@ public actor MonitorRegistry {
         powerRefire: PowerRefireSettings,
         powerHealthCheck: PowerHealthCheckSettings,
         volumeLowSpacePercent: Double,
-        volumeExclusions: VolumeExclusions
+        volumeExclusions: VolumeExclusions,
+        audioVolumeCriticalPercent: Int
     ) async {
         for monitor in monitors {
             if let power = monitor as? PowerMonitor {
                 await power.apply(refire: powerRefire, healthCheck: powerHealthCheck)
+            }
+            if let audio = monitor as? AudioMonitor {
+                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent)
             }
             if let volume = monitor as? VolumeMonitor {
                 await volume.apply(
@@ -162,7 +169,8 @@ public actor MonitorRegistry {
             ),
             AudioMonitor(
                 source: CoreAudioSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
+                context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
+                volumeCriticalThreshold: audioVolumeCriticalPercent
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),
@@ -194,23 +202,28 @@ public actor MonitorRegistry {
     /// What every assembled monitor can raise and can optionally say, for a preferences
     /// screen to list. Built from each monitor's own declarations, so a monitor gaining an
     /// event or a field gains a row without this list being touched.
-    public func describe() -> [MonitorDescription] {
-        [
-            Self.describing(USBMonitor.self),
-            Self.describing(ThermalMonitor.self),
-            Self.describing(GamepadMonitor.self),
-            Self.describing(ThunderboltMonitor.self),
-            Self.describing(CameraMonitor.self),
-            Self.describing(DisplayMonitor.self),
-            Self.describing(PrinterMonitor.self),
-            Self.describing(BluetoothMonitor.self),
-            Self.describing(AudioMonitor.self),
-            Self.describing(VolumeMonitor.self),
-            Self.describing(PowerMonitor.self),
-            Self.describing(NetworkMonitor.self),
-            Self.describing(ScannerMonitor.self)
-        ]
-    }
+    public func describe() -> [MonitorDescription] { Self.catalogue }
+
+    /// The same list without a registry to hold it.
+    ///
+    /// Wanted by the parity audit, which reads the whole catalogue but has no dispatcher
+    /// to give a registry and no business starting one. Describing is a question about the
+    /// types, not about a running instance, so it does not need one.
+    public static let catalogue: [MonitorDescription] = [
+            MonitorRegistry.describing(USBMonitor.self),
+            MonitorRegistry.describing(ThermalMonitor.self),
+            MonitorRegistry.describing(GamepadMonitor.self),
+            MonitorRegistry.describing(ThunderboltMonitor.self),
+            MonitorRegistry.describing(CameraMonitor.self),
+            MonitorRegistry.describing(DisplayMonitor.self),
+            MonitorRegistry.describing(PrinterMonitor.self),
+            MonitorRegistry.describing(BluetoothMonitor.self),
+            MonitorRegistry.describing(AudioMonitor.self),
+            MonitorRegistry.describing(VolumeMonitor.self),
+            MonitorRegistry.describing(PowerMonitor.self),
+            MonitorRegistry.describing(NetworkMonitor.self),
+            MonitorRegistry.describing(ScannerMonitor.self)
+    ]
 
     private static func describing<M: Monitor>(_ monitor: M.Type) -> MonitorDescription {
         MonitorDescription(
