@@ -307,8 +307,6 @@ private struct ModuleDetail: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
-                IgnoredDrivesEditor(drives: $tuning.ignoredDrives)
             }
 
             if module.category.rawValue == "Scanner", title == titles.first {
@@ -413,6 +411,14 @@ private struct ModuleDetail: View {
                     }
                 }
                 .disabled(!model.isEnabled(module.category))
+            }
+
+            // Last of Volume's own settings, not among them: what counts as low space and
+            // which lines describe a mount are questions about volumes in general, while
+            // this is a list of specific exceptions to all of it — read more naturally
+            // after the general settings than in the middle of them.
+            if module.category.rawValue == "Volume", title == titles.first {
+                IgnoredDrivesEditor(drives: $tuning.ignoredDrives)
             }
 
             // Once, on the first tab: it is one switch for every module at once, and
@@ -653,13 +659,17 @@ private struct IgnoredDrivesEditor: View {
             .frame(minHeight: 90)
 
             HStack {
-                TextField("Volume name or mount path", text: $typed)
+                TextField("Volume name, mount path, or a pattern ending in *", text: $typed)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
                 Button("Add", action: add)
                     // A bare "*" would silence the module while appearing to run, and a
                     // duplicate would sit in the list doing nothing twice.
                     .disabled(!canAdd)
+                // HG4MAC's own way of building this list: a Finder-style picker rooted at
+                // /Volumes rather than typing a name from memory — the typed field stays
+                // for the one thing a picker cannot do, a wildcard pattern.
+                Button("Choose…", action: choose)
                 Button("Remove") {
                     guard let selection else { return }
                     drives.removeAll { $0 == selection }
@@ -679,6 +689,30 @@ private struct IgnoredDrivesEditor: View {
     private var canAdd: Bool {
         let pattern = typed.trimmingCharacters(in: .whitespaces)
         return !pattern.isEmpty && pattern != "*" && !drives.contains(pattern)
+    }
+
+    /// A native, Finder-style picker rooted at `/Volumes`, exactly where HG4MAC's own
+    /// "Add" opens one — someone silencing a drive is choosing from what is actually
+    /// attached, not remembering how its name is spelled.
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.directoryURL = URL(fileURLWithPath: "/Volumes", isDirectory: true)
+        panel.prompt = "Ignore"
+        panel.message = "Choose the drive(s) to ignore"
+
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            // The volume's own localized name ("Macintosh HD"), not the raw last path
+            // component — reading it through the panel's own security-scoped URL, so it
+            // never prompts for permission the way resolving an arbitrary path would.
+            let values = try? url.resourceValues(forKeys: [.volumeLocalizedNameKey])
+            let name = values?.volumeLocalizedName ?? url.lastPathComponent
+            guard !name.isEmpty, name != "/", !drives.contains(name) else { continue }
+            drives.append(name)
+        }
     }
 
     private func add() {
