@@ -340,6 +340,15 @@ private struct ModuleDetail: View {
                 }
             }
 
+            if module.category.rawValue == "Camera", title == titles.first {
+                Section {
+                    Toggle("Notify for virtual devices", isOn: $tuning.notifiesVirtualCameraDevices)
+                    Text("A camera an app makes up \u{2014} OBS Virtual Camera, a video-call plugin \u{2014} is software rather than a camera that arrived, off by default for the same reason as Audio's equivalent switch. An iPhone used as a webcam is unaffected: Continuity Camera reports its own transport, never this one.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if module.category.rawValue == "Audio", title == titles.first {
                 Section {
                     slider(

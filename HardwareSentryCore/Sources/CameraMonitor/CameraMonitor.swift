@@ -35,16 +35,35 @@ public actor CameraMonitor: Monitor {
     private let stopDebounceNanoseconds: UInt64
     private var watching: Task<Void, Never>?
 
+    /// Off by default: an app's virtual camera (OBS, a video-call plugin) is software
+    /// that starts and stops, not a camera that arrived or left the room — the same
+    /// reasoning as `AudioMonitor`'s equivalent switch, which this reuses the wording of.
+    private var notifiesVirtualDevices: Bool
+    /// UIDs a connect was suppressed for, so the matching disconnect is suppressed too
+    /// rather than reporting the departure of an arrival nobody was told about.
+    private var suppressedVirtualUIDs: Set<String> = []
+
     private var currentlyRunning: Set<String> = []
     private var runningNames: [String: String] = [:]
     private var lastNotifiedRunning: Set<String> = []
     private var hasRunningBaseline = false
     private var pendingStops: [String: Task<Void, Never>] = [:]
 
-    public init(source: any CameraSource, context: MonitorContext, stopDebounce: Double = 1.0) {
+    public init(
+        source: any CameraSource,
+        context: MonitorContext,
+        stopDebounce: Double = 1.0,
+        notifiesVirtualDevices: Bool = false
+    ) {
         self.source = source
         self.context = context
         self.stopDebounceNanoseconds = UInt64(stopDebounce * 1_000_000_000)
+        self.notifiesVirtualDevices = notifiesVirtualDevices
+    }
+
+    /// Called when the setting changes, so it applies without a relaunch.
+    public func apply(notifiesVirtualDevices: Bool) {
+        self.notifiesVirtualDevices = notifiesVirtualDevices
     }
 
     public func start() async {
@@ -68,6 +87,10 @@ public actor CameraMonitor: Monitor {
     private func handle(_ event: CameraSourceEvent) async {
         switch event {
         case .connected(let uid, let name, let detail):
+            guard notifiesVirtualDevices || detail?.transport != "Virtual" else {
+                suppressedVirtualUIDs.insert(uid)
+                return
+            }
             await context.notify(
                 CameraEvent.connected.rawValue, subject: uid,
                 title: "Camera Connected",
@@ -90,6 +113,7 @@ public actor CameraMonitor: Monitor {
         case .disconnected(let uid, let name):
             pendingStops.removeValue(forKey: uid)?.cancel()
             lastNotifiedRunning.remove(uid)
+            guard suppressedVirtualUIDs.remove(uid) == nil else { return }
             await context.notify(
                 CameraEvent.disconnected.rawValue, subject: uid,
                 title: "Camera Disconnected", body: name,

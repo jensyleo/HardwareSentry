@@ -26,13 +26,19 @@ actor CollectingDelivery: NotificationDelivering {
 
 @Suite("CameraMonitor")
 struct CameraMonitorTests {
-    private func run(_ script: [CameraSourceEvent], stopDebounce: Double = 0.02, settleSeconds: Double = 0) async -> [NotificationEvent] {
+    private func run(
+        _ script: [CameraSourceEvent],
+        stopDebounce: Double = 0.02,
+        settleSeconds: Double = 0,
+        notifiesVirtualDevices: Bool = false
+    ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = CameraMonitor(
             source: ScriptedCameraSource(script: script),
             context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category),
-            stopDebounce: stopDebounce
+            stopDebounce: stopDebounce,
+            notifiesVirtualDevices: notifiesVirtualDevices
         )
 
         await monitor.start()
@@ -60,6 +66,53 @@ struct CameraMonitorTests {
     func disconnectIsAnnounced() async {
         let events = await run([.disconnected(uid: "cam-1", name: "Logitech Brio")])
         #expect(events.first?.name == "CameraDisconnected")
+    }
+
+    @Test("a virtual camera is not announced by default")
+    func virtualCameraIsSuppressedByDefault() async {
+        let events = await run([
+            .connected(uid: "cam-1", name: "OBS Virtual Camera", detail: CameraDetail(transport: "Virtual"))
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("a virtual camera is announced once asked for, and takes effect live")
+    func virtualCameraCanBeSwitchedOnWhileRunning() async {
+        let delivery = CollectingDelivery()
+        let monitor = CameraMonitor(
+            source: ScriptedCameraSource(script: [
+                .connected(uid: "cam-1", name: "OBS Virtual Camera", detail: CameraDetail(transport: "Virtual"))
+            ]),
+            context: MonitorContext(dispatcher: NotificationDispatcher(delivery: delivery), category: CameraMonitor.category)
+        )
+        await monitor.apply(notifiesVirtualDevices: true)
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.isEmpty {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+
+        let events = await delivery.events
+        #expect(events.count == 1)
+        #expect(events.first?.name == "CameraConnected")
+    }
+
+    @Test("a suppressed virtual camera disconnecting never fires a stray disconnect")
+    func suppressedVirtualCameraNeverFiresDisconnect() async {
+        let events = await run([
+            .connected(uid: "cam-1", name: "OBS Virtual Camera", detail: CameraDetail(transport: "Virtual")),
+            .disconnected(uid: "cam-1", name: "OBS Virtual Camera")
+        ])
+        #expect(events.isEmpty)
+    }
+
+    @Test("Continuity Camera is never treated as virtual")
+    func continuityCameraIsUnaffected() async {
+        let events = await run([
+            .connected(uid: "cam-1", name: "Jensy's iPhone", detail: CameraDetail(transport: "Continuity"))
+        ])
+        #expect(events.count == 1)
+        #expect(events.first?.name == "CameraConnected")
     }
 
     @Test("the first running snapshot is a silent baseline")

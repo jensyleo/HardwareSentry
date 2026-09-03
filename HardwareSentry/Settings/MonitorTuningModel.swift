@@ -33,6 +33,7 @@ final class MonitorTuningModel {
             Self.lowSpacePercentKey: 5.0,
             Self.audioVolumeCriticalKey: 90.0,
             Self.virtualAudioDevicesKey: false,
+            Self.virtualCameraDevicesKey: false,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -52,6 +53,7 @@ final class MonitorTuningModel {
         lowSpacePercent = defaults.double(forKey: Self.lowSpacePercentKey)
         audioVolumeCriticalPercent = defaults.double(forKey: Self.audioVolumeCriticalKey)
         notifiesVirtualAudioDevices = defaults.bool(forKey: Self.virtualAudioDevicesKey)
+        notifiesVirtualCameraDevices = defaults.bool(forKey: Self.virtualCameraDevicesKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -119,6 +121,12 @@ final class MonitorTuningModel {
     /// off by default so it does not read as a plugged-in device.
     var notifiesVirtualAudioDevices: Bool {
         didSet { defaults.set(notifiesVirtualAudioDevices, forKey: Self.virtualAudioDevicesKey); onChange?() }
+    }
+
+    /// Same reasoning, for a camera an app makes up (OBS, a video-call plugin) rather
+    /// than one that is actually plugged in or built in.
+    var notifiesVirtualCameraDevices: Bool {
+        didSet { defaults.set(notifiesVirtualCameraDevices, forKey: Self.virtualCameraDevicesKey); onChange?() }
     }
 
     /// How often a network scanner is asked what it is doing.
@@ -198,6 +206,7 @@ final class MonitorTuningModel {
     private static let lowSpacePercentKey = "Volume.LowSpacePercent"
     private static let audioVolumeCriticalKey = "Audio.VolumeCriticalPercent"
     private static let virtualAudioDevicesKey = "Audio.NotifiesVirtualDevices"
+    private static let virtualCameraDevicesKey = "Camera.NotifiesVirtualDevices"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

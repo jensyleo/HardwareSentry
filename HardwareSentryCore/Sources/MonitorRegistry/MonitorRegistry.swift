@@ -36,6 +36,7 @@ public actor MonitorRegistry {
     private let volumeLowSpacePercent: Double
     private let audioVolumeCriticalPercent: Int
     private let audioNotifiesVirtualDevices: Bool
+    private let cameraNotifiesVirtualDevices: Bool
     private let scannerStatusInterval: Duration
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
     private let networkSignalCooldown: TimeInterval
@@ -61,6 +62,7 @@ public actor MonitorRegistry {
         volumeLowSpacePercent: Double = 5,
         audioVolumeCriticalPercent: Int = 90,
         audioNotifiesVirtualDevices: Bool = false,
+        cameraNotifiesVirtualDevices: Bool = false,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
         networkSignalCooldown: TimeInterval = 10,
@@ -78,6 +80,7 @@ public actor MonitorRegistry {
         self.volumeLowSpacePercent = volumeLowSpacePercent
         self.audioVolumeCriticalPercent = audioVolumeCriticalPercent
         self.audioNotifiesVirtualDevices = audioNotifiesVirtualDevices
+        self.cameraNotifiesVirtualDevices = cameraNotifiesVirtualDevices
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
         self.networkSignalCooldown = networkSignalCooldown
@@ -94,7 +97,8 @@ public actor MonitorRegistry {
         volumeLowSpacePercent: Double,
         volumeExclusions: VolumeExclusions,
         audioVolumeCriticalPercent: Int,
-        audioNotifiesVirtualDevices: Bool
+        audioNotifiesVirtualDevices: Bool,
+        cameraNotifiesVirtualDevices: Bool
     ) async {
         for monitor in monitors {
             if let power = monitor as? PowerMonitor {
@@ -102,6 +106,9 @@ public actor MonitorRegistry {
             }
             if let audio = monitor as? AudioMonitor {
                 await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent, notifiesVirtualDevices: audioNotifiesVirtualDevices)
+            }
+            if let camera = monitor as? CameraMonitor {
+                await camera.apply(notifiesVirtualDevices: cameraNotifiesVirtualDevices)
             }
             if let volume = monitor as? VolumeMonitor {
                 await volume.apply(
@@ -153,7 +160,8 @@ public actor MonitorRegistry {
             ),
             CameraMonitor(
                 source: AVFoundationCameraSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
+                context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
+                notifiesVirtualDevices: cameraNotifiesVirtualDevices
             ),
             DisplayMonitor(
                 // The experimental video-link poll runs only when its notification is
