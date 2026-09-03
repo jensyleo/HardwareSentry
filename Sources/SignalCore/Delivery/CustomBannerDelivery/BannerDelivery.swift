@@ -249,6 +249,7 @@ public final class BannerDelivery: NotificationDelivering {
         // Banners walk away from their corner: downward from a top one, upward from a
         // bottom one, so the newest is always the one nearest the corner it came from.
         var edge = corner.isTop ? frame.maxY - margin : frame.minY + margin
+        var reveals: [(controller: BannerWindowController, origin: NSPoint, offscreenX: CGFloat)] = []
 
         for slot in stack.visible {
             guard let controller = controllers[slot.id] ?? newController else { continue }
@@ -265,25 +266,59 @@ public final class BannerDelivery: NotificationDelivering {
             let offscreenX = corner.isLeading ? frame.minX - width - 4 : frame.maxX + 4
 
             if slot.id == newlyAdmitted, let newController {
-                newController.present(at: origin, enteringFrom: offscreenX)
+                reveals.append((newController, origin, offscreenX))
             } else if change.revealed.contains(slot.id) {
-                controller.present(at: origin, enteringFrom: offscreenX)
+                reveals.append((controller, origin, offscreenX))
             } else {
+                // Moved immediately, ahead of anything about to appear — see the note on
+                // the delayed `present()` call below for why the two are not issued
+                // together.
                 controller.move(to: origin)
             }
 
             edge += (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
         }
 
-        // A separate pass, after every banner already has its correct, non-overlapping
-        // frame: re-asserts window front-to-back order to match the stack's own order,
-        // oldest first so the newest — nearest the corner — ends up frontmost. Confirmed
-        // live, reproduced on screen, as the fix for a banner left behind a newer one:
-        // `move(to:)` repositions a window but was never the thing that also re-fronted
-        // it, so a stale front-to-back order from however the windows happened to be
-        // created could survive even once every frame was correct again.
+        // A banner being revealed lands in the exact slot an existing one is, in the same
+        // instant, moving out of — reproduced on screen: for as long as both animations
+        // are in flight, the two banners' frames genuinely overlap, since the newcomer's
+        // vertical position is fixed from the first frame (only its X position and opacity
+        // animate) while the banner making room is still mid-transit out of that same
+        // spot. `move`'s own 0.2s is already shorter than `present`'s 0.25s, but starting
+        // both at once still means the newcomer is dressed and standing in a room its
+        // predecessor has not yet finished leaving. Giving the move a head start — issued
+        // above, immediately — before the newcomer is asked to appear removes the overlap
+        // instead of merely shortening it.
+        if !reveals.isEmpty {
+            let delay: DispatchTimeInterval = appearance.isAnimated ? .milliseconds(90) : .milliseconds(0)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard self != nil else { return }
+                // Oldest of this batch first, so — matching the front-ordering pass below —
+                // the newest still ends up on top: `present` fronts a panel itself, so
+                // presenting in the wrong order would leave a stale front-to-back order
+                // for exactly the banners this delay exists to get right.
+                for reveal in reveals.reversed() {
+                    reveal.controller.present(at: reveal.origin, enteringFrom: reveal.offscreenX)
+                }
+            }
+        }
+
+        // A separate pass, after every already-on-screen banner has its correct,
+        // non-overlapping frame: re-asserts window front-to-back order to match the
+        // stack's own order, oldest first so the newest ends up frontmost. Confirmed live,
+        // reproduced on screen, as the fix for a banner left behind a newer one: `move(to:)`
+        // repositions a window but was never the thing that also re-fronted it, so a stale
+        // front-to-back order from however the windows happened to be created could
+        // survive even once every frame was correct again.
+        //
+        // Anything in `reveals` is skipped here on purpose: its panel has not been
+        // positioned yet — that happens above, after the delay — and fronting it now would
+        // flash an unstyled box at whatever frame it was constructed with, in the corner of
+        // the screen this window belongs to. `present`, when it runs, fronts it itself.
+        let pending = Set(reveals.map { ObjectIdentifier($0.controller) })
         for slot in stack.visible.reversed() {
-            controllers[slot.id]?.bringToFront()
+            guard let controller = controllers[slot.id], !pending.contains(ObjectIdentifier(controller)) else { continue }
+            controller.bringToFront()
         }
 
         scheduleNextTick()
