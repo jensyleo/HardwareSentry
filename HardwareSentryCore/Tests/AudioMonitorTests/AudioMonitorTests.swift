@@ -63,11 +63,11 @@ struct AudioMonitorTests {
         #expect(events.isEmpty)
     }
 
-    @Test("a device over a covered transport (USB/Bluetooth) is never announced")
+    @Test("a Bluetooth-paired device is never announced here — Bluetooth Monitor already does")
     func coveredTransportIsSuppressed() async {
         let events = await run([
             .deviceSnapshot([]),
-            .deviceSnapshot([device("1", transport: .usb)])
+            .deviceSnapshot([device("1", transport: .bluetooth)])
         ])
         #expect(events.isEmpty)
     }
@@ -85,10 +85,28 @@ struct AudioMonitorTests {
         #expect(events[1].name == "AudioDeviceDisconnected")
     }
 
-    @Test("a suppressed device disconnecting never fires a stray disconnect")
+    @Test("a USB audio device is announced too, alongside whatever USB Monitor says")
+    func usbTransportIsAnnouncedTooNow() async {
+        // Reported live: HG4MAC and this application both used to stay quiet here, on the
+        // theory that USB Monitor already said something about the same physical device.
+        // What USB Monitor says is "a USB device connected" and never the sample rate, the
+        // channel count, or which of two interfaces just became the default — asked for
+        // both, since the second one is the only place that information exists.
+        let events = await run([
+            .deviceSnapshot([]),
+            .deviceSnapshot([device("1", name: "USB Audio Interface", transport: .usb)]),
+            .deviceSnapshot([])
+        ])
+
+        #expect(events.count == 2)
+        #expect(events[0].name == "AudioDeviceConnected")
+        #expect(events[1].name == "AudioDeviceDisconnected")
+    }
+
+    @Test("a suppressed Bluetooth device disconnecting never fires a stray disconnect")
     func suppressedDeviceNeverFiresDisconnect() async {
         let events = await run([
-            .deviceSnapshot([device("1", transport: .usb)]),
+            .deviceSnapshot([device("1", transport: .bluetooth)]),
             .deviceSnapshot([])
         ])
         #expect(events.isEmpty)

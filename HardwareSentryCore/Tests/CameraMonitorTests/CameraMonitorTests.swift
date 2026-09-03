@@ -1,3 +1,4 @@
+import CoreAudio
 import Foundation
 import SignalCore
 import SentryContract
@@ -318,5 +319,31 @@ struct CameraMonitorFieldTests {
         )
 
         #expect(body == "Some Camera")
+    }
+}
+
+@Suite("AVFoundationCameraSource · which transports get their own report")
+struct AVFoundationCameraSourceTransportTests {
+    // Reported live: a real USB webcam was seen by USB Monitor as a generic device
+    // (many declare class 0xEF, "Miscellaneous", at the device level) and never announced
+    // as a camera at all. This monitor used to stay quiet for any USB or Bluetooth
+    // transport, on the theory that USB/Bluetooth Monitor already said something; that
+    // theory held for Bluetooth (a pairing is a pairing) but not for USB, where what gets
+    // said is never the resolution, the manufacturer, or whether Center Stage is active.
+
+    @Test("USB is announced by this monitor too now")
+    func usbIsNotSuppressed() {
+        #expect(AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(Int32(bitPattern: kAudioDeviceTransportTypeUSB)) == false)
+    }
+
+    @Test("Bluetooth stays Bluetooth Monitor's own announcement")
+    func bluetoothIsStillSuppressed() {
+        #expect(AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(Int32(bitPattern: kAudioDeviceTransportTypeBluetooth)))
+        #expect(AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(Int32(bitPattern: kAudioDeviceTransportTypeBluetoothLE)))
+    }
+
+    @Test("an ordinary transport was never suppressed, and still is not")
+    func ordinaryTransportIsUnaffected() {
+        #expect(AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(Int32(bitPattern: kAudioDeviceTransportTypeBuiltIn)) == false)
     }
 }

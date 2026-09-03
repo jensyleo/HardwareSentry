@@ -1,9 +1,15 @@
 import Foundation
 
-/// How an audio device is connected. USB and Bluetooth are called out specifically
-/// because they are the two this monitor deliberately does NOT report connect/disconnect
-/// for — USB/Bluetooth Monitor already do, and reporting the same physical event twice
-/// would be noise, not new information.
+/// How an audio device is connected. Bluetooth is called out specifically because it is
+/// the one this monitor still does not report connect/disconnect for — Bluetooth Monitor
+/// already does, and that pairing is a deliberate, separate event worth its own place.
+///
+/// A USB audio device used to be silenced the same way, on the theory that USB Monitor
+/// already said something. What USB Monitor says is "a USB device connected", or, if the
+/// class byte cooperates, "a USB audio device connected" — never the sample rate, the
+/// channel count, or which of two audio interfaces just became the default. Two
+/// notifications for one physical event is not noise when the second one is the only
+/// place that information exists; it is only noise when it repeats the first.
 public enum AudioTransport: Sendable, Equatable {
     case usb
     case bluetooth
@@ -18,8 +24,10 @@ public enum AudioTransport: Sendable, Equatable {
     case virtual
     case other
 
-    /// USB/Bluetooth Monitor already announce these devices connecting/disconnecting.
-    public var isCoveredByAnotherMonitor: Bool { self == .usb || self == .bluetooth }
+    /// Bluetooth Monitor already announces a device pairing — wireless transports are
+    /// left alone for now (USB's silencing was the one confirmed to be losing real
+    /// information; Bluetooth's own trade has not been reconsidered yet).
+    public var isCoveredByAnotherMonitor: Bool { self == .bluetooth }
 
     /// Software, not hardware: a Multi-Output/Aggregate device somebody built in Audio
     /// MIDI Setup, or a driver an app like Zoom or Teams installs so it can capture what

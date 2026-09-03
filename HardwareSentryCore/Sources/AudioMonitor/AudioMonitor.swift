@@ -2,9 +2,10 @@ import Foundation
 import SentryContract
 import SignalCore
 
-/// Says which device macOS is actually using for output/input, when a device not already
-/// covered by USB/Bluetooth Monitor connects or disconnects, when a microphone starts or
-/// stops being used by any app, and when a MIDI device appears or disappears.
+/// Says which device macOS is actually using for output/input, when a device connects
+/// or disconnects — wired or over USB, though not yet a Bluetooth-paired one, which
+/// Bluetooth Monitor already announces — when a microphone starts or stops being used by
+/// any app, and when a MIDI device appears or disappears.
 public actor AudioMonitor: Monitor {
     public static let category = AudioEvent.category
 

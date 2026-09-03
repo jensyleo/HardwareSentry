@@ -23,11 +23,19 @@ public final class AVFoundationCameraSource: NSObject, CameraSource, @unchecked 
     }
 
     /// `AVCaptureDevice.transportType` reuses the exact same `FourCharCode` constants as
-    /// CoreAudio's `kAudioDeviceTransportType*` — a camera on one of these transports is
-    /// already reported by USB/Bluetooth Monitor, so this monitor stays out of its way.
+    /// CoreAudio's `kAudioDeviceTransportType*`.
+    ///
+    /// Only Bluetooth is excluded here now — a paired camera is a pairing, and Bluetooth
+    /// Monitor's own notification for it is not going anywhere. USB used to be excluded
+    /// the same way, on the theory that USB Monitor already said something; what it says
+    /// is "a USB device connected" — or, when the class byte cooperates, "a USB webcam
+    /// connected" — and never the camera's resolution, manufacturer, whether Center Stage
+    /// is active, or any of the rest this monitor exists to say. A composite webcam that
+    /// declares itself class 0xEF ("Miscellaneous") at the device level, which is common,
+    /// gets none of that from USB Monitor at all. Reported live as exactly that: a real
+    /// camera, seen by USB Monitor as a generic device and never announced as a camera.
     static func isAlreadyCoveredByAnotherMonitor(_ transport: Int32) -> Bool {
-        transport == kAudioDeviceTransportTypeUSB
-            || transport == kAudioDeviceTransportTypeBluetooth
+        transport == kAudioDeviceTransportTypeBluetooth
             || transport == kAudioDeviceTransportTypeBluetoothLE
     }
 }

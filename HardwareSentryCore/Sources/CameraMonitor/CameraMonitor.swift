@@ -2,10 +2,11 @@ import Foundation
 import SentryContract
 import SignalCore
 
-/// Says when a camera not already covered by USB/Bluetooth Monitor connects or
-/// disconnects, when one starts or stops being used by any app — a privacy-relevant
-/// signal, the same fact macOS's own camera-in-use indicator reflects — and when a
-/// Control Center video effect changes system-wide.
+/// Says when a camera connects or disconnects — wired or over USB, though not yet a
+/// Bluetooth-paired one, which Bluetooth Monitor already announces — when one starts or
+/// stops being used by any app, a privacy-relevant signal the same fact macOS's own
+/// camera-in-use indicator reflects, and when a Control Center video effect changes
+/// system-wide.
 public actor CameraMonitor: Monitor {
     public static let category = CameraEvent.category
 
