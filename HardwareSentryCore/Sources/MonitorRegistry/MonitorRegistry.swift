@@ -31,6 +31,7 @@ public actor MonitorRegistry {
     private let announcesWhatIsAlreadyThere: Bool
     private let powerRefire: PowerRefireSettings
     private let powerHealthCheck: PowerHealthCheckSettings
+    private let powerHealthNotify: PowerHealthNotifySettings
     private let powerHealthStore: any PowerHealthStore
     private let volumeLowSpacePercent: Double
     private let audioVolumeCriticalPercent: Int
@@ -54,6 +55,7 @@ public actor MonitorRegistry {
         announcesWhatIsAlreadyThere: Bool = true,
         powerRefire: PowerRefireSettings = .off,
         powerHealthCheck: PowerHealthCheckSettings = PowerHealthCheckSettings(),
+        powerHealthNotify: PowerHealthNotifySettings = .off,
         powerHealthStore: any PowerHealthStore = UserDefaultsPowerHealthStore(),
         volumeLowSpacePercent: Double = 5,
         audioVolumeCriticalPercent: Int = 90,
@@ -69,6 +71,7 @@ public actor MonitorRegistry {
         self.announcesWhatIsAlreadyThere = announcesWhatIsAlreadyThere
         self.powerRefire = powerRefire
         self.powerHealthCheck = powerHealthCheck
+        self.powerHealthNotify = powerHealthNotify
         self.powerHealthStore = powerHealthStore
         self.volumeLowSpacePercent = volumeLowSpacePercent
         self.audioVolumeCriticalPercent = audioVolumeCriticalPercent
@@ -84,13 +87,14 @@ public actor MonitorRegistry {
     public func apply(
         powerRefire: PowerRefireSettings,
         powerHealthCheck: PowerHealthCheckSettings,
+        powerHealthNotify: PowerHealthNotifySettings,
         volumeLowSpacePercent: Double,
         volumeExclusions: VolumeExclusions,
         audioVolumeCriticalPercent: Int
     ) async {
         for monitor in monitors {
             if let power = monitor as? PowerMonitor {
-                await power.apply(refire: powerRefire, healthCheck: powerHealthCheck)
+                await power.apply(refire: powerRefire, healthCheck: powerHealthCheck, healthNotify: powerHealthNotify)
             }
             if let audio = monitor as? AudioMonitor {
                 await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent)
@@ -183,6 +187,7 @@ public actor MonitorRegistry {
                 context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 refire: powerRefire,
                 healthCheck: powerHealthCheck,
+                healthNotify: powerHealthNotify,
                 healthStore: powerHealthStore
             ),
             NetworkMonitor(

@@ -18,6 +18,9 @@ HWGPerformanceCustomSnapshot	HardwareSentry.PerformanceCustomSnapshot
 HWGPowerHealthCheckIntervalValue	Power.HealthCheckDays
 HWGPowerHealthCheckIntervalUnit	Power.HealthCheckDays	one unit here (days) instead of a value-plus-unit pair; the pair let somebody pick "0 months", which means never but does not say so
 HWGPowerLastHealthCheckDate	Power.LastHealthCheck
+HWGPowerHealthNotifyEnabled	Power.HealthNotifyEnabled	not caught by this audit's Notify-key filter (it excludes HWG_*_NOTIFY_* switches, and this name happens to contain "Notify" too), recorded here so a human reading this file still finds it
+HWGPowerHealthNotifyHours	Power.HealthNotifyHours	as above
+HWGPowerLastHealthNotifyDate	-	an in-memory timer interval, not a remembered date: the reminder is forced every N hours the application is running, rather than picking up mid-interval after a relaunch the way the health check itself does
 HWGScannerScanStatusPollInterval	Scanner.StatusIntervalSeconds
 HWGVolumeLowSpaceThresholdPercent	Volume.LowSpacePercent
 HWGWifiSignalCooldown	Network.WifiSignalCooldownSeconds

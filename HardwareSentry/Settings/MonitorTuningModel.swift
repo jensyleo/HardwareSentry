@@ -29,6 +29,7 @@ final class MonitorTuningModel {
             Self.refireOnlyOnBatteryKey: true,
             Self.healthEnabledKey: true,
             Self.healthDaysKey: 7.0,
+            Self.healthNotifyHoursKey: 8.0,
             Self.lowSpacePercentKey: 5.0,
             Self.audioVolumeCriticalKey: 90.0,
             Self.videoLinkSecondsKey: 5.0,
@@ -45,6 +46,8 @@ final class MonitorTuningModel {
         refireOnlyOnBattery = defaults.bool(forKey: Self.refireOnlyOnBatteryKey)
         checksBatteryHealth = defaults.bool(forKey: Self.healthEnabledKey)
         healthCheckDays = defaults.double(forKey: Self.healthDaysKey)
+        notifiesHealthReminder = defaults.bool(forKey: Self.healthNotifyEnabledKey)
+        healthNotifyHours = defaults.double(forKey: Self.healthNotifyHoursKey)
         lowSpacePercent = defaults.double(forKey: Self.lowSpacePercentKey)
         audioVolumeCriticalPercent = defaults.double(forKey: Self.audioVolumeCriticalKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
@@ -74,6 +77,17 @@ final class MonitorTuningModel {
 
     var healthCheckDays: Double {
         didSet { defaults.set(healthCheckDays, forKey: Self.healthDaysKey); onChange?() }
+    }
+
+    /// A more frequent, optional repeat of the same health numbers — hours rather than
+    /// days, and separate from "Check every" above: this one is about hearing the figure
+    /// again, not about whether it has moved.
+    var notifiesHealthReminder: Bool {
+        didSet { defaults.set(notifiesHealthReminder, forKey: Self.healthNotifyEnabledKey); onChange?() }
+    }
+
+    var healthNotifyHours: Double {
+        didSet { defaults.set(healthNotifyHours, forKey: Self.healthNotifyHoursKey); onChange?() }
     }
 
     var lowSpacePercent: Double {
@@ -157,6 +171,10 @@ final class MonitorTuningModel {
         )
     }
 
+    var powerHealthNotify: PowerHealthNotifySettings {
+        PowerHealthNotifySettings(isEnabled: notifiesHealthReminder, hours: healthNotifyHours)
+    }
+
     var powerHealthCheck: PowerHealthCheckSettings {
         PowerHealthCheckSettings(isEnabled: checksBatteryHealth, days: healthCheckDays)
     }
@@ -166,6 +184,8 @@ final class MonitorTuningModel {
     private static let refireOnlyOnBatteryKey = "Power.RefireOnBatteryOnly"
     private static let healthEnabledKey = "Power.EnableHealthCheck"
     private static let healthDaysKey = "Power.HealthCheckDays"
+    private static let healthNotifyEnabledKey = "Power.HealthNotifyEnabled"
+    private static let healthNotifyHoursKey = "Power.HealthNotifyHours"
     private static let lowSpacePercentKey = "Volume.LowSpacePercent"
     private static let audioVolumeCriticalKey = "Audio.VolumeCriticalPercent"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"

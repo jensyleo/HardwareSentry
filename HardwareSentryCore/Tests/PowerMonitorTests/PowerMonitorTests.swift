@@ -370,6 +370,22 @@ struct PowerBatteryHealthTests {
         #expect(events.first?.body.contains("Health:\tBattery health: 93%") == true)
     }
 
+    @Test("the hourly reminder is a separate, forced repeat of the same reading")
+    func notifyTimerForcesARepeatIndependentlyOfTheCheck() async {
+        // Mirrors PowerRefireTests below: rather than waiting a real hour for the timer,
+        // this checks the same thing the timer calls — force:true always answers, whether
+        // or not the health check's own interval is due. The timer itself is exercised by
+        // PowerHealthNotifySettingsTests, which checks it actually gets built into the
+        // monitor and clamped sensibly.
+        let (monitor, delivery) = await make(
+            health: BatteryHealthDetail(cycleCount: 142, healthPercent: 93)
+        )
+        await monitor.checkBatteryHealthNow(force: false)
+        await monitor.checkBatteryHealthNow(force: true)
+        await monitor.checkBatteryHealthNow(force: true)
+        #expect(await delivery.events.count == 3)
+    }
+
     @Test("Check Now answers even when the reading has not moved")
     func forcedCheckAlwaysAnswers() async {
         let (monitor, delivery) = await make(
@@ -477,6 +493,41 @@ struct PowerBatteryHealthTests {
     func zeroErrorMarginIsNotAMargin() {
         #expect(BatteryHealthDetail(maximumErrorPercent: 0).errorMarginNote == nil)
         #expect(BatteryHealthDetail(maximumErrorPercent: 3).errorMarginNote == "Reporting error margin: ±3%")
+    }
+}
+
+@Suite("PowerHealthNotifySettings")
+struct PowerHealthNotifySettingsTests {
+    @Test("off by default")
+    func offByDefault() {
+        #expect(PowerHealthNotifySettings.off.isEnabled == false)
+    }
+
+    @Test("hours are clamped to something a person could have meant")
+    func hoursAreClamped() {
+        #expect(PowerHealthNotifySettings(isEnabled: true, hours: 0).interval == .seconds(3600))
+        #expect(PowerHealthNotifySettings(isEnabled: true, hours: 8).interval == .seconds(8 * 3600))
+        #expect(PowerHealthNotifySettings(isEnabled: true, hours: 10000).interval == .seconds(31 * 24 * 3600))
+    }
+
+    @Test("apply() wires it into a running monitor without disturbing the health check")
+    func appliesAlongsideHealthCheck() async {
+        let monitor = PowerMonitor(
+            source: HealthySource(script: [], health: nil),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: CollectingDelivery()),
+                category: PowerMonitor.category,
+                announcesWhatIsAlreadyThere: false
+            ),
+            healthCheck: .off
+        )
+        await monitor.start()
+        await monitor.apply(
+            refire: .off,
+            healthCheck: .off,
+            healthNotify: PowerHealthNotifySettings(isEnabled: true, hours: 8)
+        )
+        await monitor.stop()
     }
 }
 

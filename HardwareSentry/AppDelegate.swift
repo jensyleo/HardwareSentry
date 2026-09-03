@@ -102,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             announcesWhatIsAlreadyThere: preferences.announcesWhatIsAlreadyThere,
             powerRefire: tuning.powerRefire,
             powerHealthCheck: tuning.powerHealthCheck,
+            powerHealthNotify: tuning.powerHealthNotify,
             volumeLowSpacePercent: tuning.lowSpacePercent,
             audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent),
             scannerStatusInterval: tuning.scannerStatusInterval,
@@ -118,6 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await registry.apply(
                     powerRefire: tuning.powerRefire,
                     powerHealthCheck: tuning.powerHealthCheck,
+                    powerHealthNotify: tuning.powerHealthNotify,
                     volumeLowSpacePercent: tuning.lowSpacePercent,
                     volumeExclusions: tuning.volumeExclusions,
                     audioVolumeCriticalPercent: Int(tuning.audioVolumeCriticalPercent)

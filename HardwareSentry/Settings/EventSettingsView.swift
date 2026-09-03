@@ -270,6 +270,19 @@ private struct ModuleDetail: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    Toggle("Notify every", isOn: $tuning.notifiesHealthReminder)
+                    if tuning.notifiesHealthReminder {
+                        Stepper(
+                            "\(Int(tuning.healthNotifyHours)) hours",
+                            value: $tuning.healthNotifyHours,
+                            in: 1...24,
+                            step: 1
+                        )
+                        Text("Repeats the same cycle count and health figure on this shorter schedule, whether or not they have moved — separate from the check above, which only speaks up when something changed.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     HStack {
                         Button("Check Now", action: checkBatteryHealthNow)
                         Spacer()
@@ -503,6 +516,15 @@ private struct ModuleDetail: View {
                 }
             }
 
+            if module.category.rawValue == "Printer" {
+                Section {
+                    Text("\u{201C}Needs Attention\u{201D} is read from the printer's own IPP state reasons \u{2014} a heuristic (any reason other than \u{201C}none\u{201D}), not a guarantee of what is actually wrong. \u{201C}Supply Low\u{201D} is checked separately, roughly every 30 seconds, and not every printer or driver reports it.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             Section {
                 HStack {
                     Spacer()
@@ -538,6 +560,12 @@ private struct ModuleDetail: View {
 enum ModuleNotes {
     static func note(for category: NotificationCategory, group: String) -> String? {
         switch (category.rawValue, group) {
+        case ("Printer", "Notifications"):
+            return "Detects USB, Bluetooth and network (IPP/AirPrint/Bonjour) printers alike, by polling the system's printer list every few seconds — CUPS has no push notification for this, and its configuration cannot be watched directly without root. A network printer is only detected once it has actually been added in System Settings \u{2192} Printers & Scanners, not merely discoverable on the network."
+        case ("Bluetooth", "Signal strength"):
+            return "These five rows both pick the icon shown at each signal level and can notify when a connected device crosses into that level, checked every 10 seconds. So the natural wobble of a radio reading does not read as five notifications in a row, a level change only notifies again after 15 seconds have passed since the last one for that device."
+        case ("Scanner", "Notifications"):
+            return "This is the one module that stays off until switched on: browsing for network scanners is the first thing in this application to ask macOS for Local Network permission, a prompt it has otherwise never shown. Detection uses Bonjour (\u{201C}_scanner._tcp\u{201D} for network/WSD scanners and \u{201C}_uscan._tcp\u{201D} for eSCL/AirScan), and does not start until this module's own switch, on the left, is turned on."
         case ("Network", "VPN"):
             return """
             Detected through utun/ppp/ipsec virtual interfaces, which is what most VPN             clients use, including macOS's own. It is a heuristic: a few system features             that are not VPNs use a utun interface too. Whether these arrive is a             checkbox beside "VPN connected" and "VPN disconnected" on the Icons tab.

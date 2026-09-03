@@ -44,6 +44,26 @@ public struct PowerHealthCheckSettings: Sendable, Equatable {
     public static let off = PowerHealthCheckSettings(isEnabled: false)
 }
 
+/// A more frequent, optional reminder of the same health numbers — in hours rather than
+/// days, and independent of "Check every".
+///
+/// The weekly check above answers "has anything changed"; this answers "remind me what
+/// the numbers are" on its own schedule, for someone who wants to see the figure more
+/// often than the battery is likely to have moved. Off by default: repeating an unchanged
+/// number is the more surprising of the two behaviours, so it is the one that has to be
+/// asked for.
+public struct PowerHealthNotifySettings: Sendable, Equatable {
+    public let isEnabled: Bool
+    public let interval: Duration
+
+    public init(isEnabled: Bool = false, hours: Double = 8) {
+        self.isEnabled = isEnabled
+        self.interval = .seconds(min(31 * 24, max(1, hours)) * 60 * 60)
+    }
+
+    public static let off = PowerHealthNotifySettings()
+}
+
 /// Remembers what the last battery check found, across launches.
 ///
 /// Needed because the interesting thing about battery health is that it changed, and a

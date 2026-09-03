@@ -46,10 +46,12 @@ public actor PowerMonitor: Monitor {
     private let context: MonitorContext
     private var refire: PowerRefireSettings
     private var healthCheck: PowerHealthCheckSettings
+    private var healthNotify: PowerHealthNotifySettings
     private let healthStore: any PowerHealthStore
     private var watching: Task<Void, Never>?
     private var refiring: Task<Void, Never>?
     private var checkingHealth: Task<Void, Never>?
+    private var notifyingHealth: Task<Void, Never>?
 
     private var lastKind: PowerSourceKind?
     private var lastSnapshot: PowerSnapshot?
@@ -64,12 +66,14 @@ public actor PowerMonitor: Monitor {
         context: MonitorContext,
         refire: PowerRefireSettings = .off,
         healthCheck: PowerHealthCheckSettings = PowerHealthCheckSettings(),
+        healthNotify: PowerHealthNotifySettings = .off,
         healthStore: any PowerHealthStore = EphemeralPowerHealthStore()
     ) {
         self.source = source
         self.context = context
         self.refire = refire
         self.healthCheck = healthCheck
+        self.healthNotify = healthNotify
         self.healthStore = healthStore
     }
 
@@ -85,6 +89,7 @@ public actor PowerMonitor: Monitor {
 
         startRefireTimer()
         startHealthTimer()
+        startHealthNotifyTimer()
     }
 
     public func stop() async {
@@ -94,6 +99,8 @@ public actor PowerMonitor: Monitor {
         refiring = nil
         checkingHealth?.cancel()
         checkingHealth = nil
+        notifyingHealth?.cancel()
+        notifyingHealth = nil
     }
 
     /// Takes a changed setting without restarting anything else.
@@ -101,19 +108,27 @@ public actor PowerMonitor: Monitor {
     /// The alternative — rebuilding the monitors when a number changes — would replay the
     /// whole "here is what is plugged in" announcement every time somebody dragged a
     /// slider. Only the timers are affected by these, so only the timers are restarted.
-    public func apply(refire newRefire: PowerRefireSettings, healthCheck newHealthCheck: PowerHealthCheckSettings) async {
+    public func apply(
+        refire newRefire: PowerRefireSettings,
+        healthCheck newHealthCheck: PowerHealthCheckSettings,
+        healthNotify newHealthNotify: PowerHealthNotifySettings = .off
+    ) async {
         let wasRunning = watching != nil
         refire = newRefire
         healthCheck = newHealthCheck
+        healthNotify = newHealthNotify
 
         refiring?.cancel()
         refiring = nil
         checkingHealth?.cancel()
         checkingHealth = nil
+        notifyingHealth?.cancel()
+        notifyingHealth = nil
 
         guard wasRunning else { return }
         startRefireTimer()
         startHealthTimer()
+        startHealthNotifyTimer()
     }
 
     // MARK: - Saying it again
@@ -165,6 +180,20 @@ public actor PowerMonitor: Monitor {
                 await self.checkBatteryHealthNow(force: false)
                 guard !Task.isCancelled else { return }
                 try? await Task.sleep(for: interval)
+            }
+        }
+    }
+
+    private func startHealthNotifyTimer() {
+        guard healthNotify.isEnabled, notifyingHealth == nil else { return }
+        notifyingHealth = Task { [interval = healthNotify.interval] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled else { return }
+                // Forced: this reminder is about the number arriving on schedule, not
+                // about whether it moved — that question already belongs to the check
+                // above, which runs on its own, usually longer, interval.
+                await self.checkBatteryHealthNow(force: true)
             }
         }
     }
