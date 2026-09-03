@@ -140,6 +140,15 @@ private final class RegistryWatcher: @unchecked Sendable {
         let required = number(service, "USBDeviceRequiredCurrent") ?? number(service, "MaxPowerRequired")
         let available = number(service, "USBDeviceAvailableCurrent")
 
+        // A hub can never itself be a storage medium, and it is exactly the device this
+        // walk used to run for on every hub arrival — reported live as part of why
+        // connecting one took over a second: `storageMedium` recurses the whole registry
+        // subtree below the device, and a hub's subtree is its downstream devices, which
+        // during the very burst being reported are still busy enumerating. Skipped by a
+        // class-conformance check, which is a fast C++ check with no registry IPC of its
+        // own, rather than a registry property read.
+        let isHub = IOObjectConformsTo(service, "IOUSBHostHubDevice") != 0
+
         return USBDeviceDetail(
             productName: string(service, "USB Product Name") ?? string(service, kUSBProductString),
             vendorID: number(service, "idVendor").map(UInt16.init(truncatingIfNeeded:)),
@@ -150,7 +159,7 @@ private final class RegistryWatcher: @unchecked Sendable {
             // The port answering with less than was asked for is the refusal itself; the
             // registry has no separate "denied" flag.
             requestedMoreThanAvailable: (required ?? 0) > (available ?? Int.max),
-            mediumType: Self.storageMedium(service),
+            mediumType: isHub ? nil : Self.storageMedium(service),
             serialNumber: string(service, "USB Serial Number") ?? string(service, kUSBSerialNumberString),
             releaseVersion: number(service, "bcdDevice").map(UInt16.init(truncatingIfNeeded:)),
             locationID: number(service, "locationID").map(UInt32.init(truncatingIfNeeded:)),
