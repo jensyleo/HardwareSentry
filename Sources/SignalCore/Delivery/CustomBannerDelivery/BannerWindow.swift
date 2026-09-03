@@ -41,19 +41,32 @@ final class BannerWindowController {
                 onDismiss: onDismiss
             )
         )
-        // The width is fixed, so laying out the text is what settles the height — which
-        // the stacking policy needs before it can decide whether this banner fits.
-        let size = hosting.fittingSize
-        self.height = size.height
-        hosting.frame = NSRect(origin: .zero, size: size)
 
+        // A throwaway starting size — replaced below once it can be measured for real.
+        // Building the panel first and only then measuring, rather than the other way
+        // round, is the fix for a real, reproduced-on-screen bug: `fittingSize` read on
+        // an `NSHostingView` that has never been attached to a window can undercount
+        // wrapped text by a line. Every banner here wraps at least the device name, and
+        // Camera's own body regularly wraps a field onto two lines ("Position:
+        // Unspecified (typical for external webcams)") — exactly the shape that showed
+        // the bug live: the card built one line short, so the next banner's top edge
+        // landed over its last line instead of below it.
         panel = BannerPanel(
-            contentRect: hosting.frame,
+            contentRect: NSRect(origin: .zero, size: CGSize(width: appearance.width, height: 1)),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.contentView = hosting
+
+        // Now that the hosting view has a real window behind it, laying it out and
+        // asking its *fitting* size answers for the width it will actually render at,
+        // not SwiftUI's idea of an unconstrained ideal size.
+        hosting.layoutSubtreeIfNeeded()
+        let size = hosting.fittingSize
+        self.height = size.height
+        hosting.frame = NSRect(origin: .zero, size: size)
+        panel.setContentSize(size)
         panel.isFloatingPanel = true
         panel.level = .statusBar
         panel.backgroundColor = .clear
