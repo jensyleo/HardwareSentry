@@ -28,6 +28,27 @@ struct BannerStackTests {
         )
     }
 
+    @Test("a USB hub arriving with everything plugged into it is not queued by count")
+    func hubBurstIsNotQueuedByCountAlone() {
+        // What was actually reported: HardwareSentry noticeably slower than HG4MAC to
+        // announce a USB hub. Traced to `maximumVisible` defaulting to 5 and being
+        // checked before the real screen ever ran out of room — a hub plus a handful of
+        // downstream devices arriving together is exactly this burst. HG4MAC has no count
+        // limit at all, only the screen's own height, so this uses BannerStack's own
+        // default rather than a test-chosen number: it is the default that was wrong.
+        //
+        // A typical MacBook's usable menu-bar-to-dock height, and a short single-line
+        // banner (roughly what "USB Hub Connected" actually renders at) — seven devices,
+        // comfortably within both the height and the now-corrected count.
+        var stack = BannerStack(availableHeight: 900, spacing: 8, revealSpacing: 0)
+        var revealed = 0
+        for i in 0..<7 {
+            let result = stack.admit(makeEvent(name: "Device\(i)"), height: 90, at: at(0), phase: .steady)
+            if result.placement == .revealed { revealed += 1 }
+        }
+        #expect(revealed == 7)
+    }
+
     @Test("a banner that fits goes straight up")
     func fittingBannerIsRevealed() {
         var stack = makeStack()

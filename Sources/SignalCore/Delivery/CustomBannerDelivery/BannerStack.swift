@@ -103,7 +103,7 @@ public struct BannerStack: Sendable {
         availableHeight: CGFloat,
         spacing: CGFloat = 8,
         visibleLifetime: TimeInterval = 5,
-        maximumVisible: Int = 5,
+        maximumVisible: Int = 12,
         revealSpacing: TimeInterval = 0.4,
         minimumReadableTime: TimeInterval = 4.5,
         queueLimitWhileLaunching: Int = 64,
@@ -245,8 +245,10 @@ public struct BannerStack: Sendable {
 
     /// Whether there is room, by count as well as by height.
     ///
-    /// The count is checked first because it is the one that actually bites: a burst at
-    /// launch runs out of allowance long before it runs out of screen.
+    /// The count is checked first because it is the cheaper check, not because it is
+    /// meant to be the one that bites — `maximumVisible`'s own default sits at the top of
+    /// its range for exactly that reason. Ordinarily the screen runs out of room before
+    /// the count does, matching HG4MAC's own behaviour, which has no count limit at all.
     private func fits(_ height: CGFloat) -> Bool {
         guard visible.count < maximumVisible else { return false }
         let extra = visible.isEmpty ? height : occupiedHeight() + spacing + height

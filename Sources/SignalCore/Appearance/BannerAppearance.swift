@@ -112,7 +112,14 @@ public struct BannerAppearance: Sendable, Equatable {
     /// The most banners on screen at once.
     ///
     /// A count as well as a height, because a tall display fits about fifteen, and fifteen
-    /// banners is not a notification — it is a page of text that appears and vanishes.
+    /// banners is not a notification — it is a page of text that appears and vanishes. The
+    /// default sits at the top of the allowed range rather than picking a smaller number:
+    /// a hub arriving with everything plugged into it announcing itself at once is exactly
+    /// the burst this exists to shape, and the count should not be what queues banners —
+    /// confirmed live, reported as HardwareSentry taking noticeably longer than HG4MAC to
+    /// say a hub had connected, traced to a default of 5 that bit before the real screen
+    /// ever ran out of room, where HG4MAC has no count limit at all, only the screen's own
+    /// height. Left adjustable rather than removed, for the person who does want fewer.
     public var maximumVisible: Int { didSet { maximumVisible = maximumVisible.clamped(to: Self.maximumVisibleRange) } }
     /// How long to leave between one banner appearing and the next.
     ///
@@ -140,7 +147,7 @@ public struct BannerAppearance: Sendable, Equatable {
         margin: CGFloat = 12,
         spacing: CGFloat = 8,
         visibleLifetime: TimeInterval = 5,
-        maximumVisible: Int = 5,
+        maximumVisible: Int = 12,
         revealSpacing: TimeInterval = 0.4,
         opacity: Double = 1,
         textScale: BannerTextScale = .medium,
