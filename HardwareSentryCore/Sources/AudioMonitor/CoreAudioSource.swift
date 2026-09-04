@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreAudio
 import CoreMIDI
 import Foundation
@@ -52,6 +53,7 @@ private final class Watcher: @unchecked Sendable {
     }
 
     func start() {
+        Self.requestMicrophoneAccessIfNeeded()
         emitDevices()
         emitDefault(address: defaultOutputAddress, isOutput: true)
         emitDefault(address: defaultInputAddress, isOutput: false)
@@ -99,6 +101,25 @@ private final class Watcher: @unchecked Sendable {
         }
         if midiClient != 0 { MIDIClientDispose(midiClient) }
         continuation.finish()
+    }
+
+    /// Asks for microphone access, once, before the mic-in-use listener is armed.
+    ///
+    /// `kAudioDevicePropertyDeviceIsRunningSomewhere` is HAL metadata about the device —
+    /// whether *some* process is using it — not audio content, and this monitor never
+    /// opens a capture session of its own. It is not clear that macOS gates this property
+    /// behind microphone TCC at all. What is clear, from the exact same class of bug this
+    /// application already found and fixed once (`NSBluetoothAlwaysUsageDescription`,
+    /// missing, aborting the process outright the moment `CBCentralManager` was
+    /// instantiated): a permission surface silently required and never asked for is not a
+    /// theoretical risk here, it is a repeat of a real one. Asking costs one dialog, at
+    /// most once, ignorable; not asking risks the whole process again for the sake of one
+    /// listener. `requestAccess` itself never blocks anything — the listener is armed
+    /// either way, exactly as `SystemDelivery.present` never waits on its own permission
+    /// dialog before presenting through the channel standing in for it.
+    private static func requestMicrophoneAccessIfNeeded() {
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined else { return }
+        AVCaptureDevice.requestAccess(for: .audio) { _ in }
     }
 
     // MARK: Devices

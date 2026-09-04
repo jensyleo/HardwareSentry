@@ -28,5 +28,7 @@
 	<string>HardwareSentry uses Location access only to read the name of the Wi-Fi network you join, so it can notify you about it. Your location is never read or stored.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>HardwareSentry uses Location access only to read the name of the Wi-Fi network you join, so it can notify you about it. Your location is never read or stored.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>HardwareSentry watches whether the microphone is being used, so it can notify you when it starts or stops. Audio itself is never recorded or read.</string>
 </dict>
 </plist>

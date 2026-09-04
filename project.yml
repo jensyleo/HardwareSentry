@@ -19,6 +19,11 @@ targets:
       path: HardwareSentry/Info.plist
       properties:
         NSBluetoothAlwaysUsageDescription: "HardwareSentry watches for Bluetooth devices connecting and disconnecting, and for the Bluetooth radio's own state, so it can notify you about them."
+        # Asked once, before the mic-in-use listener is armed — see
+        # CoreAudioSource.requestMicrophoneAccessIfNeeded(). Nothing here ever records or
+        # reads audio; it only watches whether some process is using the microphone, to
+        # notify about that.
+        NSMicrophoneUsageDescription: "HardwareSentry watches whether the microphone is being used, so it can notify you when it starts or stops. Audio itself is never recorded or read."
         # Reading the Wi-Fi network's own name (SSID) has required Location authorization
         # since macOS 10.14, regardless of sandboxing — the location itself is never read,
         # only the permission it unlocks.
