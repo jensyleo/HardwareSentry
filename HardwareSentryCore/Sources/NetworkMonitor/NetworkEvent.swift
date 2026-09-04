@@ -37,6 +37,7 @@ public enum NetworkEvent: String, NotificationEventKey, CaseIterable {
     case wifiSignalExcellent = "AirportSignalExcellent"
     case linkSpeedChanged = "NetworkLinkSpeedChanged"
     case promiscuousModeChanged = "NetworkPromiscuousModeChanged"
+    case adapterAttaching = "NetworkAdapterAttaching"
     case adapterDetaching = "NetworkAdapterDetaching"
     case bondMemberStatusChanged = "NetworkBondMemberStatusChanged"
     case wifiHostAPModeChanged = "WifiHostAPModeChanged"

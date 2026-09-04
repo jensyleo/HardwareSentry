@@ -22,6 +22,7 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
         .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module), group: Group.wired),
         .init(name: NetworkEvent.linkSpeedChanged.rawValue, title: "Link speed or duplex changed", enabledByDefault: false, icon: .asset("Network-Ethernet-Speed", in: .module), group: Group.wired),
+        .init(name: NetworkEvent.adapterAttaching.rawValue, title: "Network adapter plugged in", icon: .asset("Network-Interface-On", in: .module), group: Group.wired),
         .init(name: NetworkEvent.adapterDetaching.rawValue, title: "Network adapter unplugged", icon: .asset("Network-Interface-Off", in: .module), group: Group.wired),
         .init(name: NetworkEvent.bondMemberStatusChanged.rawValue, title: "Bonded link member changed", enabledByDefault: false, icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
         .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module), group: Group.wifi),
@@ -209,6 +210,12 @@ public actor NetworkMonitor: Monitor {
             await handleBondMembers(members)
         case .wifiInterfaceMode(let mode):
             await handleInterfaceMode(mode)
+        case .adapterAttaching(let interfaceName):
+            await context.notify(
+                NetworkEvent.adapterAttaching.rawValue, subject: interfaceName,
+                title: "Network Adapter Detected", body: interfaceName,
+                icon: .asset("Network-Interface-On", in: .module)
+            )
         case .adapterDetaching(let interfaceName):
             await context.notify(
                 NetworkEvent.adapterDetaching.rawValue, subject: interfaceName,

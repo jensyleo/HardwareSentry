@@ -37,6 +37,7 @@ public enum NetworkSourceEvent: Sendable, Equatable {
     /// Every link-aggregation member and how it is faring — not a delta.
     case bondMemberSnapshot([String: BondMemberStatus])
     /// An interface the system is about to remove.
+    case adapterAttaching(interfaceName: String)
     case adapterDetaching(interfaceName: String)
     /// What mode the Wi-Fi interface is in, as its own signal — the Mac becoming an
     /// access point is a different fact from joining one.

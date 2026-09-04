@@ -112,6 +112,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     private var signalPollTask: Task<Void, Never>?
     private var adapterNotificationPort: IONotificationPortRef?
     private var adapterIterator: io_iterator_t = 0
+    private var adapterArrivalIterator: io_iterator_t = 0
 
     private let signalPolling: SystemNetworkSource.SignalPolling
 
@@ -135,7 +136,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     /// as the Mac having an address on a network it had not joined yet. The original hit
     /// exactly this and fixed it the same way.
     func start() {
-        startAdapterRemovalWatch()
+        startAdapterWatch()
         startReachability()
 
         // 1. What this Mac is connected to.
@@ -235,6 +236,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         radioPollTask?.cancel()
         signalPollTask?.cancel()
         if adapterIterator != 0 { IOObjectRelease(adapterIterator); adapterIterator = 0 }
+        if adapterArrivalIterator != 0 { IOObjectRelease(adapterArrivalIterator); adapterArrivalIterator = 0 }
         if let adapterNotificationPort { IONotificationPortDestroy(adapterNotificationPort) }
         adapterNotificationPort = nil
         continuation.finish()
@@ -541,30 +543,65 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
         continuation.yield(.promiscuousSnapshot(capturing))
     }
 
-    /// Watches for a network adapter being torn down.
+    /// Watches for a network adapter appearing and being torn down.
     ///
-    /// IOKit rather than `SCDynamicStore`, because this is the one network fact that has
-    /// to be caught *before* it finishes: by the time the configuration store notices, the
-    /// interface is already gone and there is nothing left to name. `kIOTerminatedMessage`
-    /// arrives while the service is still there to be asked its name.
-    private func startAdapterRemovalWatch() {
+    /// IOKit rather than `SCDynamicStore` for the departure half, because that is the one
+    /// network fact that has to be caught *before* it finishes: by the time the
+    /// configuration store notices, the interface is already gone and there is nothing
+    /// left to name. `kIOTerminatedMessage` arrives while the service is still there to be
+    /// asked its name.
+    ///
+    /// The arrival half exists for the same reason `USBMonitor`/`ThunderboltMonitor` pair
+    /// every departure with an arrival: reported live, a hub's own internal network
+    /// interface (a LAN-over-USB or similar side-channel chip, distinct from any real
+    /// Ethernet/Wi-Fi link) was announced leaving with nothing having ever announced it
+    /// arriving — the departure fired unconditionally, off `IONetworkInterface`'s own
+    /// termination, with no matching arrival notice anywhere in the monitor. `kIOFirstPublishNotification`,
+    /// not `kIOMatchedNotification`, for the same reason USB Monitor chose it: fires the
+    /// moment the object first appears, not once whatever driver claims it has finished
+    /// matching.
+    private func startAdapterWatch() {
         guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
         IONotificationPortSetDispatchQueue(port, .main)
         adapterNotificationPort = port
 
         let context = Unmanaged.passUnretained(self).toOpaque()
-        var iterator: io_iterator_t = 0
+
+        var arrivalIterator: io_iterator_t = 0
+        IOServiceAddMatchingNotification(
+            port, kIOFirstPublishNotification, IOServiceMatching("IONetworkInterface"),
+            { context, iterator in
+                Unmanaged<Watcher>.fromOpaque(context!).takeUnretainedValue().drainArrivals(iterator)
+            },
+            context, &arrivalIterator
+        )
+        adapterArrivalIterator = arrivalIterator
+        // Drained once and discarded: whatever already exists at launch was not just
+        // attached, and announcing it would be reporting history rather than news.
+        drainArrivals(arrivalIterator, announce: false)
+
+        var departureIterator: io_iterator_t = 0
         IOServiceAddMatchingNotification(
             port, kIOTerminatedNotification, IOServiceMatching("IONetworkInterface"),
             { context, iterator in
                 Unmanaged<Watcher>.fromOpaque(context!).takeUnretainedValue().drainRemovals(iterator)
             },
-            context, &iterator
+            context, &departureIterator
         )
-        adapterIterator = iterator
-        // Drained once and discarded: whatever is already terminated at launch was
-        // removed before this was watching, and announcing it would be reporting history.
-        drainRemovals(iterator, announce: false)
+        adapterIterator = departureIterator
+        drainRemovals(departureIterator, announce: false)
+    }
+
+    fileprivate func drainArrivals(_ iterator: io_iterator_t, announce: Bool = true) {
+        while case let service = IOIteratorNext(iterator), service != 0 {
+            defer { IOObjectRelease(service) }
+            guard announce else { continue }
+
+            let name = IORegistryEntryCreateCFProperty(service, "BSD Name" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? String
+            guard let name, !isVPNInterfaceName(name) else { continue }
+            continuation.yield(.adapterAttaching(interfaceName: name))
+        }
     }
 
     fileprivate func drainRemovals(_ iterator: io_iterator_t, announce: Bool = true) {

@@ -163,6 +163,7 @@ struct NetworkMonitorTests {
             "NetworkLocationChanged": false,
             "NetworkServiceOrderChanged": false,
             "NetworkLinkSpeedChanged": false,
+            "NetworkAdapterAttaching": true,
             "NetworkAdapterDetaching": true,
             "NetworkBondMemberStatusChanged": false,
             "NetworkPromiscuousModeChanged": true,
@@ -1491,6 +1492,33 @@ struct BondMemberTests {
 
 @Suite("Adapter removal")
 struct AdapterRemovalTests {
+    // Asked for directly, reported live: a hub's own internal network interface was
+    // announced leaving with nothing ever having announced it arriving — the departure
+    // fired unconditionally off `IONetworkInterface`'s own termination, with no matching
+    // arrival anywhere in this monitor.
+
+    @Test("an adapter appearing is named too, not just one leaving")
+    func attachingIsAnnounced() async {
+        let delivery = CollectingDelivery()
+        let monitor = NetworkMonitor(
+            source: ScriptedNetworkSource(script: [.adapterAttaching(interfaceName: "en7")]),
+            context: MonitorContext(
+                dispatcher: NotificationDispatcher(delivery: delivery),
+                category: NetworkMonitor.category
+            )
+        )
+        await monitor.start()
+        for _ in 0..<200 where await delivery.events.isEmpty {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        await monitor.stop()
+
+        let events = await delivery.events
+        #expect(events.first?.name == "NetworkAdapterAttaching")
+        #expect(events.first?.title == "Network Adapter Detected")
+        #expect(events.first?.body == "en7")
+    }
+
     @Test("an adapter being torn down is named while it can still be asked")
     func detachingIsAnnounced() async {
         let delivery = CollectingDelivery()
@@ -1710,7 +1738,7 @@ struct NetworkDeclarationTests {
         let raiseable = Set(NetworkEvent.allCases.map(\.rawValue))
 
         #expect(declared == raiseable)
-        #expect(declared.count == 31)
+        #expect(declared.count == 32)
     }
 
     /// Also checks that every icon file actually ships.
