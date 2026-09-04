@@ -3,6 +3,39 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## To revisit: "ignore identified devices without their own icon" works, but doesn't sit right
+
+**Status:** working as designed, confirmed live (04-sep-2026) — a hub's internal Billboard
+interface is silenced with the switch on, Hub/Network Adapter/Mass Storage are untouched
+either way. Kept open anyway because the person who asked for it said as much directly:
+"funciona, pero no me termina de convencer" (works, but doesn't fully convince me).
+
+**What the switch does today.** `USBMonitor.ignoresIdentifiedGenericDevices`: a device whose
+`className` resolves to something (a real USB-IF class name, however obscure — "Billboard",
+"Content Security"...) but has no `USBDeviceKind` case of its own is silenced when the
+switch is on; a device `className` itself returns nil for (nothing at all is known about
+it) still announces regardless. One boolean, one behaviour, covering every class this app
+does not have a dedicated row for, present and future.
+
+**Why it might not be the right shape, worth thinking about later.** A few candidate
+reasons, none confirmed:
+- It is an app-wide, all-or-nothing switch. Someone might want Billboard silenced but a
+  different icon-less class (Content Security, say) still announced, which this cannot do —
+  the only escape is giving that other class its own `USBDeviceKind` too, the way
+  Communications ("Network Adapter") just got one.
+- It conflates two different questions under one name: "this class has no icon" and "this
+  class is not something a person cares about." Most icon-less classes so far (Billboard,
+  Content Security, Physical) *are* uninteresting chip-level plumbing, but that is a
+  coincidence of what has been seen in practice, not something the switch actually checks.
+  A future icon-less-but-genuinely-interesting class would have no way to be exempted short
+  of, again, giving it its own row.
+- The name itself ("ignore identified devices without their own icon") describes the
+  mechanism, not the intent — a person has to already understand the codebase's own
+  className/kind distinction to guess what it does from the label alone.
+
+**How to settle it.** No action yet — revisit if it comes up again, or if a class shows up
+that this switch's current all-or-nothing shape gets wrong.
+
 ## To investigate: which modules need their own particular Simulate, like Thermal's
 
 **Status:** open, 2026-09-04. Every module's Notifications tab now offers a generic
