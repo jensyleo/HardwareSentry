@@ -117,7 +117,7 @@ private final class Watcher: @unchecked Sendable {
         guard statfs(path, &info) == 0 else { return VolumeDetail() }
 
         let type = withUnsafeBytes(of: info.f_fstypename) { raw -> String? in
-            let value = String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
+            let value = Self.nulTerminatedString(raw)
             return value.isEmpty ? nil : value
         }
         let total = UInt64(info.f_blocks) * UInt64(info.f_bsize)
@@ -262,18 +262,24 @@ private final class Watcher: @unchecked Sendable {
         var result: [String: Double] = [:]
         for i in 0..<Int(count) {
             let mount = mounts[i]
-            let fsType = withUnsafeBytes(of: mount.f_fstypename) { raw -> String in
-                String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
-            }
+            let fsType = withUnsafeBytes(of: mount.f_fstypename) { Self.nulTerminatedString($0) }
             guard fsType != "devfs", fsType != "autofs" else { continue }
             guard mount.f_flags & UInt32(MNT_LOCAL) != 0 else { continue }
             guard mount.f_blocks > 0 else { continue }
 
-            let path = withUnsafeBytes(of: mount.f_mntonname) { raw -> String in
-                String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
-            }
+            let path = withUnsafeBytes(of: mount.f_mntonname) { Self.nulTerminatedString($0) }
             result[path] = 100.0 * Double(mount.f_bavail) / Double(mount.f_blocks)
         }
         return result
+    }
+
+    /// Decodes a fixed-size C char buffer (`statfs`'s `f_fstypename`/`f_mntonname` among
+    /// them) by searching for the terminator within the buffer's own bounds rather than
+    /// trusting `String(cString:)` to find one before it runs off the end — the kernel
+    /// always null-terminates these in practice, but the bound costs nothing to keep, and
+    /// matches the same pattern already used for a registry entry's name in USB Monitor.
+    private static func nulTerminatedString(_ raw: UnsafeRawBufferPointer) -> String {
+        let bytes = raw.bindMemory(to: UInt8.self).prefix { $0 != 0 }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }

@@ -209,7 +209,11 @@ extension BluetoothDetail {
         else { return nil }
 
         for element in elements {
-            guard let uuid = element.getUUIDValue()?.getWithLength(2) else { continue }
+            // A remote peer controls what goes into its own SDP record; `getWithLength(2)`
+            // asks for 2 bytes but a malformed record can still hand back fewer, and
+            // `getBytes(_:length:)` trusts the length it is given rather than the data's
+            // own — reading past a shorter buffer's end without this check.
+            guard let uuid = element.getUUIDValue()?.getWithLength(2), uuid.length >= 2 else { continue }
             var value: UInt16 = 0
             withUnsafeMutableBytes(of: &value) { uuid.getBytes($0.baseAddress!, length: 2) }
             return value.bigEndian

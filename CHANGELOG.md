@@ -6,6 +6,41 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Security and robustness
+
+A full adversarial pass over `HardwareSentryCore` and the app target (memory/resource
+safety in the two C bridges, force-unwraps, concurrency correctness, injection risk,
+performance) turned up five real issues, all fixed:
+
+- **USB Monitor**, `IOKitUSBDeviceSource.swift` — a remote/malformed Bluetooth SDP record
+  is not the source here, but three USB-side issues were: the composite-device interface
+  cache (`resolvedInterfaceClasses`) had no eviction, so a device whose departure event is
+  missed (sleep-through-unplug, a hub re-enumerating without one) leaked an entry for the
+  rest of the process's life — now bounded and LRU-evicted at 256 entries. The detached
+  task that polls IOKit for an ambiguous device's interfaces was untracked and
+  uncancellable — now tracked and cancelled in `stop()`, so nothing keeps polling for up
+  to 400ms after the watcher is torn down. Vendor/product/location IDs read from the
+  registry were silently truncated to fit their field width on an out-of-range value —
+  now read as nil instead, since a wrong ID could fold two different physical devices
+  under the same cache key.
+- **Bluetooth Monitor**, `BluetoothDetail+IOBluetooth.swift` — `serviceClassUUID(of:)`
+  trusted a remote peer's SDP record to hand back exactly 2 bytes before reading them;
+  a malformed record from a nearby device could have under-run that read. Now checked
+  before reading.
+- **Volume Monitor**, `NSWorkspaceVolumeSource.swift` — `f_fstypename`/`f_mntonname`
+  were decoded with `String(cString:)` against a fixed-size kernel buffer with no bound
+  of its own, unlike the safer pattern already used elsewhere in USB Monitor for a
+  registry entry's name. Not reachable in practice — the kernel always null-terminates
+  these — but brought in line with the safer pattern for free.
+
+Checked and found solid in the same pass, worth recording so it is not re-investigated:
+`CNVMeSMART.c`'s `IOObjectRelease` pairing and `sizeof`-driven buffer copy; the CUPS
+bridge (a plain `libcups` header shim — all real calls are in Swift, going through
+`String(cString:)` with no fixed buffers, and `PrinterSupply.parse`'s explicit
+bounds-checked indexing across CUPS's parallel comma-lists); `ThunderboltMonitor`,
+`NetworkMonitor`'s Wi-Fi code, and `SignalCore`'s notification dispatcher/banner-drawing
+code (no `Process`/shell invocation anywhere in the project; no `as!`/`try!` anywhere).
+
 ### Core
 
 - `SentryContract`: the shared vocabulary every monitor is built from — declarative

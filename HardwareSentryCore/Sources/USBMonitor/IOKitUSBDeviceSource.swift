@@ -61,9 +61,38 @@ private final class RegistryWatcher: @unchecked Sendable {
     /// first place, whichever way it was set. Filled in when the arrival side resolves
     /// the same identity, by whichever path — immediately, or after the async retry.
     private var resolvedInterfaceClasses: [String: [UInt8]] = [:]
+    /// Insertion order for `resolvedInterfaceClasses`, so an entry whose departure is
+    /// missed — the Mac slept through the unplug, or a hub re-enumerated without one —
+    /// does not sit there forever. Bounded rather than unbounded: a real desk does not
+    /// carry hundreds of composite devices through one process's lifetime, but a Mac left
+    /// running for weeks should not grow this without limit either.
+    private var resolvedInterfaceClassesOrder: [String] = []
+    private static let maxResolvedInterfaceClasses = 256
+
+    /// The still-polling ambiguous-device enrichment tasks, so `stop()` can cancel them
+    /// instead of leaving them to keep hitting IOKit for up to 400ms after the watcher —
+    /// and the stream it feeds — is already gone.
+    private var pendingEnrichments: [UUID: Task<Void, Never>] = [:]
 
     init(continuation: AsyncStream<USBDeviceChange>.Continuation) {
         self.continuation = continuation
+    }
+
+    /// Remembers a device's interfaces under its identity, evicting the oldest entry once
+    /// the cache is full rather than growing it forever.
+    private func rememberInterfaceClasses(_ classes: [UInt8], for key: String) {
+        if resolvedInterfaceClasses.updateValue(classes, forKey: key) == nil {
+            resolvedInterfaceClassesOrder.append(key)
+        }
+        while resolvedInterfaceClassesOrder.count > Self.maxResolvedInterfaceClasses {
+            let oldest = resolvedInterfaceClassesOrder.removeFirst()
+            resolvedInterfaceClasses.removeValue(forKey: oldest)
+        }
+    }
+
+    private func forgetInterfaceClasses(for key: String) -> [UInt8]? {
+        resolvedInterfaceClassesOrder.removeAll { $0 == key }
+        return resolvedInterfaceClasses.removeValue(forKey: key)
     }
 
     /// A device's physical identity, stable across the registry-entry replacement a
@@ -132,6 +161,8 @@ private final class RegistryWatcher: @unchecked Sendable {
         if departures != 0 { IOObjectRelease(departures); departures = 0 }
         if let port { IONotificationPortDestroy(port) }
         port = nil
+        for (_, task) in pendingEnrichments { task.cancel() }
+        pendingEnrichments.removeAll()
         continuation.finish()
     }
 
@@ -164,7 +195,7 @@ private final class RegistryWatcher: @unchecked Sendable {
                 // ask, so a still-ambiguous read is enriched from that cache instead of
                 // being yielded as the no-kind-at-all device it would otherwise resolve
                 // to — and with it gone, silently and needlessly outliving the device.
-                if Self.isAmbiguous(device), let key, let cached = resolvedInterfaceClasses.removeValue(forKey: key), !cached.isEmpty {
+                if Self.isAmbiguous(device), let key, let cached = forgetInterfaceClasses(for: key), !cached.isEmpty {
                     continuation.yield(.detached(USBDevice(
                         name: device.name,
                         vendorName: device.vendorName,
@@ -174,7 +205,7 @@ private final class RegistryWatcher: @unchecked Sendable {
                         detail: device.detail
                     )))
                 } else {
-                    if let key { resolvedInterfaceClasses.removeValue(forKey: key) }
+                    if let key { _ = forgetInterfaceClasses(for: key) }
                     continuation.yield(.detached(device))
                 }
                 continue
@@ -182,7 +213,7 @@ private final class RegistryWatcher: @unchecked Sendable {
 
             guard Self.isAmbiguous(device) else {
                 if let key, !device.interfaceClasses.isEmpty {
-                    resolvedInterfaceClasses[key] = device.interfaceClasses
+                    rememberInterfaceClasses(device.interfaceClasses, for: key)
                 }
                 continuation.yield(.attached(device))
                 continue
@@ -193,11 +224,15 @@ private final class RegistryWatcher: @unchecked Sendable {
             let locationID = device.detail.locationID
             let continuation = self.continuation
             let queue = self.queue
+            let taskID = UUID()
 
-            Task.detached {
+            let task = Task.detached { [weak self] in
                 let classes = await Self.enrichedInterfaceClasses(
                     vendorID: vendorID, productID: productID, locationID: locationID
                 )
+                // The watcher may have been stopped while this was polling — nothing left
+                // to write back to or yield into.
+                guard !Task.isCancelled else { return }
                 let enriched = classes.isEmpty ? device : USBDevice(
                     name: device.name,
                     vendorName: device.vendorName,
@@ -210,10 +245,12 @@ private final class RegistryWatcher: @unchecked Sendable {
                     // Written back on `queue`, the only place this dictionary is ever
                     // touched, so this and every `drain` call stay serialized against it
                     // without a lock of their own.
-                    queue.async { [weak self] in self?.resolvedInterfaceClasses[key] = classes }
+                    queue.async { [weak self] in self?.rememberInterfaceClasses(classes, for: key) }
                 }
                 continuation.yield(.attached(enriched))
+                queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }
             }
+            pendingEnrichments[taskID] = task
         }
     }
 
@@ -272,9 +309,9 @@ private final class RegistryWatcher: @unchecked Sendable {
 
         while case let candidate = IOIteratorNext(iterator), candidate != 0 {
             defer { IOObjectRelease(candidate) }
-            let candidateVendor = number(candidate, "idVendor").map(UInt16.init(truncatingIfNeeded:))
-            let candidateProduct = number(candidate, "idProduct").map(UInt16.init(truncatingIfNeeded:))
-            let candidateLocation = number(candidate, "locationID").map(UInt32.init(truncatingIfNeeded:))
+            let candidateVendor = uint16(candidate, "idVendor")
+            let candidateProduct = uint16(candidate, "idProduct")
+            let candidateLocation = uint32(candidate, "locationID")
             guard candidateVendor == vendorID, candidateProduct == productID, candidateLocation == locationID else { continue }
             return Self.interfaceClasses(candidate)
         }
@@ -341,8 +378,8 @@ private final class RegistryWatcher: @unchecked Sendable {
 
         return USBDeviceDetail(
             productName: string(service, "USB Product Name") ?? string(service, kUSBProductString),
-            vendorID: number(service, "idVendor").map(UInt16.init(truncatingIfNeeded:)),
-            productID: number(service, "idProduct").map(UInt16.init(truncatingIfNeeded:)),
+            vendorID: uint16(service, "idVendor"),
+            productID: uint16(service, "idProduct"),
             speedCode: byte(service, "Device Speed"),
             requiredCurrent: required,
             availableCurrent: available,
@@ -352,10 +389,10 @@ private final class RegistryWatcher: @unchecked Sendable {
             mediumType: isHub ? nil : Self.storageMedium(service).medium,
             massStorageHint: isHub ? nil : Self.massStorageHint(service),
             serialNumber: string(service, "USB Serial Number") ?? string(service, kUSBSerialNumberString),
-            releaseVersion: number(service, "bcdDevice").map(UInt16.init(truncatingIfNeeded:)),
-            locationID: number(service, "locationID").map(UInt32.init(truncatingIfNeeded:)),
+            releaseVersion: uint16(service, "bcdDevice"),
+            locationID: uint32(service, "locationID"),
             configurationCount: number(service, "bNumConfigurations"),
-            specVersion: number(service, "bcdUSB").map(UInt16.init(truncatingIfNeeded:)),
+            specVersion: uint16(service, "bcdUSB"),
             isTunnelled: boolean(service, "IOUSBHostControllerIsTunnelled")
                 ?? boolean(service, "Tunnelled") ?? false,
             // Unlike `mediumType` above, this one can genuinely apply to a hub — a hub
@@ -464,6 +501,22 @@ private final class RegistryWatcher: @unchecked Sendable {
     private static func number(_ service: io_service_t, _ key: String) -> Int? {
         (IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?
             .takeRetainedValue() as? NSNumber)?.intValue
+    }
+
+    /// Reads a property that is meant to fit in 16 bits and answers nil rather than a
+    /// wrapped-around number when it does not — a vendor/product ID this is wrong for is
+    /// a device this misidentifies, not a device this merely mislabels: `identity(...)`
+    /// keys the composite-device interface cache on exactly these fields, so silently
+    /// truncating one could fold two different real devices under the same cache entry.
+    private static func uint16(_ service: io_service_t, _ key: String) -> UInt16? {
+        guard let value = number(service, key), (0...Int(UInt16.max)).contains(value) else { return nil }
+        return UInt16(value)
+    }
+
+    /// The 32-bit counterpart of `uint16(_:_:)`, for the same reason.
+    private static func uint32(_ service: io_service_t, _ key: String) -> UInt32? {
+        guard let value = number(service, key), (0...Int(UInt32.max)).contains(value) else { return nil }
+        return UInt32(value)
     }
 
     private static func boolean(_ service: io_service_t, _ key: String) -> Bool? {
