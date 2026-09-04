@@ -6,6 +6,10 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
+**Status:** pre-release, version 0.1.0. Every module below is ported and covered by the
+parity audit; see `CHANGELOG.md` for what has landed so far and `KNOWN-ISSUES.md` for what
+is understood, small, and not yet worth holding a release for.
+
 ## What it does
 
 Thirteen modules, each watching one kind of hardware: USB, Thunderbolt, Bluetooth, network,
@@ -59,6 +63,16 @@ Tools/parity-audit.sh [path-to-HG4MAC]
 ```
 
 It exits non-zero on a gap. See `PARITY.md` for what it covers and what it cannot.
+
+## Documentation
+
+- `CHANGELOG.md` — what has been built so far, module by module.
+- `KNOWN-ISSUES.md` — small, understood defects and open design questions, kept out of
+  the code they affect.
+- `PARITY.md` — what the parity audit covers, and what it structurally cannot.
+- `SECURITY.md` — this project's security scope, and how to report a vulnerability.
+- `Help ▸ HardwareSentry Help`, inside the application itself — generated from the
+  modules, so it always describes the build in front of you.
 
 ## Licence
 
