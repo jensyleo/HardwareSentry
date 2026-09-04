@@ -152,7 +152,7 @@ public final class BannerDelivery: NotificationDelivering {
 
         events[admission.id] = event
         controllers[admission.id] = controller
-        apply(admission.change, in: frame, newlyAdmitted: admission.id, controller: controller)
+        apply(admission.change, in: frame)
         playSound(for: context)
 
         return .presented
@@ -229,13 +229,42 @@ public final class BannerDelivery: NotificationDelivering {
         NSSound(named: name)?.play()
     }
 
+    /// A reveal due since the last time it ran, so a second one arriving before it fires
+    /// reschedules rather than stacking up a second, independent timer.
+    private var pendingReveal: DispatchWorkItem?
+
+    /// One slot's position, worked out fresh from wherever `stack` stands right now.
+    ///
+    /// Kept as its own step, called both from `apply` — to move what is already up — and
+    /// from `firePendingReveal` — to place what is not, at whatever slot it has *by the
+    /// time it actually appears* rather than the slot it was offered when first admitted.
+    /// The gap between those two moments is exactly where the bug this replaces lived:
+    /// see the note on `firePendingReveal`.
+    private func layout(_ stack: BannerStack, in frame: NSRect) -> [(id: BannerID, origin: NSPoint, offscreenX: CGFloat)] {
+        let corner = appearance.corner
+        let margin = appearance.margin
+        var edge = corner.isTop ? frame.maxY - margin : frame.minY + margin
+        var result: [(id: BannerID, origin: NSPoint, offscreenX: CGFloat)] = []
+
+        for slot in stack.visible {
+            let width = controllers[slot.id]?.width ?? appearance.width
+            let x = corner.isLeading ? frame.minX + margin : frame.maxX - width - margin
+            let y = corner.isTop ? edge - slot.height : edge
+            let offscreenX = corner.isLeading ? frame.minX - width - 4 : frame.maxX + 4
+            result.append((slot.id, NSPoint(x: x, y: y), offscreenX))
+            edge += (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
+        }
+
+        return result
+    }
+
     /// Turns the policy's answer into windows appearing, moving and going away.
-    private func apply(
-        _ change: StackChange,
-        in frame: NSRect,
-        newlyAdmitted: BannerID? = nil,
-        controller newController: BannerWindowController? = nil
-    ) {
+    ///
+    /// Takes no word on which banner is newly admitted: `controllers[id].hasAppeared`
+    /// already says that for every slot, and asking `stack` fresh rather than being told
+    /// is what lets a banner still waiting to reveal survive an intervening `apply` call
+    /// without going stale — see `scheduleReveal`.
+    private func apply(_ change: StackChange, in frame: NSRect) {
         for id in change.removed + change.dropped {
             controllers.removeValue(forKey: id)?.dismiss()
             events.removeValue(forKey: id)
@@ -243,65 +272,8 @@ public final class BannerDelivery: NotificationDelivering {
 
         guard let stack else { return }
 
-        let corner = appearance.corner
-        let margin = appearance.margin
 
-        // Banners walk away from their corner: downward from a top one, upward from a
-        // bottom one, so the newest is always the one nearest the corner it came from.
-        var edge = corner.isTop ? frame.maxY - margin : frame.minY + margin
-        var reveals: [(controller: BannerWindowController, origin: NSPoint, offscreenX: CGFloat)] = []
-
-        for slot in stack.visible {
-            guard let controller = controllers[slot.id] ?? newController else { continue }
-
-            // Placed by the width the banner was actually built at, which is only the
-            // current setting for banners raised since it last changed.
-            let width = (slot.id == newlyAdmitted ? newController?.width : controllers[slot.id]?.width) ?? appearance.width
-            let x = corner.isLeading ? frame.minX + margin : frame.maxX - width - margin
-            let y = corner.isTop ? edge - slot.height : edge
-            let origin = NSPoint(x: x, y: y)
-
-            // It slides in from whichever edge is nearer, so the movement always reads as
-            // coming from outside rather than across the screen.
-            let offscreenX = corner.isLeading ? frame.minX - width - 4 : frame.maxX + 4
-
-            if slot.id == newlyAdmitted, let newController {
-                reveals.append((newController, origin, offscreenX))
-            } else if change.revealed.contains(slot.id) {
-                reveals.append((controller, origin, offscreenX))
-            } else {
-                // Moved immediately, ahead of anything about to appear — see the note on
-                // the delayed `present()` call below for why the two are not issued
-                // together.
-                controller.move(to: origin)
-            }
-
-            edge += (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
-        }
-
-        // A banner being revealed lands in the exact slot an existing one is, in the same
-        // instant, moving out of — reproduced on screen: for as long as both animations
-        // are in flight, the two banners' frames genuinely overlap, since the newcomer's
-        // vertical position is fixed from the first frame (only its X position and opacity
-        // animate) while the banner making room is still mid-transit out of that same
-        // spot. `move`'s own 0.2s is already shorter than `present`'s 0.25s, but starting
-        // both at once still means the newcomer is dressed and standing in a room its
-        // predecessor has not yet finished leaving. Giving the move a head start — issued
-        // above, immediately — before the newcomer is asked to appear removes the overlap
-        // instead of merely shortening it.
-        if !reveals.isEmpty {
-            let delay: DispatchTimeInterval = appearance.isAnimated ? .milliseconds(90) : .milliseconds(0)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard self != nil else { return }
-                // Oldest of this batch first, so — matching the front-ordering pass below —
-                // the newest still ends up on top: `present` fronts a panel itself, so
-                // presenting in the wrong order would leave a stale front-to-back order
-                // for exactly the banners this delay exists to get right.
-                for reveal in reveals.reversed() {
-                    reveal.controller.present(at: reveal.origin, enteringFrom: reveal.offscreenX)
-                }
-            }
-        }
+        reposition(in: frame)
 
         // A separate pass, after every already-on-screen banner has its correct,
         // non-overlapping frame: re-asserts window front-to-back order to match the
@@ -311,17 +283,148 @@ public final class BannerDelivery: NotificationDelivering {
         // front-to-back order from however the windows happened to be created could
         // survive even once every frame was correct again.
         //
-        // Anything in `reveals` is skipped here on purpose: its panel has not been
-        // positioned yet — that happens above, after the delay — and fronting it now would
-        // flash an unstyled box at whatever frame it was constructed with, in the corner of
-        // the screen this window belongs to. `present`, when it runs, fronts it itself.
-        let pending = Set(reveals.map { ObjectIdentifier($0.controller) })
+        // A banner that has not appeared yet is skipped here on purpose: fronting it now,
+        // before it has a real frame, would flash an unstyled box in the corner of the
+        // screen it belongs to. `present`, when it eventually runs, fronts it itself.
         for slot in stack.visible.reversed() {
-            guard let controller = controllers[slot.id], !pending.contains(ObjectIdentifier(controller)) else { continue }
+            guard let controller = controllers[slot.id], controller.hasAppeared else { continue }
             controller.bringToFront()
         }
 
         scheduleNextTick()
+    }
+
+    /// Steps every banner already on screen to the slot it now holds, and then lets
+    /// whatever is still waiting appear.
+    ///
+    /// Strictly one thing at a time. Nothing is moved while any banner is still
+    /// animating, because a banner mid-arrival has to hold its own move back — and if its
+    /// neighbours went ahead without it, it would sit still while they slid out from
+    /// under it, which is the overlap this exists to prevent. Everything therefore waits
+    /// for the screen to be still, moves together, and only then admits the next arrival.
+    private func reposition(in frame: NSRect) {
+        guard let stack else { return }
+
+        if controllers.values.contains(where: \.isBusy) {
+            scheduleReveal(in: frame, delay: 0.03)
+            return
+        }
+
+        // Every banner that has to get out of the way is counted, and the reveal happens
+        // when the last of them reports in — not on a timer that only guesses at how long
+        // that takes. See `move(to:completion:)`.
+        let batch = MoveBatch()
+
+        for (id, origin, _) in layout(stack, in: frame) {
+            guard let controller = controllers[id], controller.hasAppeared else {
+                batch.needsReveal = true
+                continue
+            }
+            batch.inFlight += 1
+            controller.move(to: origin) { [weak self] in
+                batch.inFlight -= 1
+                guard batch.issuedAll, batch.inFlight == 0, batch.needsReveal else { return }
+                self?.firePendingReveal()
+            }
+        }
+
+        batch.issuedAll = true
+
+        if batch.needsReveal {
+            // Nothing had to move, so the slot is already free — or every move finished
+            // synchronously while they were being issued.
+            if batch.inFlight == 0 {
+                firePendingReveal()
+            }
+            // A backstop, in case an animation is interrupted and never reports in: the
+            // queue must not stall on a callback that is not coming.
+            scheduleReveal(in: frame)
+        }
+    }
+
+    /// Waits out however long an already-visible banner needs to finish vacating a slot,
+    /// then reveals whatever is still waiting — at the position that slot holds *then*,
+    /// not the one it held when the wait began.
+    ///
+    /// That distinction is the fix for a real, reproduced bug: the first version of this
+    /// captured each newcomer's target position up front and handed it to a delayed
+    /// closure. When a second admission arrived before that delay elapsed — which a
+    /// composite USB device that enumerates as more than one node makes routine, not
+    /// rare — the second `apply` correctly moved every *visible* banner to its new slot,
+    /// but the first banner's still-pending reveal knew nothing about that: it fired
+    /// later using the position captured at the moment it was scheduled, parking the
+    /// banner exactly where an unrelated one now already was. The result was not a brief
+    /// animation crossing but a permanent, static overlap — a banner that never slid into
+    /// its correct place because nothing had told it there was a new one. Re-deriving the
+    /// slot from the live stack at the moment of firing, rather than trusting a value
+    /// carried across however many intervening `apply` calls happened in between, removes
+    /// the staleness instead of shortening the window for it.
+    private func scheduleReveal(in frame: NSRect, delay explicitDelay: TimeInterval? = nil) {
+        pendingReveal?.cancel()
+
+        // Deliberately longer than any real sequence of animations — an arrival followed
+        // by the move it held back — because this is only the backstop for a completion
+        // that never arrives. The reveal normally happens the moment the last move
+        // reports in, well before this. A caller retrying because something was still
+        // animating passes its own, much shorter delay.
+        let delay: TimeInterval = explicitDelay ?? (appearance.isAnimated ? 1 : 0)
+        // Goes back through `reposition`, not straight to the reveal: whatever made this
+        // retry necessary may equally have left a banner needing to be stepped down.
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let frame = self.visibleFrame() else { return }
+            self.reposition(in: frame)
+        }
+        pendingReveal = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func firePendingReveal() {
+        pendingReveal?.cancel()
+        pendingReveal = nil
+        guard let frame = visibleFrame(), let stack else { return }
+
+        let slots = layout(stack, in: frame)
+        let due = slots.filter { !(controllers[$0.id]?.hasAppeared ?? true) }
+        guard !due.isEmpty else { return }
+
+        // Nothing new enters the corner while anything is still animating. Without this,
+        // a banner still sliding in — or an older one that has not finished stepping down
+        // yet — is still occupying the slot the newcomer is about to be placed in, and the
+        // two are simply drawn on top of each other. Measured against the window server:
+        // two banners both at the top slot, overlapping by 146 points, the lower one only
+        // beginning to move once the newer had completely arrived.
+        if controllers.values.contains(where: \.isBusy) {
+            scheduleReveal(in: frame, delay: 0.03)
+            return
+        }
+
+        // The slot being revealed into is only free if everyone else is already standing
+        // where this same layout puts them. They are not, whenever another banner was
+        // admitted between the moves being issued and this running: the layout then
+        // describes a taller stack than the one on screen, and the newcomer is placed into
+        // a gap that nobody has opened yet — measured landing it squarely on top of two
+        // banners still holding their old slots. Moving everyone first, and revealing from
+        // that move's completion, is what keeps the two in step.
+        let settled = slots.allSatisfy { id, origin, _ in
+            guard let controller = controllers[id], controller.hasAppeared else { return true }
+            return abs(controller.currentOrigin.y - origin.y) < 0.5
+                && abs(controller.currentOrigin.x - origin.x) < 0.5
+        }
+
+        guard settled else {
+            reposition(in: frame)
+            return
+        }
+
+        // One at a time, oldest first. Revealing the whole batch at once is what put two
+        // banners in one slot; each arrival now gets the corner to itself, and the next
+        // pass follows once this one has landed and everyone else has stepped down.
+        guard let (id, origin, offscreenX) = due.last else { return }
+        controllers[id]?.present(at: origin, enteringFrom: offscreenX)
+
+        if due.count > 1 {
+            scheduleReveal(in: frame, delay: 0.03)
+        }
     }
 
     /// One timer for the whole stack rather than one per banner: the policy already knows
@@ -343,6 +446,18 @@ public final class BannerDelivery: NotificationDelivering {
             self?.tick()
         }
     }
+}
+
+/// Counts the repositionings issued by one pass of `apply`, so the reveal that follows
+/// can wait for the last of them rather than for a fixed delay. A reference type because
+/// the count is written from the animation completions, after `apply` has returned.
+@MainActor
+private final class MoveBatch {
+    var inFlight = 0
+    var needsReveal = false
+    /// Guards against revealing when the first move happens to finish before the rest
+    /// have even been issued.
+    var issuedAll = false
 }
 
 /// Holds the screen-change token across `deinit`, which is not actor-isolated —
