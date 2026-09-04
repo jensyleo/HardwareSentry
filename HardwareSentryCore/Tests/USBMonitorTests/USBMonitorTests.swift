@@ -459,6 +459,47 @@ struct USBDeviceDetailTests {
         #expect(USBDeviceDetail(mediumType: "Something Else").mediumNote == nil)
     }
 
+    @Test("the mass-storage heuristic recognises an SD card by protocol or by name")
+    func massStorageHintRecognisesSDCard() {
+        #expect(USBMassStorageHint.infer(protocolName: "Secure Digital", mediaName: nil) == .sdCard)
+        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "SDXC Card") == .sdCard)
+        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "Generic Card Reader") == .sdCard)
+    }
+
+    @Test("the mass-storage heuristic recognises a flash drive by name")
+    func massStorageHintRecognisesUSBDrive() {
+        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "SanDisk Cruzer Flash Disk") == .usbDrive)
+        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "USB Mass Storage Device") == .usbDrive)
+    }
+
+    @Test("the mass-storage heuristic stays generic for a disk enclosure or an unnamed disk")
+    func massStorageHintStaysGenericOtherwise() {
+        #expect(USBMassStorageHint.infer(protocolName: "USB", mediaName: "Portable SSD") == nil)
+        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "External Hard Drive") == nil)
+        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: nil) == nil)
+    }
+
+    @Test("a Mass Storage device is refined into USB Drive or SD Card Reader by the heuristic, never without it")
+    func kindIsRefinedByMassStorageHint() {
+        let plain = USBDevice(name: "Disk", deviceClass: 0x08)
+        #expect(plain.kind == .massStorage)
+
+        let flashDrive = USBDevice(
+            name: "Disk", deviceClass: 0x08, detail: USBDeviceDetail(massStorageHint: .usbDrive)
+        )
+        #expect(flashDrive.kind == .usbDrive)
+
+        let sdCard = USBDevice(
+            name: "Disk", deviceClass: 0x08, detail: USBDeviceDetail(massStorageHint: .sdCard)
+        )
+        #expect(sdCard.kind == .sdCardReader)
+
+        // The hint only ever refines a device the class byte already called Mass Storage —
+        // it has no say over anything else.
+        let webcam = USBDevice(name: "Cam", deviceClass: 0x0E, detail: USBDeviceDetail(massStorageHint: .usbDrive))
+        #expect(webcam.kind == .webcam)
+    }
+
     @Test("version words are read as the decimal halves they encode")
     func bcdVersionsAreDecoded() {
         // 0x0210 is version 2.10, not 528 — reading it as a plain number is meaningless.
@@ -515,8 +556,9 @@ struct USBDeviceKindRowTests {
         // Communications (0x02, "Network Adapter"), added after this device class turned
         // out to matter: a hub's own internal LAN-over-USB chip enumerates under it, and
         // was going through the generic row with nothing to tell it apart from a
-        // genuinely unidentified device.
-        #expect(USBDeviceKind.allCases.count == 13)
+        // genuinely unidentified device — plus USB Drive and SD Card Reader, Mass
+        // Storage's own two sub-kinds told apart heuristically (see `USBMassStorageHint`).
+        #expect(USBDeviceKind.allCases.count == 15)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }

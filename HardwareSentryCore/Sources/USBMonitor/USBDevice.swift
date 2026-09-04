@@ -45,7 +45,19 @@ public struct USBDevice: Sendable, Equatable {
         // `0x00` carries the same "look at the interfaces" meaning `0xEF` does, so an
         // absent device class is treated the same way rather than skipping straight to
         // the interfaces without also giving `0x00` itself a chance to (harmlessly) fail.
-        return USBDeviceKind(deviceClass: deviceClass ?? 0x00, interfaceClasses: interfaceClasses)
+        let resolved = USBDeviceKind(deviceClass: deviceClass ?? 0x00, interfaceClasses: interfaceClasses)
+        // Mass Storage covers three different things somebody plugs in — a flash drive, an
+        // SD card reader, a portable HDD/SSD enclosure — and the class byte alone cannot
+        // tell them apart; it is one class for all of them. Refined only when a heuristic
+        // read of the disk itself (borrowed from Volume Monitor's own, independently
+        // reimplemented since a monitor may not import another monitor) recognised
+        // something more specific. An enclosure or an unrecognised disk stays `.massStorage`,
+        // which is the honest answer when the heuristic has nothing to say.
+        guard resolved == .massStorage, let hint = detail.massStorageHint else { return resolved }
+        switch hint {
+        case .sdCard: return .sdCardReader
+        case .usbDrive: return .usbDrive
+        }
     }
 
     /// The artwork for what this device says it is.
@@ -62,6 +74,7 @@ public struct USBDevice: Sendable, Equatable {
 public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case hub, massStorage, hid, webcam, scanner, printer, smartCard
     case audio, healthcare, audioVideo, typeCBridge, wireless, communications
+    case usbDrive, sdCardReader
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
@@ -163,6 +176,10 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // already ported for Thunderbolt Monitor's own row of the same shape (H4) — one
         // asset, two monitors, rather than drawing a second one for the same device kind.
         case .communications: return "USB-TypeCommunications"
+        // Volume Monitor's own disk artwork for the two mass-storage sub-kinds it
+        // already tells apart, reused as-is rather than redrawn for a second time.
+        case .usbDrive: return "Device-USBDrive"
+        case .sdCardReader: return "Device-SDCard"
         }
     }
 
@@ -187,6 +204,8 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // "Type" line in the body still says "Communications", the USB-IF's own name for
         // it, so neither wording is lost.
         case .communications: return "Network Adapter"
+        case .usbDrive: return "USB Drive"
+        case .sdCardReader: return "SD Card Reader"
         }
     }
 
@@ -206,7 +225,42 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .communications: return .connectedCommunications
         case .typeCBridge: return .connectedTypeCBridge
         case .wireless: return .connectedWireless
+        case .usbDrive: return .connectedUSBDrive
+        case .sdCardReader: return .connectedSDCard
         }
+    }
+}
+
+/// What the disk behind a Mass Storage device looks like, read off the disk itself rather
+/// than the USB class byte — which cannot tell a flash drive from an SD card reader from a
+/// portable HDD/SSD enclosure, since all three share the one class, `0x08`.
+///
+/// Deliberately narrow: only the two sub-kinds worth a row and an icon of their own. A
+/// portable disk enclosure, or a disk the heuristic below does not recognise, stays nil and
+/// therefore `.massStorage` — the honest generic answer, not a wrong specific guess.
+///
+/// The heuristic itself is a scoped, independently reimplemented copy of Volume Monitor's
+/// own `VolumeKind.infer` (a monitor may not import another monitor's types — see the
+/// architecture's module-isolation rule). It is admittedly imperfect there already; see
+/// `KNOWN-ISSUES.md` for what is left to a future investigation.
+public enum USBMassStorageHint: Sendable, Equatable {
+    case sdCard, usbDrive
+
+    public static func infer(protocolName: String?, mediaName: String?) -> USBMassStorageHint? {
+        if protocolName?.caseInsensitiveCompare("Secure Digital") == .orderedSame { return .sdCard }
+        let text = (mediaName ?? "").lowercased()
+        if ["secure digital", " sd/", "sd card", "sdxc", "sdhc", "mmc",
+            "compactflash", " cf ", "cardreader", "card reader"].contains(where: text.contains) {
+            return .sdCard
+        }
+        if ["hdd", "ssd", "hard disk", "hard drive", "external"].contains(where: text.contains) {
+            // A named disk enclosure, not a bare flash drive — stays generic `.massStorage`.
+            return nil
+        }
+        if ["flash", "thumb", "pen drive", "usb drive", "mass storage"].contains(where: text.contains) {
+            return .usbDrive
+        }
+        return nil
     }
 }
 
@@ -237,6 +291,7 @@ public extension USBDevice {
         guard let base = iconBaseName else { return "USB-Off" }
         switch base {
         case "Device-USBDrive": return "Device-USBDrive-Unmounted"
+        case "Device-SDCard": return "Device-SDCard-Unmounted"
         case "USB-On": return "USB-Off"
         default: return "\(base)-Disconnected"
         }
@@ -318,6 +373,10 @@ public struct USBDeviceDetail: Sendable, Equatable {
     public let requestedMoreThanAvailable: Bool
     /// "Solid State" or "Rotational", for mass storage.
     public let mediumType: String?
+    /// A flash drive or an SD card reader, read heuristically off the disk itself — see
+    /// `USBMassStorageHint`. Nil for every device that is not Mass Storage, and for a Mass
+    /// Storage device the heuristic did not recognise (most often a disk enclosure).
+    public let massStorageHint: USBMassStorageHint?
     public let serialNumber: String?
     /// The device release number, as major and minor halves of a BCD word.
     public let releaseVersion: UInt16?
@@ -340,6 +399,7 @@ public struct USBDeviceDetail: Sendable, Equatable {
         availableCurrent: Int? = nil,
         requestedMoreThanAvailable: Bool = false,
         mediumType: String? = nil,
+        massStorageHint: USBMassStorageHint? = nil,
         serialNumber: String? = nil,
         releaseVersion: UInt16? = nil,
         locationID: UInt32? = nil,
@@ -357,6 +417,7 @@ public struct USBDeviceDetail: Sendable, Equatable {
         self.availableCurrent = availableCurrent
         self.requestedMoreThanAvailable = requestedMoreThanAvailable
         self.mediumType = mediumType
+        self.massStorageHint = massStorageHint
         self.serialNumber = serialNumber
         self.releaseVersion = releaseVersion
         self.locationID = locationID

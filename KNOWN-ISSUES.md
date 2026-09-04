@@ -36,6 +36,55 @@ reasons, none confirmed:
 **How to settle it.** No action yet — revisit if it comes up again, or if a class shows up
 that this switch's current all-or-nothing shape gets wrong.
 
+## To investigate: USB Monitor's flash-drive/SD-card heuristic is borrowed, and imperfect where it came from
+
+**Status:** shipped 2026-09-04, at the request of the person who asked "¿Es posible
+diferenciar Mass Storage de pendrive?" and, once told the honest shape of the answer,
+said to build it anyway and leave this note for later: "Si y deja documentado para que
+despues se haga otra investigacion para solucionar eso."
+
+**What it does.** USB Monitor's `0x08` (Mass Storage) class covers three different things
+someone plugs in — a flash drive, an SD card reader, a portable HDD/SSD enclosure — and the
+class byte alone cannot tell them apart. `USBMassStorageHint.infer(protocolName:mediaName:)`
+in `USBDevice.swift` reads the disk itself through Disk Arbitration
+(`IOKitUSBDeviceSource.massStorageHint(_:)`, using `DADiskCreateFromBSDName` off a BSD
+device name read from the same IOKit registry walk that already finds "Medium Type") and
+refines `USBDevice.kind` from plain `.massStorage` into `.usbDrive` or `.sdCardReader`
+when the disk's protocol or name says so plainly. Anything the heuristic does not
+recognise — a named disk enclosure, or a disk with nothing to go on at all — stays the
+honest, generic `.massStorage`, exactly as before this existed.
+
+**Why it is not trusted as a finished answer.** It is not a new technique: it is a scoped,
+independently reimplemented copy (module isolation forbids importing another monitor's
+types) of Volume Monitor's own `VolumeKind.infer`, which is itself an admittedly imperfect
+heuristic over the same kind of Disk Arbitration data — string-matching a disk's reported
+protocol and media name against fixed token lists, with no ground truth to check the guess
+against. Whatever is unproven about the original is unproven here too, and USB Monitor
+adds a wrinkle Volume Monitor never had to handle: it may be reading a disk that is not
+mounted (no volume path to key off), and a BSD name found on some registry child of the
+right shape, not necessarily the disk itself, so a future device whose registry layout
+looks slightly different from what was tested could silently fall back to `nil` (which is
+safe — `.massStorage`, not a wrong specific guess) or, less safely, get one right by
+coincidence.
+
+**Not yet done:**
+- Confirmed only against reasoning about the registry shape and Volume Monitor's own
+  behaviour, not against a real flash drive and a real SD card reader plugged in and
+  watched live — unlike almost everything else in this file.
+- No coverage for the size-based fallback Volume Monitor's own heuristic has (a large
+  unnamed disk read as an external enclosure) — deliberately left out here rather than
+  guessed at, so a future investigation should decide on purpose whether USB Monitor wants
+  that too, not inherit it by accident.
+- Whether the two new rows (`USBConnectedUSBDrive`, `USBConnectedSDCard`) and their icons
+  (`Device-USBDrive`, reused as-is; `Device-SDCard`, copied byte-for-byte from Volume
+  Monitor's own `Resources/`) read right against a live device has not been watched with
+  eyes on real hardware yet.
+
+**How to settle it.** Plug in an actual flash drive and an actual SD card reader, watch
+what `USBConnectedUSBDrive` / `USBConnectedSDCard` fire and read correctly, and only then
+decide whether the heuristic needs the size fallback, needs its BSD-name discovery
+hardened against a different registry shape, or is simply good enough as it stands.
+
 ## To investigate: which modules need their own particular Simulate, like Thermal's
 
 **Status:** open, 2026-09-04. Every module's Notifications tab now offers a generic

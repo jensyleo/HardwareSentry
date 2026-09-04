@@ -1,3 +1,4 @@
+import DiskArbitration
 import Foundation
 import IOKit
 import IOKit.usb
@@ -348,7 +349,8 @@ private final class RegistryWatcher: @unchecked Sendable {
             // The port answering with less than was asked for is the refusal itself; the
             // registry has no separate "denied" flag.
             requestedMoreThanAvailable: (required ?? 0) > (available ?? Int.max),
-            mediumType: isHub ? nil : Self.storageMedium(service),
+            mediumType: isHub ? nil : Self.storageMedium(service).medium,
+            massStorageHint: isHub ? nil : Self.massStorageHint(service),
             serialNumber: string(service, "USB Serial Number") ?? string(service, kUSBSerialNumberString),
             releaseVersion: number(service, "bcdDevice").map(UInt16.init(truncatingIfNeeded:)),
             locationID: number(service, "locationID").map(UInt32.init(truncatingIfNeeded:)),
@@ -367,30 +369,56 @@ private final class RegistryWatcher: @unchecked Sendable {
         )
     }
 
-    private static func storageMedium(_ service: io_service_t) -> String? {
-        // The medium is a property of the disk, which hangs several levels below the USB
-        // device — an enclosure, then a mass-storage driver, then the disk itself. Six
-        // levels is deeper than any real enclosure nests, and stops the walk being
-        // unbounded on a malformed tree.
-        var found: String?
+    private static func storageMedium(_ service: io_service_t) -> (medium: String?, bsdName: String?) {
+        // The medium — and the BSD device name alongside it — are properties of the disk,
+        // which hangs several levels below the USB device: an enclosure, then a
+        // mass-storage driver, then the disk itself. Six levels is deeper than any real
+        // enclosure nests, and stops the walk being unbounded on a malformed tree.
+        var medium: String?
+        var bsdName: String?
         var iterator: io_iterator_t = 0
         guard IORegistryEntryCreateIterator(
             service, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator
-        ) == KERN_SUCCESS else { return nil }
+        ) == KERN_SUCCESS else { return (nil, nil) }
         defer { IOObjectRelease(iterator) }
 
         var depth = 0
         while case let child = IOIteratorNext(iterator), child != 0, depth < 64 {
             defer { IOObjectRelease(child); depth += 1 }
-            if let medium = IORegistryEntryCreateCFProperty(
-                child, "Device Characteristics" as CFString, kCFAllocatorDefault, 0
-            )?.takeRetainedValue() as? [String: Any],
-               let type = medium["Medium Type"] as? String {
-                found = type
-                break
+            if medium == nil,
+               let characteristics = IORegistryEntryCreateCFProperty(
+                   child, "Device Characteristics" as CFString, kCFAllocatorDefault, 0
+               )?.takeRetainedValue() as? [String: Any],
+               let type = characteristics["Medium Type"] as? String {
+                medium = type
             }
+            if bsdName == nil,
+               let name = IORegistryEntryCreateCFProperty(
+                   child, "BSD Name" as CFString, kCFAllocatorDefault, 0
+               )?.takeRetainedValue() as? String {
+                bsdName = name
+            }
+            if medium != nil, bsdName != nil { break }
         }
-        return found
+        return (medium, bsdName)
+    }
+
+    /// A flash drive or an SD card reader, told apart from a plain Mass Storage device by
+    /// asking Disk Arbitration what it knows about the disk — the same technique Volume
+    /// Monitor uses on a mounted volume's path, adapted here to a bare BSD device name
+    /// (`DADiskCreateFromBSDName` rather than `DADiskCreateFromVolumePath`), since a USB
+    /// disk need not have anything mounted for this to run.
+    ///
+    /// Independently reimplemented, not imported — see `USBMassStorageHint`'s own doc
+    /// comment for why a monitor cannot reuse another monitor's types.
+    private static func massStorageHint(_ service: io_service_t) -> USBMassStorageHint? {
+        guard let bsdName = storageMedium(service).bsdName else { return nil }
+        guard let session = DASessionCreate(kCFAllocatorDefault) else { return nil }
+        guard let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsdName) else { return nil }
+        guard let description = DADiskCopyDescription(disk) as? [String: Any] else { return nil }
+        let protocolName = description[kDADiskDescriptionDeviceProtocolKey as String] as? String
+        let mediaName = description[kDADiskDescriptionMediaNameKey as String] as? String
+        return USBMassStorageHint.infer(protocolName: protocolName, mediaName: mediaName)
     }
 
     /// A property that lives on the *port* rather than on the device, so the walk goes up.

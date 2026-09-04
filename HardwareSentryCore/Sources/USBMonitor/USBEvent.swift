@@ -22,6 +22,9 @@ public enum USBEvent: String, NotificationEventKey, CaseIterable {
     case connectedTypeCBridge = "USBConnectedTypeCBridge"
     case connectedWireless = "USBConnectedWireless"
     case connectedCommunications = "USBConnectedCommunications"
+    // Mass Storage's own two sub-kinds, told apart heuristically — see `USBMassStorageHint`.
+    case connectedUSBDrive = "USBConnectedUSBDrive"
+    case connectedSDCard = "USBConnectedSDCard"
 
     public static let category: NotificationCategory = "USB"
 }
