@@ -94,12 +94,15 @@ struct USBMonitorTests {
 
     @Test("a covered kind is silent here")
     func coveredKindIsQuiet() async {
+        // The BRIO's real shape (video and audio both) reads as `.audioVideo` — covered
+        // only once both Camera's and Audio's own switches have said so between them,
+        // modelled here as the boundary this monitor sees: the kind already folded in.
         let events = await run(
             [
                 .attached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])),
                 .detached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01]))
             ],
-            kindsCoveredElsewhere: [.webcam]
+            kindsCoveredElsewhere: [.audioVideo]
         )
         #expect(events.isEmpty)
     }
@@ -142,7 +145,7 @@ struct USBMonitorTests {
         for _ in 0..<200 { await Task.yield() }
         #expect(await delivery.events.count == 1)
 
-        await monitor.apply(kindsCoveredElsewhere: [.webcam])
+        await monitor.apply(kindsCoveredElsewhere: [.audioVideo])
         source.send(.detached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])))
         for _ in 0..<200 { await Task.yield() }
         source.finish()
@@ -327,8 +330,8 @@ struct USBClassNameTests {
     @Test("a composite device is named from its interfaces too, matching its kind")
     func compositeDeviceClassNameMatchesKind() {
         let device = USBDevice(name: "Webcam", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])
-        #expect(device.className == "Video")
-        #expect(device.kind == .webcam)
+        #expect(device.className == "Audio/Video")
+        #expect(device.kind == .audioVideo)
     }
 
     @Test("a composite device with nothing recognised on its interfaces keeps an honest generic name")
@@ -488,12 +491,19 @@ struct USBDeviceKindRowTests {
     // webcam. Its own descriptor, read back from the device: device class 0xEF/0x02/0x01
     // (the standard "Multi-Interface Function" marker, not a class of its own) with
     // interfaces 0x0E (Video) and 0x01 (Audio) underneath — the shape reproduced here.
+    // Read as `.audioVideo`, not `.webcam`: a real microphone alongside the camera, not
+    // an incidental interface, so neither Camera's nor Audio's own switch prevails over
+    // the other for it.
     @Test("a composite device with no class of its own is read from its interfaces")
     func compositeDeviceFallsBackToInterfaces() {
-        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01]) == .webcam)
-        // Order does not decide it: video wins because it is the device's own headline
-        // function, not because it happened to be listed first.
-        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x01, 0x0E]) == .webcam)
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01]) == .audioVideo)
+        // Order does not decide it.
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x01, 0x0E]) == .audioVideo)
+    }
+
+    @Test("a webcam with only an incidental non-audio interface is still read as a webcam")
+    func compositeWebcamWithoutAudioStaysWebcam() {
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x0E, 0x03]) == .webcam)
     }
 
     // Reported live: a USB audio interface with a volume/mute-button HID interface
@@ -520,8 +530,8 @@ struct USBDeviceKindRowTests {
     @Test("USBDevice reads its kind from interfaces too, not only USBDeviceKind directly")
     func deviceKindUsesInterfacesAsWell() {
         let device = USBDevice(name: "Webcam", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])
-        #expect(device.kind == .webcam)
-        #expect(device.iconBaseName == USBDeviceKind.webcam.iconBaseName)
+        #expect(device.kind == .audioVideo)
+        #expect(device.iconBaseName == USBDeviceKind.audioVideo.iconBaseName)
     }
 
     @Test("a hub is a hub even when its class code says otherwise")

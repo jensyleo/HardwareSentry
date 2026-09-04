@@ -95,25 +95,43 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     /// the shape: device class `0xEF`/`0x02`/`0x01` (Multi-Interface Function), interfaces
     /// `0x0E` (Video) and `0x01` (Audio) underneath.
     ///
-    /// Video wins when more than one interface is recognised — a composite webcam is a
-    /// webcam first, whatever else it also happens to be. Audio wins next, for the same
-    /// reason on a device that is not also a webcam: a USB headset or audio interface
-    /// commonly carries a second, incidental interface of its own — an HID one, for its
-    /// volume/mute buttons, most often — and the registry does not promise to iterate
-    /// interfaces in ascending interface-number order, so `interfaceClasses` can just as
-    /// easily list that HID interface before the audio one. Reported live: an audio
-    /// interface's own class picked up second, behind HID, resolved `kind` to `.hid`
-    /// instead of `.audio` — a class `kindsCoveredElsewhere` never has an opinion about,
-    /// so USB Monitor's own notice for it could never be folded away, whatever "Notify
-    /// for USB devices independently of USB Monitor" was set to. A device that names
-    /// nothing at all, at either level, is content to stay generic.
+    /// A device genuinely both is neither first — a webcam with a built-in microphone,
+    /// the Logitech BRIO among them, is read as `.audioVideo`, the same kind a device
+    /// that declares USB-IF's own class `0x10` for exactly this combination gets. Elected
+    /// ahead of the single-function picks below because that is the one kind
+    /// `kindsCoveredElsewhere` already knows how to treat as neither module's alone: it
+    /// only folds USB Monitor's own notice away once *both* Camera's and Audio's own
+    /// switches say they have it covered, so silencing one module's switch on this device
+    /// never silences the other's say over it. Before this, the interfaces were searched
+    /// for video first and the device filed as a plain webcam whenever it had one — right
+    /// for a webcam that happens to also carry an incidental audio-control interface, but
+    /// wrong for one whose audio interface is a real microphone: reported live, a BRIO
+    /// left Audio's own "Notify for USB devices independently" switch with nothing to
+    /// silence, because USB Monitor's redundant notice for it was already being decided
+    /// by Camera's switch alone.
+    ///
+    /// Video wins next, when only one of the two is present — a composite webcam with an
+    /// incidental non-audio interface is still a webcam first, whatever else it happens
+    /// to carry. Audio wins after that, for the same reason on a device that is not also
+    /// a webcam: a USB headset or audio interface commonly carries a second, incidental
+    /// interface of its own — an HID one, for its volume/mute buttons, most often — and
+    /// the registry does not promise to iterate interfaces in ascending interface-number
+    /// order, so `interfaceClasses` can just as easily list that HID interface before the
+    /// audio one. Reported live: an audio interface's own class picked up second, behind
+    /// HID, resolved `kind` to `.hid` instead of `.audio` — a class `kindsCoveredElsewhere`
+    /// never has an opinion about, so USB Monitor's own notice for it could never be
+    /// folded away, whatever "Notify for USB devices independently of USB Monitor" was
+    /// set to. A device that names nothing at all, at either level, is content to stay
+    /// generic.
     public init?(deviceClass: UInt8, interfaceClasses: [UInt8]) {
         if let kind = USBDeviceKind(deviceClass: deviceClass) {
             self = kind
             return
         }
         let kinds = interfaceClasses.compactMap { USBDeviceKind(deviceClass: $0) }
-        guard let kind = kinds.first(where: { $0 == .webcam })
+        let isHybrid = kinds.contains(.webcam) && kinds.contains(.audio)
+        guard let kind: USBDeviceKind = isHybrid ? .audioVideo
+            : kinds.first(where: { $0 == .webcam })
             ?? kinds.first(where: { $0 == .audio })
             ?? kinds.first
         else { return nil }
@@ -231,6 +249,13 @@ public extension USBDevice {
             return Self.name(forClassByte: deviceClass)
         }
         let interfaceNames = interfaceClasses.compactMap(Self.name(forClassByte:))
+        // Matches `USBDeviceKind`'s own priority exactly — a device genuinely both, then
+        // video alone, then whatever else — so this line and the notification's title
+        // never again disagree about what a composite device is, which is the mismatch
+        // this whole fallback exists to prevent.
+        if interfaceNames.contains("Video") && interfaceNames.contains("Audio") {
+            return "Audio/Video"
+        }
         if let name = interfaceNames.first(where: { $0 == "Video" }) ?? interfaceNames.first {
             return name
         }

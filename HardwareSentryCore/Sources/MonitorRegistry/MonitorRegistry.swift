@@ -176,11 +176,13 @@ public actor MonitorRegistry {
         audioNotifiesUSBDevices: Bool
     ) -> Set<USBDeviceKind> {
         var kinds: Set<USBDeviceKind> = []
-        // A webcam-first pairing, matching the same priority `USBDeviceKind`'s own
-        // interface fallback gives video: a composite device that is both is a webcam
-        // before it is anything else.
         if !cameraNotifiesUSBDevices { kinds.insert(.webcam) }
         if !audioNotifiesUSBDevices { kinds.insert(.audio) }
+        // A device that is genuinely both — a webcam with a real microphone, not an
+        // incidental one — reads as `.audioVideo` (`USBDeviceKind`'s own interface
+        // fallback), and neither switch prevails over the other for it: only when both
+        // say their own notice already covers it does USB Monitor's redundant one fold
+        // away, so turning one module's switch off alone never silences the other's say.
         if !cameraNotifiesUSBDevices && !audioNotifiesUSBDevices { kinds.insert(.audioVideo) }
         return kinds
     }
