@@ -1,5 +1,6 @@
 import AppKit
 import MonitorRegistry
+import SentryContract
 import ThermalMonitor
 import SignalCore
 
@@ -177,6 +178,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func simulateThermal(from: ThermalState, to: ThermalState) {
         guard let registry else { return }
         Task { await registry.simulateThermalTransition(from: from, to: to) }
+    }
+
+    /// Fires one of a module's own declared events, for the generic "Simulate a
+    /// Notification" section every module's settings tab offers.
+    ///
+    /// Raised with the event's own declared title and icon, straight through the same
+    /// dispatcher a real monitor uses — so it passes through every filter and middleware
+    /// a real one would (icon overrides, the event's own on/off switch included), the
+    /// same way `simulateThermal` above already does for Thermal's own, more particular
+    /// simulator. A module whose events need more than a name and an icon to mean
+    /// anything — Thermal's "from which state to which" chief among them — gets its own,
+    /// as Thermal already has; this is what the rest can share.
+    func simulateEvent(_ event: MonitorEventDescription, category: NotificationCategory) {
+        Task {
+            await dispatcher.fire(
+                NotificationEvent(
+                    name: event.name,
+                    category: category,
+                    title: event.title,
+                    body: "Simulated — nothing on this Mac actually changed.",
+                    icon: event.icon
+                )
+            )
+        }
     }
 
     /// Reads the battery's condition on demand, for the "Check Now" button.

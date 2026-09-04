@@ -3,6 +3,44 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## To investigate: which modules need their own particular Simulate, like Thermal's
+
+**Status:** open, 2026-09-04. Every module's Notifications tab now offers a generic
+"Simulate a Notification" section (`GenericEventSimulator` in `EventSettingsView.swift`):
+pick one of that module's own declared events from a list, fire it with its real title
+and icon, through the same dispatcher pipeline a real one goes through (icon overrides,
+the event's own on/off switch, all of it). Thermal keeps the one it already had
+(`ThermalSimulator`) instead, because Thermal's events are not "pick one and fire it" —
+they are a transition, *from* one state *to* another, and a plain event picker cannot
+express that.
+
+**What is not yet done.** Nobody has gone module by module asking whether the generic
+picker is actually enough, or whether some other module's events are shaped like
+Thermal's rather than like most others' — needing more than a name and an icon to
+simulate honestly. Candidates worth a look, not yet confirmed:
+
+- **Power** — a battery health reading, a low-power-mode change, a refire: state-shaped,
+  possibly wanting a "from/to" or "at what percentage" simulator of its own rather than a
+  bare event name.
+- **Volume Monitor** — "Low disk space" means something only at a particular percentage
+  free; simulating it as a bare event says nothing about *how* low, where a Thermal-style
+  picker (or a percentage slider) would.
+- **Network** — Wi-Fi signal level and DHCP lease events carry a number or a state a
+  plain title does not; worth checking whether the generic simulator's fixed body text
+  ("Simulated — nothing on this Mac actually changed.") reads as honest for these or as
+  oddly generic next to a notification that is normally full of specifics.
+- Every other module (USB, Camera, Audio, Bluetooth, Display, Printer, Scanner, Gamepad,
+  Thunderbolt) — not reviewed yet either, just less obviously needing more than the
+  generic picker already gives them, being one notice per kind of thing rather than one
+  notice per *level* of something.
+
+**How to settle it, module by module.** For each one: read its `MonitorEventDescription`
+list and ask whether a fired event's title and icon alone already say everything a real
+one would, or whether a real one always carries a number/state/detail the generic
+simulator's fixed body cannot honestly stand in for. If the latter, it is a Thermal-style
+candidate — its own `*Simulator` view and its own entry point on `AppDelegate`, the same
+shape `simulateThermal`/`ThermalSimulator` already are.
+
 ## Fixed: USB Monitor classified a composite device generically on connect, correctly on disconnect
 
 **Status:** fixed 2026-09-03, confirmed live against the BRIO across two full

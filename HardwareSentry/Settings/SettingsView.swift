@@ -1,3 +1,4 @@
+import SentryContract
 import SignalCore
 import SwiftUI
 import ThermalMonitor
@@ -16,6 +17,7 @@ struct SettingsView: View {
     let tuning: MonitorTuningModel
     let checkBatteryHealthNow: () -> Void
     let simulateThermal: (ThermalState, ThermalState) -> Void
+    let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
 
     var body: some View {
         TabView {
@@ -27,7 +29,7 @@ struct SettingsView: View {
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, checkBatteryHealthNow: checkBatteryHealthNow)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
             HistoryView(

@@ -17,7 +17,6 @@ struct EventIconPicker: View {
     @Bindable var store: IconOverrideStore
 
     @State private var isAskingForSymbol = false
-    @State private var typedSymbol = ""
 
     /// 32pt, the same size HG4MAC's icon rows use, scaled proportionally so a non-square
     /// image is letterboxed rather than squashed. One constant for every branch below —
@@ -46,10 +45,7 @@ struct EventIconPicker: View {
 
             Divider()
 
-            Button("Another Symbol…") {
-                typedSymbol = if case .symbol(let name) = current { name } else { "" }
-                isAskingForSymbol = true
-            }
+            Button("Browse Symbols…") { isAskingForSymbol = true }
             Button("Choose an Image…", action: chooseFile)
         } label: {
             preview
@@ -63,7 +59,14 @@ struct EventIconPicker: View {
         .frame(width: Self.side + 14, height: Self.side)
         .help(helpText)
         .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
-            symbolEntry
+            SFSymbolBrowser(
+                currentSymbol: { () -> String? in if case .symbol(let name) = current { return name }; return nil }(),
+                onChoose: { symbol in
+                    store.setOverride(.symbol(symbol), for: event, in: category)
+                    isAskingForSymbol = false
+                },
+                onCancel: { isAskingForSymbol = false }
+            )
         }
     }
 
@@ -118,41 +121,6 @@ struct EventIconPicker: View {
 
     // MARK: - Choosing
 
-    private var symbolEntry: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("SF Symbol name").font(.headline)
-            HStack {
-                TextField("bolt.fill", text: $typedSymbol)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 200)
-                    .onSubmit(commitTypedSymbol)
-                if !typedSymbol.isEmpty {
-                    Image(systemName: NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil
-                          ? typedSymbol : "questionmark.square.dashed")
-                }
-            }
-            Text("Any symbol name from Apple's SF Symbols application.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Cancel") { isAskingForSymbol = false }
-                Button("Use It", action: commitTypedSymbol)
-                    .keyboardShortcut(.defaultAction)
-                    // A name that resolves to nothing would be a setting that silently
-                    // does nothing, so it cannot be committed in the first place.
-                    .disabled(NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) == nil)
-            }
-        }
-        .padding()
-    }
-
-    private func commitTypedSymbol() {
-        guard NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil else { return }
-        store.setOverride(.symbol(typedSymbol), for: event, in: category)
-        isAskingForSymbol = false
-    }
-
     private func chooseFile() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
@@ -200,7 +168,6 @@ struct EventIconButtons: View {
     @Bindable var store: IconOverrideStore
 
     @State private var isAskingForSymbol = false
-    @State private var typedSymbol = ""
 
     private var current: IconOverride? { store.override(for: event, in: category) }
 
@@ -209,14 +176,18 @@ struct EventIconButtons: View {
             Button("Custom", action: chooseFile)
                 .help("Use a picture from a file")
 
-            Button("System") {
-                typedSymbol = if case .symbol(let name) = current { name } else { "" }
-                isAskingForSymbol = true
-            }
-            .help("Use one of the system's own symbols, by name")
-            .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
-                symbolEntry
-            }
+            Button("System") { isAskingForSymbol = true }
+                .help("Browse the system's own symbols, or type one by name")
+                .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
+                    SFSymbolBrowser(
+                        currentSymbol: { () -> String? in if case .symbol(let name) = current { return name }; return nil }(),
+                        onChoose: { symbol in
+                            store.setOverride(.symbol(symbol), for: event, in: category)
+                            isAskingForSymbol = false
+                        },
+                        onCancel: { isAskingForSymbol = false }
+                    )
+                }
 
             Button("Reset") { store.setOverride(nil, for: event, in: category) }
                 // Nothing to undo when the icon is already the one the module ships with,
@@ -226,41 +197,6 @@ struct EventIconButtons: View {
         }
         .controlSize(.small)
         .buttonStyle(.bordered)
-    }
-
-    private var symbolEntry: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("SF Symbol name").font(.headline)
-            HStack {
-                TextField("bolt.fill", text: $typedSymbol)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 200)
-                    .onSubmit(commitTypedSymbol)
-                if !typedSymbol.isEmpty {
-                    Image(systemName: NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil
-                          ? typedSymbol : "questionmark.square.dashed")
-                }
-            }
-            Text("Any symbol name from Apple's SF Symbols application.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Cancel") { isAskingForSymbol = false }
-                Button("Use It", action: commitTypedSymbol)
-                    .keyboardShortcut(.defaultAction)
-                    // A name that resolves to nothing would be a setting that silently
-                    // does nothing, so it cannot be committed in the first place.
-                    .disabled(NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) == nil)
-            }
-        }
-        .padding()
-    }
-
-    private func commitTypedSymbol() {
-        guard NSImage(systemSymbolName: typedSymbol, accessibilityDescription: nil) != nil else { return }
-        store.setOverride(.symbol(typedSymbol), for: event, in: category)
-        isAskingForSymbol = false
     }
 
     private func chooseFile() {

@@ -20,6 +20,8 @@ struct EventSettingsView: View {
     @Bindable var tuning: MonitorTuningModel
     /// Fires one thermal transition on demand. See `ThermalSimulator`.
     let simulateThermal: (ThermalState, ThermalState) -> Void
+    /// Fires one of a module's own declared events on demand. See `GenericEventSimulator`.
+    let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
     /// Reads the battery now, rather than waiting for the next scheduled check.
     let checkBatteryHealthNow: () -> Void
 
@@ -48,7 +50,7 @@ struct EventSettingsView: View {
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, checkBatteryHealthNow: checkBatteryHealthNow, pane: $pane)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, pane: $pane)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -182,6 +184,7 @@ private struct ModuleDetail: View {
     @Bindable var iconOverrides: IconOverrideStore
     @Bindable var tuning: MonitorTuningModel
     let simulateThermal: (ThermalState, ThermalState) -> Void
+    let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
     let checkBatteryHealthNow: () -> Void
     @Binding var pane: String
 
@@ -408,8 +411,21 @@ private struct ModuleDetail: View {
                 }
             }
 
-            if module.category.rawValue == "Thermal", title == titles.first {
-                ThermalSimulator(simulate: simulateThermal)
+            if title == titles.first {
+                // Thermal's own simulator asks a more particular question — "from which
+                // state to which" — that a plain event list cannot express, so it keeps
+                // its bespoke one rather than sharing this. Every other module's events
+                // are already just a name, a title and an icon, which is exactly what
+                // this generic one needs and nothing more; see KNOWN-ISSUES.md for which
+                // of them might be worth a Thermal-style particularization of their own.
+                if module.category.rawValue == "Thermal" {
+                    ThermalSimulator(simulate: simulateThermal)
+                } else {
+                    GenericEventSimulator(
+                        events: module.events,
+                        simulate: { simulateEvent($0, module.category) }
+                    )
+                }
             }
 
             if fields.isEmpty {
@@ -667,6 +683,48 @@ private struct ThermalSimulator: View {
     }
 }
 
+/// Fires one of a module's own declared events on demand, with its real title and icon —
+/// what every module gets unless its events need more than a name to mean anything, the
+/// way Thermal's do. See `ThermalSimulator` for that case, and `AppDelegate.simulateEvent`
+/// for why nothing module-specific has to be written to offer this: the event already
+/// says everything a simulated one needs to.
+private struct GenericEventSimulator: View {
+    let events: [MonitorEventDescription]
+    let simulate: (MonitorEventDescription) -> Void
+
+    @State private var chosen: MonitorEventDescription?
+
+    private var selected: MonitorEventDescription? {
+        chosen ?? events.first
+    }
+
+    var body: some View {
+        Section("Simulate a Notification") {
+            Picker(
+                "Event:",
+                selection: Binding(
+                    get: { selected?.name },
+                    set: { name in chosen = events.first { $0.name == name } }
+                )
+            ) {
+                ForEach(events, id: \.name) { event in
+                    Text(event.title).tag(Optional(event.name))
+                }
+            }
+            HStack {
+                Button("Simulate") {
+                    guard let selected else { return }
+                    simulate(selected)
+                }
+                .disabled(selected == nil)
+                Spacer()
+            }
+            Text("Fires that notification with its real title and icon, so its appearance can be checked without waiting for the real thing. It does not touch what the application believes the real state is.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
 
 /// The volumes whose comings and goings are not worth a notification.
 ///

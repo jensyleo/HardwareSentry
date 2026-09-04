@@ -49,7 +49,7 @@ struct HardwareSentryApp: App {
         // tab permanently cut off — and it grows with every setting added. The menu item
         // and ⌘, are wired by hand below, which is the whole of what `Settings` gave us.
         Window("HardwareSentry Settings", id: Self.settingsWindowID) {
-            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings, history: delegate.history, iconOverrides: delegate.iconOverrides, general: delegate.general, tuning: delegate.tuning, checkBatteryHealthNow: { delegate.checkBatteryHealthNow() }, simulateThermal: { delegate.simulateThermal(from: $0, to: $1) })
+            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings, history: delegate.history, iconOverrides: delegate.iconOverrides, general: delegate.general, tuning: delegate.tuning, checkBatteryHealthNow: { delegate.checkBatteryHealthNow() }, simulateThermal: { delegate.simulateThermal(from: $0, to: $1) }, simulateEvent: { delegate.simulateEvent($0, category: $1) })
                 .onAppear { delegate.general.settingsWindowOpened() }
                 .onDisappear { delegate.general.settingsWindowClosed() }
         }
