@@ -139,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cameraNotifiesVirtualDevices: tuning.notifiesVirtualCameraDevices,
             audioNotifiesUSBDevices: tuning.notifiesUSBAudioDevices,
             cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices,
+            usbIgnoresIdentifiedGenericDevices: tuning.usbIgnoresIdentifiedGenericDevices,
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
@@ -160,7 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     audioNotifiesVirtualDevices: tuning.notifiesVirtualAudioDevices,
                     cameraNotifiesVirtualDevices: tuning.notifiesVirtualCameraDevices,
                     audioNotifiesUSBDevices: tuning.notifiesUSBAudioDevices,
-                    cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices
+                    cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices,
+                    usbIgnoresIdentifiedGenericDevices: tuning.usbIgnoresIdentifiedGenericDevices
                 )
             }
         }

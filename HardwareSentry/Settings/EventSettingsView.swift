@@ -341,6 +341,15 @@ private struct ModuleDetail: View {
                 }
             }
 
+            if module.category.rawValue == "USB", title == titles.first {
+                Section {
+                    Toggle("Ignore identified devices without their own icon", isOn: $tuning.usbIgnoresIdentifiedGenericDevices)
+                    Text("A hub commonly enumerates its own internal interfaces alongside itself \u{2014} a Billboard or a Communications chip, most often \u{2014} which have a real, named class but no row of their own here, and so read as \u{201C}USB Device Connected\u{201D} the same way a device nothing at all is known about does. Off by default: the generic row has always meant every device with no row of its own. On, it narrows to devices nothing is known about at all \u{2014} a device whose \u{201C}Type\u{201D} would show something, however obscure, no longer counts as generic.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if module.category.rawValue == "Camera", title == titles.first {
                 Section {
                     Toggle("Notify for USB devices independently of USB Monitor", isOn: $tuning.notifiesUSBCameraDevices)

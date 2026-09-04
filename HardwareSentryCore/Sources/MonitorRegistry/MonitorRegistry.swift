@@ -47,6 +47,9 @@ public actor MonitorRegistry {
     /// `kindsCoveredElsewhere(cameraNotifiesUSBDevices:audioNotifiesUSBDevices:)`.
     private let audioNotifiesUSBDevices: Bool
     private let cameraNotifiesUSBDevices: Bool
+    /// USB Monitor's own generic row, narrowed to devices nothing at all is known about —
+    /// see `USBMonitor.ignoresIdentifiedGenericDevices`.
+    private let usbIgnoresIdentifiedGenericDevices: Bool
     private let scannerStatusInterval: Duration
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
     private let networkSignalCooldown: TimeInterval
@@ -75,6 +78,7 @@ public actor MonitorRegistry {
         cameraNotifiesVirtualDevices: Bool = false,
         audioNotifiesUSBDevices: Bool = true,
         cameraNotifiesUSBDevices: Bool = true,
+        usbIgnoresIdentifiedGenericDevices: Bool = false,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
         networkSignalCooldown: TimeInterval = 10,
@@ -95,6 +99,7 @@ public actor MonitorRegistry {
         self.cameraNotifiesVirtualDevices = cameraNotifiesVirtualDevices
         self.audioNotifiesUSBDevices = audioNotifiesUSBDevices
         self.cameraNotifiesUSBDevices = cameraNotifiesUSBDevices
+        self.usbIgnoresIdentifiedGenericDevices = usbIgnoresIdentifiedGenericDevices
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
         self.networkSignalCooldown = networkSignalCooldown
@@ -114,7 +119,8 @@ public actor MonitorRegistry {
         audioNotifiesVirtualDevices: Bool,
         cameraNotifiesVirtualDevices: Bool,
         audioNotifiesUSBDevices: Bool,
-        cameraNotifiesUSBDevices: Bool
+        cameraNotifiesUSBDevices: Bool,
+        usbIgnoresIdentifiedGenericDevices: Bool
     ) async {
         for monitor in monitors {
             if let power = monitor as? PowerMonitor {
@@ -131,7 +137,8 @@ public actor MonitorRegistry {
                     kindsCoveredElsewhere: Self.kindsCoveredElsewhere(
                         cameraNotifiesUSBDevices: cameraNotifiesUSBDevices,
                         audioNotifiesUSBDevices: audioNotifiesUSBDevices
-                    )
+                    ),
+                    ignoresIdentifiedGenericDevices: usbIgnoresIdentifiedGenericDevices
                 )
             }
             if let volume = monitor as? VolumeMonitor {
@@ -197,7 +204,8 @@ public actor MonitorRegistry {
                 kindsCoveredElsewhere: Self.kindsCoveredElsewhere(
                     cameraNotifiesUSBDevices: cameraNotifiesUSBDevices,
                     audioNotifiesUSBDevices: audioNotifiesUSBDevices
-                )
+                ),
+                ignoresIdentifiedGenericDevices: usbIgnoresIdentifiedGenericDevices
             ),
             ThermalMonitor(
                 source: SystemThermalStateSource(),

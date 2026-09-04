@@ -48,14 +48,16 @@ actor CollectingDelivery: NotificationDelivering {
 struct USBMonitorTests {
     private func run(
         _ changes: [USBDeviceChange],
-        kindsCoveredElsewhere: Set<USBDeviceKind> = []
+        kindsCoveredElsewhere: Set<USBDeviceKind> = [],
+        ignoresIdentifiedGenericDevices: Bool = false
     ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = USBMonitor(
             source: ScriptedSource(script: changes),
             context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category),
-            kindsCoveredElsewhere: kindsCoveredElsewhere
+            kindsCoveredElsewhere: kindsCoveredElsewhere,
+            ignoresIdentifiedGenericDevices: ignoresIdentifiedGenericDevices
         )
 
         await monitor.start()
@@ -107,6 +109,54 @@ struct USBMonitorTests {
         #expect(events.isEmpty)
     }
 
+    // Asked for directly, reported live: a physical hub enumerates its own internal
+    // Billboard/Communications interfaces as separate devices alongside itself, each
+    // with no `USBDeviceKind` of its own — so each reads as the same "USB Device
+    // Connected" the truly unidentified case does, with nothing beyond the body's own
+    // "Type:" line to tell the two apart.
+
+    @Test("a device with a real class name but no row of its own is quiet once the switch is on")
+    func identifiedGenericDeviceIsQuietWhenSwitchedOn() async {
+        // 0x11 is Billboard — a real, named USB-IF class with no `USBDeviceKind` case and
+        // so no row or icon of its own; exactly the shape a hub's internal interface takes.
+        let events = await run(
+            [.attached(USBDevice(name: "Hub Billboard Device", deviceClass: 0x11))],
+            ignoresIdentifiedGenericDevices: true
+        )
+        #expect(events.isEmpty)
+    }
+
+    @Test("the same identified device still announces while the switch is off")
+    func identifiedGenericDeviceStillAnnouncesByDefault() async {
+        let events = await run(
+            [.attached(USBDevice(name: "Hub Billboard Device", deviceClass: 0x11))],
+            ignoresIdentifiedGenericDevices: false
+        )
+        #expect(events.count == 1)
+    }
+
+    @Test("a device nothing at all is known about still announces even with the switch on")
+    func genuinelyUnidentifiedDeviceStillAnnouncesWhenSwitchedOn() async {
+        // 0x00 with nothing on the interfaces either — the honest "device said nothing"
+        // case `className` itself returns nil for, which is what the switch is supposed
+        // to leave alone.
+        let events = await run(
+            [.attached(USBDevice(name: "Mystery Device", deviceClass: 0x00))],
+            ignoresIdentifiedGenericDevices: true
+        )
+        #expect(events.count == 1)
+    }
+
+    @Test("a device with its own row is unaffected by the switch either way")
+    func devicesWithTheirOwnKindAreUnaffectedBySwitch() async {
+        let events = await run(
+            [.attached(USBDevice(name: "Anker Hub", isHub: true))],
+            ignoresIdentifiedGenericDevices: true
+        )
+        #expect(events.count == 1)
+        #expect(events.first?.title == "USB Hub Connected")
+    }
+
     @Test("a kind not covered elsewhere still gets its own notice")
     func uncoveredKindIsNeverSilenced() async {
         let events = await run(
@@ -145,7 +195,7 @@ struct USBMonitorTests {
         for _ in 0..<200 { await Task.yield() }
         #expect(await delivery.events.count == 1)
 
-        await monitor.apply(kindsCoveredElsewhere: [.audioVideo])
+        await monitor.apply(kindsCoveredElsewhere: [.audioVideo], ignoresIdentifiedGenericDevices: false)
         source.send(.detached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])))
         for _ in 0..<200 { await Task.yield() }
         source.finish()

@@ -36,6 +36,7 @@ final class MonitorTuningModel {
             Self.virtualCameraDevicesKey: false,
             Self.usbAudioDevicesKey: true,
             Self.usbCameraDevicesKey: true,
+            Self.usbIgnoresIdentifiedGenericDevicesKey: false,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -58,6 +59,7 @@ final class MonitorTuningModel {
         notifiesVirtualCameraDevices = defaults.bool(forKey: Self.virtualCameraDevicesKey)
         notifiesUSBAudioDevices = defaults.bool(forKey: Self.usbAudioDevicesKey)
         notifiesUSBCameraDevices = defaults.bool(forKey: Self.usbCameraDevicesKey)
+        usbIgnoresIdentifiedGenericDevices = defaults.bool(forKey: Self.usbIgnoresIdentifiedGenericDevicesKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -150,6 +152,14 @@ final class MonitorTuningModel {
         didSet { defaults.set(notifiesUSBCameraDevices, forKey: Self.usbCameraDevicesKey); onChange?() }
     }
 
+    /// Whether USB Monitor's generic row narrows to devices nothing at all is known
+    /// about — off by default, so a device with a real class name but no row of its own
+    /// (a hub's internal Billboard/Communications interface, most often) keeps
+    /// announcing there exactly as it always has.
+    var usbIgnoresIdentifiedGenericDevices: Bool {
+        didSet { defaults.set(usbIgnoresIdentifiedGenericDevices, forKey: Self.usbIgnoresIdentifiedGenericDevicesKey); onChange?() }
+    }
+
     /// How often a network scanner is asked what it is doing.
     ///
     /// Read at launch only, unlike the rest: the interval is handed to each scanner's own
@@ -230,6 +240,7 @@ final class MonitorTuningModel {
     private static let virtualCameraDevicesKey = "Camera.NotifiesVirtualDevices"
     private static let usbAudioDevicesKey = "Audio.NotifiesUSBDevices"
     private static let usbCameraDevicesKey = "Camera.NotifiesUSBDevices"
+    private static let usbIgnoresIdentifiedGenericDevicesKey = "USB.IgnoresIdentifiedGenericDevices"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

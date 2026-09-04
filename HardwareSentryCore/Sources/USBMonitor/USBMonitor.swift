@@ -49,19 +49,35 @@ public actor USBMonitor: Monitor {
     /// for.
     private var kindsCoveredElsewhere: Set<USBDeviceKind>
 
+    /// Whether the generic row stays quiet about a device that named *something*, even
+    /// when that something has no row or icon of its own — a hub's internal Billboard or
+    /// Communications interface, most often, which a physical hub enumerates alongside
+    /// itself and which otherwise reads as "USB Device Connected" with nothing to tell it
+    /// apart from a genuinely unidentified device.
+    ///
+    /// Off by default: the generic row has always meant "every device with no row of its
+    /// own," and narrowing that silently would drop devices someone today relies on
+    /// seeing there. On, it means something narrower — "every device *nothing at all* is
+    /// known about" — and a device whose `className` resolves to a real name, however
+    /// obscure, no longer counts.
+    private var ignoresIdentifiedGenericDevices: Bool
+
     public init(
         source: any USBDeviceSource,
         context: MonitorContext,
-        kindsCoveredElsewhere: Set<USBDeviceKind> = []
+        kindsCoveredElsewhere: Set<USBDeviceKind> = [],
+        ignoresIdentifiedGenericDevices: Bool = false
     ) {
         self.source = source
         self.context = context
         self.kindsCoveredElsewhere = kindsCoveredElsewhere
+        self.ignoresIdentifiedGenericDevices = ignoresIdentifiedGenericDevices
     }
 
     /// Called when a setting changes, so it applies without a relaunch.
-    public func apply(kindsCoveredElsewhere: Set<USBDeviceKind>) {
+    public func apply(kindsCoveredElsewhere: Set<USBDeviceKind>, ignoresIdentifiedGenericDevices: Bool) {
         self.kindsCoveredElsewhere = kindsCoveredElsewhere
+        self.ignoresIdentifiedGenericDevices = ignoresIdentifiedGenericDevices
     }
 
     public func start() async {
@@ -86,6 +102,15 @@ public actor USBMonitor: Monitor {
         }
         let isCoveredElsewhere = device.kind.map(kindsCoveredElsewhere.contains) ?? false
         guard !isCoveredElsewhere else { return }
+
+        // Only reached by a device with no row of its own — anything `kindsCoveredElsewhere`
+        // or a real `USBDeviceKind` already claimed returned above or is about to be
+        // reported under its own name. `className` asks the same question the generic
+        // row's own body line already answers ("Type: Billboard") — here, to decide
+        // whether this device counts as identified at all, not just to word a line.
+        if ignoresIdentifiedGenericDevices, device.kind == nil, device.className != nil {
+            return
+        }
 
         await Self.report(change, through: context)
     }
