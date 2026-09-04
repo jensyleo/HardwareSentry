@@ -33,7 +33,12 @@ public struct LiveSystemNotificationCenter: SystemNotificationScheduling {
         let content = UNMutableNotificationContent()
         content.title = request.title
         content.body = request.body
-        content.interruptionLevel = request.interruptionLevel == .passive ? .passive : .active
+        let interruptionLevel: UNNotificationInterruptionLevel = switch request.interruptionLevel {
+        case .passive: .passive
+        case .active: .active
+        case .timeSensitive: .timeSensitive
+        }
+        content.interruptionLevel = interruptionLevel
 
         try await UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: request.identifier, content: content, trigger: nil)

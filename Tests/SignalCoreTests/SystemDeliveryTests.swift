@@ -162,6 +162,20 @@ struct SystemDeliveryTests {
         #expect(levels == [.passive, .active])
     }
 
+    @Test("high priority breaks through Focus/Do Not Disturb")
+    func highPriorityIsTimeSensitive() async {
+        let scheduler = FakeScheduler()
+        let delivery = SystemDelivery(scheduler: scheduler)
+        await delivery.prepare()
+
+        var urgent = makeEvent()
+        urgent.priority = .high
+        await delivery.present(urgent, context: makeContext())
+
+        let levels = await scheduler.scheduled.map(\.interruptionLevel)
+        #expect(levels == [.timeSensitive])
+    }
+
     @Test("a response reaches the handler the emitting module attached")
     func responseReachesHandler() async {
         let scheduler = FakeScheduler()

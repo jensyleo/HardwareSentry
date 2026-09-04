@@ -14,6 +14,9 @@ public enum SystemInterruptionLevel: Sendable, Equatable {
     case passive
     /// The ordinary level.
     case active
+    /// Breaks through Focus/Do Not Disturb the way a call or a timer does, for the
+    /// handful of events worth interrupting someone over.
+    case timeSensitive
 }
 
 /// A notification described in terms this package owns, ready to be handed to the

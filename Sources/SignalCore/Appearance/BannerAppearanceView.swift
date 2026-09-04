@@ -103,6 +103,15 @@ public struct BannerAppearanceView: View {
 
                 Toggle("Slide in and out", isOn: $store.appearance.isAnimated)
 
+                if store.appearance.isAnimated {
+                    slider(
+                        "Animation duration",
+                        value: $store.appearance.animationDuration,
+                        range: BannerAppearance.animationDurationRange,
+                        format: { String(format: "%.2fs", $0) }
+                    )
+                }
+
                 Picker("Sound", selection: $store.appearance.sound) {
                     ForEach(BannerSound.allCases, id: \.self) { sound in
                         Text(sound.label).tag(sound)

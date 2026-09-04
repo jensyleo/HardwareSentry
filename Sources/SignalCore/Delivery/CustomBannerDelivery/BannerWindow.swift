@@ -25,6 +25,38 @@ final class BannerWindowController {
     /// current appearance, so that banners still on screen from before a width change are
     /// placed by their own size instead of one they never had.
     var width: CGFloat { panel.frame.width }
+    var currentOrigin: NSPoint { panel.frame.origin }
+
+    /// Whether `present(at:enteringFrom:)` has ever run for this banner. `BannerDelivery`
+    /// uses this — not "was this the one just admitted" — to decide whether a slot needs
+    /// a reveal or a move, which is what lets a still-pending reveal survive an
+    /// intervening repositioning pass instead of going stale.
+    private(set) var hasAppeared = false
+
+    /// Whether the arrival animation is still running, and where this banner has been
+    /// asked to move to in the meantime.
+    ///
+    /// Both animations drive the same window's frame, and AppKit does not arbitrate
+    /// between them: a `move` issued while an arrival is still in flight does not replace
+    /// it, it runs alongside it — and the arrival, being the longer of the two, lands
+    /// last and wins, dragging the banner back to the slot it arrived at. Confirmed live
+    /// against a timed log: the first banner of a burst is asked to move roughly 110ms
+    /// into its own 250ms arrival, so it is the one that visibly sticks to the corner
+    /// while every later banner — moved only once its arrival is long finished — slides
+    /// down correctly. Holding the move until the arrival is done is what makes the last
+    /// instruction the one that takes effect.
+    private var isArriving = false
+    private var isMoving = false
+
+    /// Whether this banner is mid-animation, either arriving or repositioning.
+    ///
+    /// `BannerDelivery` will not put a new banner into the corner while any banner is
+    /// busy: measured against the window server, two banners were otherwise revealed into
+    /// the same top slot and overlapped by 146 of their 162 points, the older one only
+    /// starting to move down once the newer had fully arrived.
+    var isBusy: Bool { isArriving || isMoving }
+
+    private var deferredMove: (origin: NSPoint, completion: @MainActor () -> Void)?
 
     init(
         content: BannerContent,
@@ -82,6 +114,8 @@ final class BannerWindowController {
     /// rather than as appearing out of nowhere — or simply appears, for anyone who would
     /// rather it did not move.
     func present(at origin: NSPoint, enteringFrom offscreenX: CGFloat) {
+        hasAppeared = true
+
         guard appearance.isAnimated else {
             panel.setFrame(frame(at: origin), display: true)
             panel.alphaValue = appearance.opacity
@@ -93,29 +127,77 @@ final class BannerWindowController {
         panel.alphaValue = 0
         panel.orderFrontRegardless()
 
+        isArriving = true
         NSAnimationContext.runAnimationGroup { [appearance] context in
-            context.duration = 0.25
+            context.duration = appearance.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             // A window's animator moves it by its whole frame. Asking it for a new
             // origin alone is accepted and then quietly ignored, which leaves the banner
             // parked just off the edge of the screen where it was told to start.
             panel.animator().setFrame(frame(at: origin), display: true)
             panel.animator().alphaValue = appearance.opacity
+        } completionHandler: { [weak self] in
+            // Not declared as running on the main actor, but the animation system always
+            // calls it on the main thread — the same assumption `dismiss` already makes.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.isArriving = false
+                if let deferred = self.deferredMove {
+                    self.deferredMove = nil
+                    self.move(to: deferred.origin, completion: deferred.completion)
+                }
+            }
         }
     }
 
-    func move(to origin: NSPoint) {
-        guard panel.frame.origin != origin else { return }
+    /// How long a reposition takes to finish — `appearance.animationDuration`, the same
+    /// knob the arrival and dismissal animations read. `BannerDelivery` must wait out
+    /// this whole duration — not merely start it — before revealing a banner into the
+    /// slot this vacates; see the note there.
+    var moveDuration: TimeInterval { appearance.animationDuration }
 
-        guard appearance.isAnimated else {
-            panel.setFrame(frame(at: origin), display: true)
+    /// Repositions the banner, calling `completion` once it has actually arrived at
+    /// `origin` — including after however long it had to wait for its own arrival
+    /// animation to finish first.
+    ///
+    /// The completion is what a caller waits on before putting a banner into the slot
+    /// this one is leaving. A fixed delay cannot stand in for it: a move held back by
+    /// `isArriving` finishes a whole arrival later than one that started immediately, and
+    /// the newcomer, timed against the fixed delay, lands while the slot is still
+    /// occupied. Measured live at ~104ms of genuine overlap on every banner of a burst —
+    /// which is what reads, over six banners, as the top one being stuck to the corner
+    /// while the rest pile onto it.
+    func move(to origin: NSPoint, completion: @escaping @MainActor () -> Void = {}) {
+        // Held, not dropped and not run alongside the arrival: see `isArriving`.
+        guard !isArriving else {
+            // A move already waiting is superseded — its target is stale — but whoever
+            // was waiting on it still has to be released.
+            deferredMove?.completion()
+            deferredMove = (origin, completion)
             return
         }
 
+        guard panel.frame.origin != origin else {
+            completion()
+            return
+        }
+
+        guard appearance.isAnimated else {
+            panel.setFrame(frame(at: origin), display: true)
+            completion()
+            return
+        }
+
+        isMoving = true
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
+            context.duration = moveDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(frame(at: origin), display: true)
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                self?.isMoving = false
+                completion()
+            }
         }
     }
 
@@ -149,8 +231,8 @@ final class BannerWindowController {
             return
         }
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
+        NSAnimationContext.runAnimationGroup { [appearance] context in
+            context.duration = appearance.animationDuration
             panel.animator().alphaValue = 0
         } completionHandler: { [panel] in
             // The completion handler is not declared as running on the main actor, but

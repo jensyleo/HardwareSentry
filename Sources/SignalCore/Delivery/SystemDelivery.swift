@@ -48,12 +48,18 @@ public actor SystemDelivery: NotificationDelivering {
             return .failed(reason: "system notifications are not authorized")
         }
 
+        let interruptionLevel: SystemInterruptionLevel = switch event.priority {
+        case .low: .passive
+        case .normal: .active
+        case .high: .timeSensitive
+        }
+
         let identifier = Self.identifier(for: event)
         let request = SystemNotificationRequest(
             identifier: identifier,
             title: event.title,
             body: event.body,
-            interruptionLevel: event.priority == .low ? .passive : .active
+            interruptionLevel: interruptionLevel
         )
 
         do {

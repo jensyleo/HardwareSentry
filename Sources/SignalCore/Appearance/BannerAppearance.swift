@@ -99,6 +99,13 @@ public struct BannerAppearance: Sendable, Equatable {
     public var material: BannerMaterial
     public var isAnimated: Bool
     public var sound: BannerSound
+    /// How long the slide-in, reposition and fade-out animations take.
+    ///
+    /// One knob for the three of them rather than one each: they read as a single
+    /// movement — arrive, settle into the stack, leave — and letting them drift apart
+    /// would make that movement look like three separate things happening to be timed
+    /// close together instead of the one thing it is.
+    public var animationDuration: TimeInterval { didSet { animationDuration = animationDuration.clamped(to: Self.animationDurationRange) } }
     /// Which display banners appear on. Only distinguishable with more than one.
     public var screen: BannerScreen
 
@@ -136,6 +143,7 @@ public struct BannerAppearance: Sendable, Equatable {
     public static let spacingRange: ClosedRange<CGFloat> = 0...32
     public static let lifetimeRange: ClosedRange<TimeInterval> = 2...30
     public static let opacityRange: ClosedRange<Double> = 0.3...1
+    public static let animationDurationRange: ClosedRange<TimeInterval> = 0.1...1
 
     /// What a banner looks like for someone who has never opened the settings — the
     /// behaviour this package had before any of it was configurable.
@@ -154,7 +162,8 @@ public struct BannerAppearance: Sendable, Equatable {
         material: BannerMaterial = .popover,
         isAnimated: Bool = true,
         sound: BannerSound = .none,
-        screen: BannerScreen = .withPointer
+        screen: BannerScreen = .withPointer,
+        animationDuration: TimeInterval = 0.25
     ) {
         self.corner = corner
         self.width = width.clamped(to: Self.widthRange)
@@ -169,6 +178,7 @@ public struct BannerAppearance: Sendable, Equatable {
         self.isAnimated = isAnimated
         self.sound = sound
         self.screen = screen
+        self.animationDuration = animationDuration.clamped(to: Self.animationDurationRange)
     }
 }
 
