@@ -69,7 +69,17 @@ struct BannerView: View {
         }
         .padding(10)
         .frame(width: appearance.width, alignment: .leading)
-        .background(BannerBackground(material: appearance.material))
+        .background {
+            ZStack {
+                BannerBackground(material: appearance.material)
+                // Tinted over the glass, not instead of it — a flat colour with nothing
+                // behind it would not adapt to light and dark, and would fight the
+                // vibrancy that makes a banner read as part of macOS.
+                if case .custom(let red, let green, let blue) = appearance.tint {
+                    Color(red: red, green: green, blue: blue).opacity(0.55)
+                }
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(alignment: .topTrailing) { closeButton }
         .contentShape(Rectangle())

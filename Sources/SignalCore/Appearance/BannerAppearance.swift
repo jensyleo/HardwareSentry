@@ -47,9 +47,11 @@ public enum BannerTextScale: String, Sendable, Equatable, CaseIterable {
 
 /// The surface a banner is drawn on.
 ///
-/// Offered as a choice of the system's own materials rather than as a free colour: a
-/// banner should look like it belongs to macOS, and each of these already adapts itself
-/// to light and dark. A flat colour picked by hand would do neither.
+/// A choice of the system's own materials, each of which already adapts itself to light
+/// and dark — the reason a flat colour was left out for a long time. Someone who wants
+/// one anyway can now have it (`BannerTint.custom`), tinted *over* whichever of these
+/// three still supplies the glass underneath it, rather than replacing it — the tint
+/// colours the light, it does not become the surface.
 public enum BannerMaterial: String, Sendable, Equatable, CaseIterable {
     case popover
     case hud
@@ -62,6 +64,23 @@ public enum BannerMaterial: String, Sendable, Equatable, CaseIterable {
         case .windowBackground: return "Window background"
         }
     }
+}
+
+/// A colour tint over the banner's material, for someone who wants more than the three
+/// system looks offer.
+///
+/// `.systemMaterial` — the default — draws exactly what `BannerMaterial` alone always
+/// drew. `.custom` overlays a translucent colour on top of that same glass rather than
+/// replacing it outright: a flat colour with nothing behind it does not adapt to light and
+/// dark and fights the vibrancy that makes a banner read as part of macOS, so the glass
+/// stays, tinted, instead of being torn out.
+public enum BannerTint: Sendable, Equatable {
+    case systemMaterial
+    /// Components in 0...1, matching `Color`'s own range, so a stored value is never
+    /// something SwiftUI has to be told how to reinterpret.
+    case custom(red: Double, green: Double, blue: Double)
+
+    public var isCustom: Bool { if case .custom = self { true } else { false } }
 }
 
 /// What a banner sounds like, if anything.
@@ -97,6 +116,7 @@ public struct BannerAppearance: Sendable, Equatable {
     public var corner: BannerCorner
     public var textScale: BannerTextScale
     public var material: BannerMaterial
+    public var tint: BannerTint
     public var isAnimated: Bool
     public var sound: BannerSound
     /// How long the slide-in, reposition and fade-out animations take.
@@ -160,6 +180,7 @@ public struct BannerAppearance: Sendable, Equatable {
         opacity: Double = 1,
         textScale: BannerTextScale = .medium,
         material: BannerMaterial = .popover,
+        tint: BannerTint = .systemMaterial,
         isAnimated: Bool = true,
         sound: BannerSound = .none,
         screen: BannerScreen = .withPointer,
@@ -175,6 +196,7 @@ public struct BannerAppearance: Sendable, Equatable {
         self.opacity = opacity.clamped(to: Self.opacityRange)
         self.textScale = textScale
         self.material = material
+        self.tint = tint
         self.isAnimated = isAnimated
         self.sound = sound
         self.screen = screen

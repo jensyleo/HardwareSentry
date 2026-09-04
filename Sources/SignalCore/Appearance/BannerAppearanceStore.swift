@@ -47,7 +47,8 @@ public final class BannerAppearanceStore {
     }
 
     private enum Key: String, CaseIterable {
-        case corner, width, margin, spacing, visibleLifetime, maximumVisible, revealSpacing, opacity, textScale, material, isAnimated, sound, screen
+        case corner, width, margin, spacing, visibleLifetime, maximumVisible, revealSpacing, opacity, textScale, material, isAnimated, sound, screen, animationDuration
+        case tintIsCustom, tintRed, tintGreen, tintBlue
     }
 
     private func key(_ key: Key) -> String { "\(keyPrefix).\(key.rawValue)" }
@@ -66,6 +67,16 @@ public final class BannerAppearanceStore {
         defaults.set(appearance.isAnimated, forKey: key(.isAnimated))
         defaults.set(appearance.sound.rawValue, forKey: key(.sound))
         defaults.set(appearance.screen.rawValue, forKey: key(.screen))
+        defaults.set(appearance.animationDuration, forKey: key(.animationDuration))
+        switch appearance.tint {
+        case .systemMaterial:
+            defaults.set(false, forKey: key(.tintIsCustom))
+        case .custom(let red, let green, let blue):
+            defaults.set(true, forKey: key(.tintIsCustom))
+            defaults.set(red, forKey: key(.tintRed))
+            defaults.set(green, forKey: key(.tintGreen))
+            defaults.set(blue, forKey: key(.tintBlue))
+        }
     }
 
     /// Anything missing or unrecognised falls back to the standard value for that field
@@ -88,9 +99,17 @@ public final class BannerAppearanceStore {
             opacity: number(.opacity, standard.opacity),
             textScale: (defaults.string(forKey: key(.textScale)).flatMap(BannerTextScale.init(rawValue:))) ?? standard.textScale,
             material: (defaults.string(forKey: key(.material)).flatMap(BannerMaterial.init(rawValue:))) ?? standard.material,
+            tint: (defaults.object(forKey: key(.tintIsCustom)) as? Bool ?? false)
+                ? .custom(
+                    red: number(.tintRed, 0),
+                    green: number(.tintGreen, 0),
+                    blue: number(.tintBlue, 1)
+                )
+                : .systemMaterial,
             isAnimated: defaults.object(forKey: key(.isAnimated)) as? Bool ?? standard.isAnimated,
             sound: (defaults.string(forKey: key(.sound)).flatMap(BannerSound.init(rawValue:))) ?? standard.sound,
-            screen: (defaults.string(forKey: key(.screen)).flatMap(BannerScreen.init(rawValue:))) ?? standard.screen
+            screen: (defaults.string(forKey: key(.screen)).flatMap(BannerScreen.init(rawValue:))) ?? standard.screen,
+            animationDuration: number(.animationDuration, standard.animationDuration)
         )
     }
 }

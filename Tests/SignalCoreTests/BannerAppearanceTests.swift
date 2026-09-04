@@ -75,6 +75,8 @@ struct BannerAppearanceStoreTests {
         store.appearance.textScale = .large
         store.appearance.material = .hud
         store.appearance.isAnimated = false
+        store.appearance.animationDuration = 0.6
+        store.appearance.tint = .custom(red: 0.1, green: 0.5, blue: 0.9)
 
         let reopened = BannerAppearanceStore(defaults: defaults, keyPrefix: "Test.\(id)")
 
@@ -84,6 +86,21 @@ struct BannerAppearanceStoreTests {
         #expect(reopened.appearance.textScale == .large)
         #expect(reopened.appearance.material == .hud)
         #expect(!reopened.appearance.isAnimated)
+        #expect(reopened.appearance.animationDuration == 0.6)
+        #expect(reopened.appearance.tint == .custom(red: 0.1, green: 0.5, blue: 0.9))
+    }
+
+    @Test("choosing the system material again is remembered too, not just custom")
+    @MainActor
+    func tintBackToSystemMaterialSurvivesARelaunch() {
+        let id = UUID().uuidString
+        let (store, defaults) = makeStore(id)
+
+        store.appearance.tint = .custom(red: 0.1, green: 0.5, blue: 0.9)
+        store.appearance.tint = .systemMaterial
+
+        let reopened = BannerAppearanceStore(defaults: defaults, keyPrefix: "Test.\(id)")
+        #expect(reopened.appearance.tint == .systemMaterial)
     }
 
     @Test("one unreadable setting does not throw away the rest")

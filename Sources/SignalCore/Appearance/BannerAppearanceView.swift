@@ -69,6 +69,15 @@ public struct BannerAppearanceView: View {
                     }
                 }
 
+                Toggle("Custom tint", isOn: customTintBinding)
+
+                if store.appearance.tint.isCustom {
+                    ColorPicker("Tint colour", selection: customColorBinding, supportsOpacity: false)
+                    Text("Overlaid on the material above, not instead of it — a flat colour with nothing behind it would not adapt to light and dark.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 slider(
                     "Opacity",
                     value: $store.appearance.opacity,
@@ -164,6 +173,41 @@ public struct BannerAppearanceView: View {
             icon: .symbol("externaldrive.connected.to.line.below")
         )
     )
+
+    /// Whether a custom tint is chosen, as a plain `Bool` a `Toggle` can bind to —
+    /// switching it on picks a starting colour rather than leaving `.custom` uninitialised
+    /// with nothing behind it; switching it off drops back to the system material exactly.
+    private var customTintBinding: Binding<Bool> {
+        Binding(
+            get: { store.appearance.tint.isCustom },
+            set: { isOn in
+                store.appearance.tint = isOn ? .custom(red: 0.2, green: 0.4, blue: 0.9) : .systemMaterial
+            }
+        )
+    }
+
+    /// The custom tint's colour, as a `Color` a `ColorPicker` can bind to. Reads the
+    /// standing colour while custom is chosen; if somehow read while it is not (the
+    /// picker is hidden in that case, so this is only ever a fallback), it hands back
+    /// exactly what `customTintBinding`'s own default would set.
+    private var customColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                if case .custom(let red, let green, let blue) = store.appearance.tint {
+                    return Color(red: red, green: green, blue: blue)
+                }
+                return Color(red: 0.2, green: 0.4, blue: 0.9)
+            },
+            set: { color in
+                let resolved = color.resolve(in: EnvironmentValues())
+                store.appearance.tint = .custom(
+                    red: Double(resolved.red),
+                    green: Double(resolved.green),
+                    blue: Double(resolved.blue)
+                )
+            }
+        )
+    }
 
     private func slider<V: BinaryFloatingPoint>(
         _ title: String,
