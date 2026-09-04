@@ -511,8 +511,12 @@ struct USBBusNameTests {
 struct USBDeviceKindRowTests {
     @Test("every class the original lists has a row, an icon that exists, and its own event")
     func everyKindIsDeclared() throws {
-        // The original's fourteen rows: twelve classes plus the two generics.
-        #expect(USBDeviceKind.allCases.count == 12)
+        // The original's fourteen rows — twelve classes plus the two generics — plus
+        // Communications (0x02, "Network Adapter"), added after this device class turned
+        // out to matter: a hub's own internal LAN-over-USB chip enumerates under it, and
+        // was going through the generic row with nothing to tell it apart from a
+        // genuinely unidentified device.
+        #expect(USBDeviceKind.allCases.count == 13)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }
@@ -531,10 +535,23 @@ struct USBDeviceKindRowTests {
         #expect(USBDeviceKind(deviceClass: 0x03) == .hid)
         #expect(USBDeviceKind(deviceClass: 0x0E) == .webcam)
         #expect(USBDeviceKind(deviceClass: 0xE0) == .wireless)
-        // 0x02 is Communications, which has no artwork of its own: an honest generic
-        // icon beats a wrong specific one.
-        #expect(USBDeviceKind(deviceClass: 0x02) == nil)
+        #expect(USBDeviceKind(deviceClass: 0x02) == .communications)
+        // 0x0A (CDC Data) has no artwork of its own: an honest generic icon beats a
+        // wrong specific one.
+        #expect(USBDeviceKind(deviceClass: 0x0A) == nil)
         #expect(USBDeviceKind(deviceClass: 0x00) == nil)
+    }
+
+    // Reported live: a hub's own internal network interface (a LAN-over-USB chip, seen on
+    // the system as `en5`) enumerated as a plain "USB Device Connected" — no different
+    // from a device nothing at all is known about — because Communications (0x02) had no
+    // `USBDeviceKind` case of its own.
+    @Test("a hub's internal network-adapter chip gets its own row, not the generic one")
+    func communicationsDeviceIsNamedNetworkAdapter() {
+        #expect(USBDeviceKind(deviceClass: 0x02) == .communications)
+        #expect(USBDeviceKind.communications.settingsTitle == "Network Adapter")
+        #expect(USBDeviceKind.communications.connectedEvent.rawValue == "USBConnectedCommunications")
+        #expect(USBDeviceKind.communications.iconBaseName == "USB-TypeCommunications")
     }
 
     // Reported live: a Logitech BRIO showed up as a generic USB device rather than a
@@ -574,7 +591,7 @@ struct USBDeviceKindRowTests {
 
     @Test("interfaces that name nothing recognised still leave the device generic")
     func unrecognisedInterfacesStayGeneric() {
-        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x02, 0xFF]) == nil)
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x0A, 0xFF]) == nil)
     }
 
     @Test("USBDevice reads its kind from interfaces too, not only USBDeviceKind directly")

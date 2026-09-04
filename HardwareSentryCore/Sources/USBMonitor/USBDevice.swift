@@ -61,12 +61,13 @@ public struct USBDevice: Sendable, Equatable {
 /// generic icon beats a wrong specific one.
 public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case hub, massStorage, hid, webcam, scanner, printer, smartCard
-    case audio, healthcare, audioVideo, typeCBridge, wireless
+    case audio, healthcare, audioVideo, typeCBridge, wireless, communications
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
         switch deviceClass {
         case 0x01: self = .audio
+        case 0x02: self = .communications
         case 0x03: self = .hid
         case 0x06: self = .scanner
         case 0x07: self = .printer
@@ -158,6 +159,10 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .audioVideo: return "USB-TypeAudioVideo"
         case .typeCBridge: return "USB-TypeTypeCBridge"
         case .wireless: return "USB-TypeWireless"
+        // Same composite as every other row, paired with the network-adapter artwork
+        // already ported for Thunderbolt Monitor's own row of the same shape (H4) — one
+        // asset, two monitors, rather than drawing a second one for the same device kind.
+        case .communications: return "USB-TypeCommunications"
         }
     }
 
@@ -176,6 +181,12 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .audioVideo: return "Audio/Video"
         case .typeCBridge: return "Type-C Bridge"
         case .wireless: return "Wireless"
+        // "Network Adapter", not the USB-IF's own "Communications": reported live, this
+        // is what a hub's own internal LAN-over-USB chip enumerates as, and "Network
+        // Adapter" says what somebody actually sees appear (an `enX` interface) — the
+        // "Type" line in the body still says "Communications", the USB-IF's own name for
+        // it, so neither wording is lost.
+        case .communications: return "Network Adapter"
         }
     }
 
@@ -192,6 +203,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .audio: return .connectedAudio
         case .healthcare: return .connectedHealthcare
         case .audioVideo: return .connectedAudioVideo
+        case .communications: return .connectedCommunications
         case .typeCBridge: return .connectedTypeCBridge
         case .wireless: return .connectedWireless
         }

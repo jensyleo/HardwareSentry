@@ -21,6 +21,7 @@ public enum USBEvent: String, NotificationEventKey, CaseIterable {
     case connectedAudioVideo = "USBConnectedAudioVideo"
     case connectedTypeCBridge = "USBConnectedTypeCBridge"
     case connectedWireless = "USBConnectedWireless"
+    case connectedCommunications = "USBConnectedCommunications"
 
     public static let category: NotificationCategory = "USB"
 }
