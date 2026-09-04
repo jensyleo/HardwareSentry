@@ -45,8 +45,33 @@ private final class RegistryWatcher: @unchecked Sendable {
     private var arrivals: io_iterator_t = 0
     private var departures: io_iterator_t = 0
 
+    /// What a composite device's interfaces turned out to be, remembered by vendor,
+    /// product and port location, for departure to read back.
+    ///
+    /// A device whose own class names nothing depends on its interfaces to say what kind
+    /// it is — a USB audio interface most often, reporting `0x00` at the device level and
+    /// its real class only on a child. Those children are gone by the time the departure
+    /// notification fires (confirmed live: empty, not just slow), so a departing device
+    /// this ambiguous would otherwise resolve to no kind at all, fall outside
+    /// `kindsCoveredElsewhere` regardless of what it is set to, and always raise USB
+    /// Monitor's own generic notice — reported live as exactly that: Audio's "Notify for
+    /// USB devices independently of USB Monitor" switch doing nothing, because the
+    /// redundant generic disconnect notice was never the switch's to suppress in the
+    /// first place, whichever way it was set. Filled in when the arrival side resolves
+    /// the same identity, by whichever path — immediately, or after the async retry.
+    private var resolvedInterfaceClasses: [String: [UInt8]] = [:]
+
     init(continuation: AsyncStream<USBDeviceChange>.Continuation) {
         self.continuation = continuation
+    }
+
+    /// A device's physical identity, stable across the registry-entry replacement a
+    /// composite device goes through while it is enumerated and across the gap between
+    /// its arrival and its eventual departure. Nil when any part is missing — nothing
+    /// safe to key a cache on.
+    private static func identity(vendorID: UInt16?, productID: UInt16?, locationID: UInt32?) -> String? {
+        guard let vendorID, let productID, let locationID else { return nil }
+        return "\(vendorID):\(productID):\(locationID)"
     }
 
     func start() {
@@ -113,8 +138,146 @@ private final class RegistryWatcher: @unchecked Sendable {
         while case let service = IOIteratorNext(iterator), service != 0 {
             defer { IOObjectRelease(service) }
             guard let device = Self.read(service) else { continue }
-            continuation.yield(arriving ? .attached(device) : .detached(device))
+
+            // A composite device's interfaces are not children of it yet at the instant
+            // this notification fires — confirmed live: still empty a full 5 seconds
+            // later, on this same registry entry. They exist within milliseconds, but by
+            // the time they do, IOKit has quietly replaced this entry with a new one for
+            // the same physical device, so waiting and asking `service` again never
+            // helps. Re-finding the device by what does not change across that
+            // replacement — its vendor, product and port — and asking a period of *those*
+            // instead is what `enrichedInterfaceClasses` does; the delay this adds is
+            // paid only by a device this ambiguous, never by an ordinary one.
+
+            let key = Self.identity(
+                vendorID: device.detail.vendorID,
+                productID: device.detail.productID,
+                locationID: device.detail.locationID
+            )
+
+            guard arriving else {
+                // The departure side of the same ambiguity `isAmbiguous` guards against
+                // on arrival, except there is no fresh registry entry left to re-query by
+                // the time it fires — the device is on its way out. What arrival already
+                // worked out for this same physical identity is the only place left to
+                // ask, so a still-ambiguous read is enriched from that cache instead of
+                // being yielded as the no-kind-at-all device it would otherwise resolve
+                // to — and with it gone, silently and needlessly outliving the device.
+                if Self.isAmbiguous(device), let key, let cached = resolvedInterfaceClasses.removeValue(forKey: key), !cached.isEmpty {
+                    continuation.yield(.detached(USBDevice(
+                        name: device.name,
+                        vendorName: device.vendorName,
+                        isHub: device.isHub,
+                        deviceClass: device.deviceClass,
+                        interfaceClasses: cached,
+                        detail: device.detail
+                    )))
+                } else {
+                    if let key { resolvedInterfaceClasses.removeValue(forKey: key) }
+                    continuation.yield(.detached(device))
+                }
+                continue
+            }
+
+            guard Self.isAmbiguous(device) else {
+                if let key, !device.interfaceClasses.isEmpty {
+                    resolvedInterfaceClasses[key] = device.interfaceClasses
+                }
+                continuation.yield(.attached(device))
+                continue
+            }
+
+            let vendorID = device.detail.vendorID
+            let productID = device.detail.productID
+            let locationID = device.detail.locationID
+            let continuation = self.continuation
+            let queue = self.queue
+
+            Task.detached {
+                let classes = await Self.enrichedInterfaceClasses(
+                    vendorID: vendorID, productID: productID, locationID: locationID
+                )
+                let enriched = classes.isEmpty ? device : USBDevice(
+                    name: device.name,
+                    vendorName: device.vendorName,
+                    isHub: device.isHub,
+                    deviceClass: device.deviceClass,
+                    interfaceClasses: classes,
+                    detail: device.detail
+                )
+                if let key, !classes.isEmpty {
+                    // Written back on `queue`, the only place this dictionary is ever
+                    // touched, so this and every `drain` call stay serialized against it
+                    // without a lock of their own.
+                    queue.async { [weak self] in self?.resolvedInterfaceClasses[key] = classes }
+                }
+                continuation.yield(.attached(enriched))
+            }
         }
+    }
+
+    /// Whether a device's own class names nothing — `0x00`, meaning "ask the
+    /// interfaces", or `0xEF`, the standard marker for a composite device that does the
+    /// same for a different reason — and its interfaces, read at the same moment, agree.
+    /// Only this shape is worth the retry below; a device with an ordinary class, or one
+    /// that already answered from its interfaces on the first read, is yielded exactly as
+    /// it always was.
+    private static func isAmbiguous(_ device: USBDevice) -> Bool {
+        (device.deviceClass == nil || device.deviceClass == 0x00 || device.deviceClass == 0xEF)
+            && device.interfaceClasses.isEmpty
+    }
+
+    /// Polls for the same physical device's interfaces under a fresh registry entry, since
+    /// the one this device was first read from will not grow them no matter how long it is
+    /// asked. Identified by vendor, product and port location — not by name or serial,
+    /// which are not always present — because those three survive the entry being
+    /// replaced when everything else about a freshly published device might not yet.
+    ///
+    /// Bounded at 400ms, in roughly ten tries: measured live, the interfaces are visible
+    /// within about 10ms of the device finishing driver matching, so this is a wide
+    /// margin, not a tuned minimum. A device that still cannot be found or still answers
+    /// nothing by the deadline is left exactly as ambiguous as it always would have been —
+    /// this can only improve on today's classification, never make it worse.
+    private static func enrichedInterfaceClasses(
+        vendorID: UInt16?,
+        productID: UInt16?,
+        locationID: UInt32?
+    ) async -> [UInt8] {
+        guard vendorID != nil || productID != nil || locationID != nil else { return [] }
+
+        for _ in 0..<10 {
+            if let found = matchingInterfaceClasses(vendorID: vendorID, productID: productID, locationID: locationID),
+               !found.isEmpty {
+                return found
+            }
+            try? await Task.sleep(nanoseconds: 40_000_000)
+        }
+        return []
+    }
+
+    /// A fresh, one-shot scan of every currently published device of this class, for the
+    /// one matching the identity given — deliberately not the `io_service_t` this device
+    /// was first read from, which is exactly what has gone stale by the time this runs.
+    private static func matchingInterfaceClasses(
+        vendorID: UInt16?,
+        productID: UInt16?,
+        locationID: UInt32?
+    ) -> [UInt8]? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(Self.deviceClass), &iterator) == KERN_SUCCESS else {
+            return nil
+        }
+        defer { IOObjectRelease(iterator) }
+
+        while case let candidate = IOIteratorNext(iterator), candidate != 0 {
+            defer { IOObjectRelease(candidate) }
+            let candidateVendor = number(candidate, "idVendor").map(UInt16.init(truncatingIfNeeded:))
+            let candidateProduct = number(candidate, "idProduct").map(UInt16.init(truncatingIfNeeded:))
+            let candidateLocation = number(candidate, "locationID").map(UInt32.init(truncatingIfNeeded:))
+            guard candidateVendor == vendorID, candidateProduct == productID, candidateLocation == locationID else { continue }
+            return Self.interfaceClasses(candidate)
+        }
+        return nil
     }
 
     private static func read(_ service: io_service_t) -> USBDevice? {
@@ -128,8 +291,34 @@ private final class RegistryWatcher: @unchecked Sendable {
             vendorName: string(service, "USB Vendor Name") ?? string(service, kUSBVendorString),
             isHub: IOObjectConformsTo(service, "IOUSBHostHubDevice") != 0,
             deviceClass: byte(service, "bDeviceClass"),
+            interfaceClasses: Self.interfaceClasses(service),
             detail: Self.detail(service)
         )
+    }
+
+    /// Every interface's own `bInterfaceClass`, for the composite device whose device
+    /// class names nothing — see `USBDevice.interfaceClasses`.
+    ///
+    /// Interfaces appear in the registry as `IOUSBHostInterface` children of the device,
+    /// one level down; the recursion this shares with `storageMedium` goes no further
+    /// than that in practice; the depth limit is only ever a backstop against a
+    /// malformed tree, the same reason it exists there.
+    private static func interfaceClasses(_ service: io_service_t) -> [UInt8] {
+        var found: [UInt8] = []
+        var iterator: io_iterator_t = 0
+        guard IORegistryEntryCreateIterator(
+            service, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator
+        ) == KERN_SUCCESS else { return [] }
+        defer { IOObjectRelease(iterator) }
+
+        var depth = 0
+        while case let child = IOIteratorNext(iterator), child != 0, depth < 64 {
+            defer { IOObjectRelease(child); depth += 1 }
+            if let interfaceClass = byte(child, "bInterfaceClass") {
+                found.append(interfaceClass)
+            }
+        }
+        return found
     }
 
     /// Everything else the registry entry will answer.

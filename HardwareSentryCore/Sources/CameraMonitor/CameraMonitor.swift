@@ -11,8 +11,21 @@ public actor CameraMonitor: Monitor {
     public static let category = CameraEvent.category
 
     public static let events: [MonitorEventDescription] = [
+        // One row per kind this monitor can tell apart, each with its own icon and its
+        // own switch — the same reasoning USB Monitor's per-device-class rows rest on: a
+        // Mac with a built-in camera and a webcam permanently attached should be able to
+        // silence one without silencing the other. The icons here are `.symbol` — SF
+        // Symbol placeholders, standing in until real artwork exists for each kind — and
+        // are themselves the "System" default this row's Custom/System/Reset already
+        // offers in Settings, so replacing them later touches only these lines.
         .init(name: CameraEvent.connected.rawValue, title: "Camera connected", icon: .asset("CameraMonitor-Icon", in: .module)),
         .init(name: CameraEvent.disconnected.rawValue, title: "Camera disconnected", icon: .asset("CameraMonitor-Icon", in: .module)),
+        .init(name: CameraEvent.webcamConnected.rawValue, title: "Webcam connected", icon: .symbol("web.camera")),
+        .init(name: CameraEvent.webcamDisconnected.rawValue, title: "Webcam disconnected", icon: .symbol("web.camera")),
+        .init(name: CameraEvent.continuityConnected.rawValue, title: "Continuity Camera connected", icon: .symbol("iphone.radiowaves.left.and.right")),
+        .init(name: CameraEvent.continuityDisconnected.rawValue, title: "Continuity Camera disconnected", icon: .symbol("iphone.radiowaves.left.and.right")),
+        .init(name: CameraEvent.deskViewConnected.rawValue, title: "Desk View connected", icon: .symbol("table.furniture")),
+        .init(name: CameraEvent.deskViewDisconnected.rawValue, title: "Desk View disconnected", icon: .symbol("table.furniture")),
         .init(name: CameraEvent.inUseChanged.rawValue, title: "Camera started/stopped being used", icon: .asset("CameraMonitor-Icon-InUse", in: .module)),
         .init(name: CameraEvent.portraitEffectChanged.rawValue, title: "Portrait Effect changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
         .init(name: CameraEvent.studioLightChanged.rawValue, title: "Studio Light changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
@@ -40,15 +53,16 @@ public actor CameraMonitor: Monitor {
     /// that starts and stops, not a camera that arrived or left the room — the same
     /// reasoning as `AudioMonitor`'s equivalent switch, which this reuses the wording of.
     private var notifiesVirtualDevices: Bool
-    /// On by default: this is the improvement over HG4MAC's own long-standing behaviour
-    /// asked for directly — a camera arriving over USB used to be left to USB Monitor's
-    /// generic notice alone. Configurable rather than simply changed outright, for
-    /// whoever preferred the old, quieter pairing.
-    private var notifiesUSBDevices: Bool
-    /// UIDs a connect was suppressed for — whether because it was virtual or because it
-    /// arrived over USB with that switch off — so the matching disconnect is suppressed
-    /// too rather than reporting the departure of an arrival nobody was told about.
+    /// UIDs a connect was suppressed for — only ever because it was virtual — so the
+    /// matching disconnect is suppressed too rather than reporting the departure of an
+    /// arrival nobody was told about.
     private var suppressedUIDs: Set<String> = []
+    /// What each connected camera is, remembered from its arrival.
+    ///
+    /// A disconnection carries no description of the device — by then there is nothing
+    /// left to ask — so the wording and icon it goes out with (a webcam's departure has
+    /// to say "Webcam", not "Camera") come from here rather than from the event itself.
+    private var connectedDetail: [String: CameraDetail] = [:]
 
     private var currentlyRunning: Set<String> = []
     private var runningNames: [String: String] = [:]
@@ -60,20 +74,71 @@ public actor CameraMonitor: Monitor {
         source: any CameraSource,
         context: MonitorContext,
         stopDebounce: Double = 1.0,
-        notifiesVirtualDevices: Bool = false,
-        notifiesUSBDevices: Bool = true
+        notifiesVirtualDevices: Bool = false
     ) {
         self.source = source
         self.context = context
         self.stopDebounceNanoseconds = UInt64(stopDebounce * 1_000_000_000)
         self.notifiesVirtualDevices = notifiesVirtualDevices
-        self.notifiesUSBDevices = notifiesUSBDevices
+    }
+
+    /// Whether a transport description names USB, however it happens to be spelled.
+    ///
+    /// Compared without regard to case on purpose. Matching the exact string `"USB"` is
+    /// what broke this switch in the first place: the source described a USB webcam as
+    /// `"usb"`, taken from its raw four-character code, so the comparison never matched
+    /// and the setting silently had no effect. The spelling is now fixed at the source as
+    /// well; this makes the check survive it drifting again.
+    private static func isUSB(_ transport: String?) -> Bool {
+        transport?.caseInsensitiveCompare("USB") == .orderedSame
+    }
+
+    /// What to call this camera and which event it goes out as, from what it is rather
+    /// than from any setting — a camera is always announced as what it actually is.
+    ///
+    /// Reported live: with USB Monitor's own generic notice folded away for a kind this
+    /// module already names — a setting this module's own wording has to remain correct
+    /// under, not conditional on — "Camera Connected" was the only wording left for what
+    /// is, in hand, a webcam. USB Monitor's own generic notice used to be the only place a
+    /// device like that was ever called a webcam; once that notice can be the one folded
+    /// away for exactly this device, the word has to live here unconditionally, or it is
+    /// lost rather than merely said twice.
+    ///
+    /// Desk View and Continuity are checked ahead of USB: an iPhone providing either is
+    /// also reported with a USB-shaped transport by the system, and the more specific
+    /// answer — what somebody actually plugged in or set up — is the useful one.
+    private static func announcement(
+        connecting: Bool,
+        transport: String?,
+        isDeskViewCamera: Bool,
+        isContinuityCamera: Bool
+    ) -> (event: CameraEvent, title: String) {
+        let (event, word): (CameraEvent, String) = if isDeskViewCamera {
+            (connecting ? .deskViewConnected : .deskViewDisconnected, "Desk View")
+        } else if isContinuityCamera {
+            (connecting ? .continuityConnected : .continuityDisconnected, "Continuity Camera")
+        } else if isUSB(transport) {
+            (connecting ? .webcamConnected : .webcamDisconnected, "Webcam")
+        } else {
+            (connecting ? .connected : .disconnected, "Camera")
+        }
+        return (event, "\(word) \(connecting ? "Connected" : "Disconnected")")
+    }
+
+    /// The icon for this camera's kind, matching whichever event `announcement(...)`
+    /// chose — kept in step with it deliberately, since the two are shown together and a
+    /// mismatch would read as one or the other being wrong. SF Symbol placeholders for the
+    /// kinds that do not have artwork of their own yet.
+    private static func icon(transport: String?, isDeskViewCamera: Bool, isContinuityCamera: Bool) -> NotificationIcon {
+        if isDeskViewCamera { return .symbol("table.furniture") }
+        if isContinuityCamera { return .symbol("iphone.radiowaves.left.and.right") }
+        if isUSB(transport) { return .symbol("web.camera") }
+        return .asset("CameraMonitor-Icon", in: .module)
     }
 
     /// Called when a setting changes, so it applies without a relaunch.
-    public func apply(notifiesVirtualDevices: Bool, notifiesUSBDevices: Bool) {
+    public func apply(notifiesVirtualDevices: Bool) {
         self.notifiesVirtualDevices = notifiesVirtualDevices
-        self.notifiesUSBDevices = notifiesUSBDevices
     }
 
     public func start() async {
@@ -97,17 +162,20 @@ public actor CameraMonitor: Monitor {
     private func handle(_ event: CameraSourceEvent) async {
         switch event {
         case .connected(let uid, let name, let detail):
+            if let detail { connectedDetail[uid] = detail }
             guard notifiesVirtualDevices || detail?.transport != "Virtual" else {
                 suppressedUIDs.insert(uid)
                 return
             }
-            guard notifiesUSBDevices || detail?.transport != "USB" else {
-                suppressedUIDs.insert(uid)
-                return
-            }
+            let announcement = Self.announcement(
+                connecting: true,
+                transport: detail?.transport,
+                isDeskViewCamera: detail?.isDeskViewCamera ?? false,
+                isContinuityCamera: detail?.isContinuityCamera ?? false
+            )
             await context.notify(
-                CameraEvent.connected.rawValue, subject: uid,
-                title: "Camera Connected",
+                announcement.event.rawValue, subject: uid,
+                title: announcement.title,
                 body: await context.body([
                     .always(name),
                     .field(CameraField.transport.rawValue, "Transport", detail?.transport),
@@ -121,17 +189,34 @@ public actor CameraMonitor: Monitor {
                     .field(CameraField.systemPreferred.rawValue, "System Preferred Camera", detail?.systemPreferredNote),
                     .field(CameraField.linkedDevices.rawValue, "Linked devices", detail?.linkedDevices)
                 ]),
-                icon: .asset("CameraMonitor-Icon", in: .module)
+                icon: Self.icon(
+                    transport: detail?.transport,
+                    isDeskViewCamera: detail?.isDeskViewCamera ?? false,
+                    isContinuityCamera: detail?.isContinuityCamera ?? false
+                )
             )
 
         case .disconnected(let uid, let name):
             pendingStops.removeValue(forKey: uid)?.cancel()
             lastNotifiedRunning.remove(uid)
+            let detail = connectedDetail.removeValue(forKey: uid)
+            // Silent only if the arrival was suppressed — no stray departure for something
+            // nobody was told about.
             guard suppressedUIDs.remove(uid) == nil else { return }
+            let announcement = Self.announcement(
+                connecting: false,
+                transport: detail?.transport,
+                isDeskViewCamera: detail?.isDeskViewCamera ?? false,
+                isContinuityCamera: detail?.isContinuityCamera ?? false
+            )
             await context.notify(
-                CameraEvent.disconnected.rawValue, subject: uid,
-                title: "Camera Disconnected", body: name,
-                icon: .asset("CameraMonitor-Icon", in: .module)
+                announcement.event.rawValue, subject: uid,
+                title: announcement.title, body: name,
+                icon: Self.icon(
+                    transport: detail?.transport,
+                    isDeskViewCamera: detail?.isDeskViewCamera ?? false,
+                    isContinuityCamera: detail?.isContinuityCamera ?? false
+                )
             )
 
         case .runningStateChanged(let running):

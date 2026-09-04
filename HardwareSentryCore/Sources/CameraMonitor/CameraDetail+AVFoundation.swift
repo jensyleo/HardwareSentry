@@ -50,14 +50,26 @@ extension CameraDetail {
     }
 
     /// `transportType` is a `FourCharCode` shared with CoreAudio's transport constants.
-    /// The USB and Bluetooth ones are absent on purpose: a camera on either of those is
-    /// filtered out upstream, so it never reaches here to be described.
-    private static func describe(transport: Int32) -> String? {
+    ///
+    /// Bluetooth is absent on purpose: a camera on it is filtered out upstream and never
+    /// reaches here. USB was absent for the same reason until USB cameras started being
+    /// announced in their own right — and nobody added the case when that changed, which
+    /// is how a USB webcam ended up describing itself as "usb".
+    ///
+    /// Internal rather than private so a test can pin the spellings: the one that was
+    /// missing here silently disabled a setting that compares against it.
+    static func describe(transport: Int32) -> String? {
         // Compared as unsigned: the constants are `UInt32` four-character codes, and the
         // ones with the high bit set are negative when read back as `Int32`.
         switch UInt32(bitPattern: transport) {
         case kAudioDeviceTransportTypeBuiltIn: return "Built-in"
         case kAudioDeviceTransportTypeVirtual: return "Virtual"
+        // Named explicitly, like every other transport here. Without this case a USB
+        // webcam fell through to the four-character code and reported itself as "usb" —
+        // lower case, unlike "Built-in" or "Thunderbolt" beside it, and, worse, not the
+        // spelling `CameraMonitor` compares against when deciding whether USB cameras
+        // should be announced independently. That switch silently did nothing.
+        case kAudioDeviceTransportTypeUSB: return "USB"
         case kAudioDeviceTransportTypeContinuityCaptureWired,
              kAudioDeviceTransportTypeContinuityCaptureWireless: return "Continuity"
         case kAudioDeviceTransportTypeThunderbolt: return "Thunderbolt"

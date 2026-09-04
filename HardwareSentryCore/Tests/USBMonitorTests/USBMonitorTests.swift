@@ -17,6 +17,23 @@ struct ScriptedSource: USBDeviceSource {
     }
 }
 
+/// A source driven event by event, for the cases where a setting has to change *between*
+/// two events rather than before both of them.
+final class LiveUSBSource: USBDeviceSource, @unchecked Sendable {
+    private let continuation: AsyncStream<USBDeviceChange>.Continuation
+    private let stream: AsyncStream<USBDeviceChange>
+
+    init() {
+        var escaped: AsyncStream<USBDeviceChange>.Continuation!
+        stream = AsyncStream { escaped = $0 }
+        continuation = escaped
+    }
+
+    func changes() -> AsyncStream<USBDeviceChange> { stream }
+    func send(_ change: USBDeviceChange) { continuation.yield(change) }
+    func finish() { continuation.finish() }
+}
+
 /// Collects whatever the monitor raises.
 actor CollectingDelivery: NotificationDelivering {
     private(set) var events: [NotificationEvent] = []
@@ -29,19 +46,24 @@ actor CollectingDelivery: NotificationDelivering {
 
 @Suite("USBMonitor")
 struct USBMonitorTests {
-    private func run(_ changes: [USBDeviceChange]) async -> [NotificationEvent] {
+    private func run(
+        _ changes: [USBDeviceChange],
+        kindsCoveredElsewhere: Set<USBDeviceKind> = []
+    ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
         let monitor = USBMonitor(
             source: ScriptedSource(script: changes),
-            context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category)
+            context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category),
+            kindsCoveredElsewhere: kindsCoveredElsewhere
         )
 
         await monitor.start()
         // The monitor consumes its source on its own task; give it a turn to finish.
-        for _ in 0..<100 where await delivery.events.count < changes.count {
-            await Task.yield()
-        }
+        // Unconditional, rather than waiting for a target event count: a suppressed
+        // change means fewer events than changes, which the old count-based wait would
+        // have spun on until it timed out.
+        for _ in 0..<200 { await Task.yield() }
         await monitor.stop()
         return await delivery.events
     }
@@ -62,6 +84,71 @@ struct USBMonitorTests {
 
         #expect(events.first?.name == "USBDisconnected")
         #expect(events.first?.title == "USB Device Disconnected")
+    }
+
+    // Asked for directly, once independent USB notices for Camera and Audio made one
+    // physical connect produce up to three separate banners: a way to fold this
+    // module's own generic one away for whichever kinds another monitor already speaks
+    // for, without losing the device from the log entirely if that other monitor is
+    // switched off.
+
+    @Test("a covered kind is silent here")
+    func coveredKindIsQuiet() async {
+        let events = await run(
+            [
+                .attached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])),
+                .detached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01]))
+            ],
+            kindsCoveredElsewhere: [.webcam]
+        )
+        #expect(events.isEmpty)
+    }
+
+    @Test("a kind not covered elsewhere still gets its own notice")
+    func uncoveredKindIsNeverSilenced() async {
+        let events = await run(
+            [.attached(USBDevice(name: "Anker Hub", isHub: true))],
+            kindsCoveredElsewhere: [.webcam, .audio]
+        )
+        #expect(events.count == 1)
+        #expect(events.first?.title == "USB Hub Connected")
+    }
+
+    @Test("a covered kind speaks once the monitor that covers it is switched off")
+    func kindStopsBeingCoveredOnceTheOtherMonitorIsSwitchedOff() async {
+        // `kindsCoveredElsewhere` is computed by whoever assembles this monitor, from
+        // whether Camera/Audio's own switch is off — so it never lists a kind whose only
+        // other announcer has gone quiet. Modelled here directly, at the boundary this
+        // monitor actually sees, rather than through that computation.
+        let events = await run(
+            [.attached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01]))],
+            kindsCoveredElsewhere: []
+        )
+        #expect(events.count == 1, "with nothing covered, the device must not go unreported")
+    }
+
+    @Test("apply changes the setting live, without a relaunch")
+    func applyTakesEffectLive() async {
+        let delivery = CollectingDelivery()
+        let dispatcher = NotificationDispatcher(delivery: delivery)
+        let source = LiveUSBSource()
+        let monitor = USBMonitor(
+            source: source,
+            context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category)
+        )
+        await monitor.start()
+
+        source.send(.attached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])))
+        for _ in 0..<200 { await Task.yield() }
+        #expect(await delivery.events.count == 1)
+
+        await monitor.apply(kindsCoveredElsewhere: [.webcam])
+        source.send(.detached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])))
+        for _ in 0..<200 { await Task.yield() }
+        source.finish()
+        await monitor.stop()
+
+        #expect(await delivery.events.count == 1, "the disconnect after apply() must stay silent")
     }
 
     @Test("a hub is called a hub")
@@ -190,13 +277,17 @@ extension USBIconTests {
     @Test("every recognised class has its own artwork, distinct from the generic one")
     func everyClassIconIsDistinct() throws {
         // A specific icon that happened to be the generic one would make "USB Device Connected"
-        // and "a webcam arrived" indistinguishable at a glance.
+        // and, say, "a printer arrived" indistinguishable at a glance. Webcam is the deliberate
+        // exception: that notice is USB Monitor's own, redundant one for a device Camera already
+        // names and iconed in its own notice, so it wears the plain USB glyph on purpose.
         let generic = try #require(Bundle.module.url(forResource: "USB-On", withExtension: "png"))
         let genericBytes = try Data(contentsOf: generic)
 
         var seen = Set<String>()
         for code in UInt8.min...UInt8.max {
-            guard let base = device(class: code).iconBaseName, seen.insert(base).inserted else { continue }
+            let dev = device(class: code)
+            guard let base = dev.iconBaseName, seen.insert(base).inserted else { continue }
+            guard dev.kind != .webcam else { continue }
             let url = try #require(Bundle.module.url(forResource: base, withExtension: "png"), "missing \(base)")
             #expect(try Data(contentsOf: url) != genericBytes, "\(base) is the generic icon")
         }
@@ -226,6 +317,30 @@ struct USBClassNameTests {
         #expect(named(0x00) == nil)
         #expect(named(nil) == nil)
         #expect(named(0x42) == nil)
+    }
+
+    // Reported live: a Logitech BRIO's notification title already said "USB Webcam
+    // Connected" (device class 0xEF resolved from its interfaces, see USBDeviceKindTests)
+    // while its own body still said "Type: Miscellaneous" — the same fallback existing on
+    // one side and not the other, so the title and the body disagreed about what had just
+    // connected.
+    @Test("a composite device is named from its interfaces too, matching its kind")
+    func compositeDeviceClassNameMatchesKind() {
+        let device = USBDevice(name: "Webcam", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])
+        #expect(device.className == "Video")
+        #expect(device.kind == .webcam)
+    }
+
+    @Test("a composite device with nothing recognised on its interfaces keeps an honest generic name")
+    func compositeDeviceWithNoRecognisedInterfaceStaysMiscellaneous() {
+        // 0x04 and 0x42 have never been assigned a USB-IF base class; unlike 0x02
+        // ("Communications"), neither names anything real for `className` to prefer.
+        #expect(USBDevice(name: "Thing", deviceClass: 0xEF, interfaceClasses: [0x04, 0x42]).className == "Miscellaneous")
+    }
+
+    @Test("a device whose own class already says something is never overridden by its interfaces")
+    func ownClassNameWinsOverInterfaces() {
+        #expect(USBDevice(name: "Thing", deviceClass: 0x08, interfaceClasses: [0x0E]).className == "Mass Storage")
     }
 
     @Test("every class with a name has an icon, and every class with an icon has a name")
@@ -367,6 +482,46 @@ struct USBDeviceKindRowTests {
         // icon beats a wrong specific one.
         #expect(USBDeviceKind(deviceClass: 0x02) == nil)
         #expect(USBDeviceKind(deviceClass: 0x00) == nil)
+    }
+
+    // Reported live: a Logitech BRIO showed up as a generic USB device rather than a
+    // webcam. Its own descriptor, read back from the device: device class 0xEF/0x02/0x01
+    // (the standard "Multi-Interface Function" marker, not a class of its own) with
+    // interfaces 0x0E (Video) and 0x01 (Audio) underneath — the shape reproduced here.
+    @Test("a composite device with no class of its own is read from its interfaces")
+    func compositeDeviceFallsBackToInterfaces() {
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01]) == .webcam)
+        // Order does not decide it: video wins because it is the device's own headline
+        // function, not because it happened to be listed first.
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x01, 0x0E]) == .webcam)
+    }
+
+    // Reported live: a USB audio interface with a volume/mute-button HID interface
+    // alongside its audio one resolved to `.hid` instead of `.audio` whenever the
+    // registry happened to list that HID interface first — a class `kindsCoveredElsewhere`
+    // has no opinion about, so "Notify for USB devices independently of USB Monitor" could
+    // never fold USB Monitor's own notice away for it, whichever way it was set.
+    @Test("a composite audio device is read as audio whichever order its interfaces list in")
+    func compositeAudioDeviceIsNeverMistakenForHID() {
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x01, 0x03]) == .audio)
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x03, 0x01]) == .audio)
+    }
+
+    @Test("a device whose own class already says something is never overridden by its interfaces")
+    func ownClassWinsOverInterfaces() {
+        #expect(USBDeviceKind(deviceClass: 0x08, interfaceClasses: [0x0E]) == .massStorage)
+    }
+
+    @Test("interfaces that name nothing recognised still leave the device generic")
+    func unrecognisedInterfacesStayGeneric() {
+        #expect(USBDeviceKind(deviceClass: 0xEF, interfaceClasses: [0x02, 0xFF]) == nil)
+    }
+
+    @Test("USBDevice reads its kind from interfaces too, not only USBDeviceKind directly")
+    func deviceKindUsesInterfacesAsWell() {
+        let device = USBDevice(name: "Webcam", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])
+        #expect(device.kind == .webcam)
+        #expect(device.iconBaseName == USBDeviceKind.webcam.iconBaseName)
     }
 
     @Test("a hub is a hub even when its class code says otherwise")

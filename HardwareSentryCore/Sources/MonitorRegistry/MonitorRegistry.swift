@@ -37,6 +37,14 @@ public actor MonitorRegistry {
     private let audioVolumeCriticalPercent: Int
     private let audioNotifiesVirtualDevices: Bool
     private let cameraNotifiesVirtualDevices: Bool
+    /// "Notify for USB devices independently of USB Monitor", one per module.
+    ///
+    /// Camera and Audio always announce a device with their own, correctly-worded notice
+    /// — that no longer depends on this. What this decides is whether USB Monitor's own
+    /// generic notice *also* fires for a device kind one of them already covers: **on**
+    /// means both fire, the full detail of a redundant pair; **off** means USB Monitor
+    /// stays quiet about it and the specific notice is the only one. See
+    /// `kindsCoveredElsewhere(cameraNotifiesUSBDevices:audioNotifiesUSBDevices:)`.
     private let audioNotifiesUSBDevices: Bool
     private let cameraNotifiesUSBDevices: Bool
     private let scannerStatusInterval: Duration
@@ -113,10 +121,18 @@ public actor MonitorRegistry {
                 await power.apply(refire: powerRefire, healthCheck: powerHealthCheck, healthNotify: powerHealthNotify)
             }
             if let audio = monitor as? AudioMonitor {
-                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent, notifiesVirtualDevices: audioNotifiesVirtualDevices, notifiesUSBDevices: audioNotifiesUSBDevices)
+                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent, notifiesVirtualDevices: audioNotifiesVirtualDevices)
             }
             if let camera = monitor as? CameraMonitor {
-                await camera.apply(notifiesVirtualDevices: cameraNotifiesVirtualDevices, notifiesUSBDevices: cameraNotifiesUSBDevices)
+                await camera.apply(notifiesVirtualDevices: cameraNotifiesVirtualDevices)
+            }
+            if let usb = monitor as? USBMonitor {
+                await usb.apply(
+                    kindsCoveredElsewhere: Self.kindsCoveredElsewhere(
+                        cameraNotifiesUSBDevices: cameraNotifiesUSBDevices,
+                        audioNotifiesUSBDevices: audioNotifiesUSBDevices
+                    )
+                )
             }
             if let volume = monitor as? VolumeMonitor {
                 await volume.apply(
@@ -146,13 +162,40 @@ public actor MonitorRegistry {
         }
     }
 
+    /// Which USB device kinds USB Monitor should stay quiet about right now — see
+    /// `USBMonitor.kindsCoveredElsewhere`.
+    ///
+    /// Inverted from how this reads at first glance, on purpose: "Notify for USB devices
+    /// independently of USB Monitor" **off** is what asks for *fewer* notices, not more —
+    /// Camera or Audio's own, correctly-worded one is enough, and USB Monitor's redundant
+    /// generic one for the same physical device is what gets folded away. A kind is only
+    /// ever folded away while its own module actually covers it; a kind neither module has
+    /// an opinion on is never included, so it keeps its own notice regardless.
+    private static func kindsCoveredElsewhere(
+        cameraNotifiesUSBDevices: Bool,
+        audioNotifiesUSBDevices: Bool
+    ) -> Set<USBDeviceKind> {
+        var kinds: Set<USBDeviceKind> = []
+        // A webcam-first pairing, matching the same priority `USBDeviceKind`'s own
+        // interface fallback gives video: a composite device that is both is a webcam
+        // before it is anything else.
+        if !cameraNotifiesUSBDevices { kinds.insert(.webcam) }
+        if !audioNotifiesUSBDevices { kinds.insert(.audio) }
+        if !cameraNotifiesUSBDevices && !audioNotifiesUSBDevices { kinds.insert(.audioVideo) }
+        return kinds
+    }
+
     /// Builds every monitor. Each is handed only what it needs, and never a way to reach
     /// another one.
     public func assemble() {
         monitors = [
             USBMonitor(
                 source: IOKitUSBDeviceSource(),
-                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
+                context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
+                kindsCoveredElsewhere: Self.kindsCoveredElsewhere(
+                    cameraNotifiesUSBDevices: cameraNotifiesUSBDevices,
+                    audioNotifiesUSBDevices: audioNotifiesUSBDevices
+                )
             ),
             ThermalMonitor(
                 source: SystemThermalStateSource(),
@@ -169,8 +212,7 @@ public actor MonitorRegistry {
             CameraMonitor(
                 source: AVFoundationCameraSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
-                notifiesVirtualDevices: cameraNotifiesVirtualDevices,
-                notifiesUSBDevices: cameraNotifiesUSBDevices
+                notifiesVirtualDevices: cameraNotifiesVirtualDevices
             ),
             DisplayMonitor(
                 // The experimental video-link poll runs only when its notification is
@@ -196,8 +238,7 @@ public actor MonitorRegistry {
                 source: CoreAudioSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 volumeCriticalThreshold: audioVolumeCriticalPercent,
-                notifiesVirtualDevices: audioNotifiesVirtualDevices,
-                notifiesUSBDevices: audioNotifiesUSBDevices
+                notifiesVirtualDevices: audioNotifiesVirtualDevices
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(),

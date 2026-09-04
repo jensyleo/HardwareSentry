@@ -5,9 +5,15 @@ public struct USBDevice: Sendable, Equatable {
     public let name: String
     public let vendorName: String?
     public let isHub: Bool
-    /// The USB-IF `bDeviceClass` byte. `0x00` means "look at the interfaces instead", so a
-    /// device saying that has told us nothing about what it is.
+    /// The USB-IF `bDeviceClass` byte. `0x00` means "look at the interfaces instead", and
+    /// `0xEF` means the same thing for a different reason — it is the standard marker for
+    /// a composite device (an Interface Association Descriptor) rather than a class of
+    /// its own. Either way, a device saying one of those has told us nothing on its own.
     public let deviceClass: UInt8?
+    /// Every interface's own `bInterfaceClass`, read for exactly the case above: a
+    /// composite device — a webcam that is also a microphone, most often — names its real
+    /// classes here instead. Empty for the ordinary device that already said what it is.
+    public let interfaceClasses: [UInt8]
 
     /// Everything else the device says about itself.
     public let detail: USBDeviceDetail
@@ -17,24 +23,29 @@ public struct USBDevice: Sendable, Equatable {
         vendorName: String? = nil,
         isHub: Bool = false,
         deviceClass: UInt8? = nil,
+        interfaceClasses: [UInt8] = [],
         detail: USBDeviceDetail = USBDeviceDetail()
     ) {
         self.name = name
         self.vendorName = vendorName
         self.isHub = isHub
         self.deviceClass = deviceClass
+        self.interfaceClasses = interfaceClasses
         self.detail = detail
     }
 
     /// What this device says it is, or nil when it has not said anything specific.
     ///
-    /// Nil is the common case, not a failure: most USB devices declare their class on
-    /// each interface rather than on the device itself, so the generic USB glyph is what
-    /// a great many perfectly ordinary devices get.
+    /// Nil is less common than it used to be: a composite device that names nothing at
+    /// the device level — the BRIO among them, reported live as showing up generic rather
+    /// than as the webcam it is — still gets a kind from its interfaces, tried second. It
+    /// stays nil only for a device that names nothing at either level.
     public var kind: USBDeviceKind? {
         if isHub { return .hub }
-        guard let deviceClass else { return nil }
-        return USBDeviceKind(deviceClass: deviceClass)
+        // `0x00` carries the same "look at the interfaces" meaning `0xEF` does, so an
+        // absent device class is treated the same way rather than skipping straight to
+        // the interfaces without also giving `0x00` itself a chance to (harmlessly) fail.
+        return USBDeviceKind(deviceClass: deviceClass ?? 0x00, interfaceClasses: interfaceClasses)
     }
 
     /// The artwork for what this device says it is.
@@ -71,6 +82,44 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         }
     }
 
+    /// Tries the device's own class first, and only then what its interfaces declare.
+    ///
+    /// Most devices say what they are once, on the device itself. A composite device —
+    /// one built from more than one function glued together, like a webcam that is also a
+    /// microphone — instead declares `0xEF` ("Miscellaneous", the standard marker for an
+    /// Interface Association Descriptor) at the device level and pushes the real classes
+    /// onto its interfaces, one per function. Reading only the device class there answers
+    /// nothing: a Logitech BRIO reports `0xEF` and was filed under the generic USB event
+    /// rather than "USB Webcam Connected", never touching `USB-TypeWebcam`'s icon or its
+    /// own row in Settings. Reported live, with the device's own descriptor confirming
+    /// the shape: device class `0xEF`/`0x02`/`0x01` (Multi-Interface Function), interfaces
+    /// `0x0E` (Video) and `0x01` (Audio) underneath.
+    ///
+    /// Video wins when more than one interface is recognised — a composite webcam is a
+    /// webcam first, whatever else it also happens to be. Audio wins next, for the same
+    /// reason on a device that is not also a webcam: a USB headset or audio interface
+    /// commonly carries a second, incidental interface of its own — an HID one, for its
+    /// volume/mute buttons, most often — and the registry does not promise to iterate
+    /// interfaces in ascending interface-number order, so `interfaceClasses` can just as
+    /// easily list that HID interface before the audio one. Reported live: an audio
+    /// interface's own class picked up second, behind HID, resolved `kind` to `.hid`
+    /// instead of `.audio` — a class `kindsCoveredElsewhere` never has an opinion about,
+    /// so USB Monitor's own notice for it could never be folded away, whatever "Notify
+    /// for USB devices independently of USB Monitor" was set to. A device that names
+    /// nothing at all, at either level, is content to stay generic.
+    public init?(deviceClass: UInt8, interfaceClasses: [UInt8]) {
+        if let kind = USBDeviceKind(deviceClass: deviceClass) {
+            self = kind
+            return
+        }
+        let kinds = interfaceClasses.compactMap { USBDeviceKind(deviceClass: $0) }
+        guard let kind = kinds.first(where: { $0 == .webcam })
+            ?? kinds.first(where: { $0 == .audio })
+            ?? kinds.first
+        else { return nil }
+        self = kind
+    }
+
     public var iconBaseName: String {
         switch self {
         case .hub: return "USB-TypeHub"
@@ -78,6 +127,10 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // flash drive is a disk, and that is what somebody expects to see.
         case .massStorage: return "Device-USBDrive"
         case .hid: return "USB-TypeHID"
+        // Every one of this row's own icons is now the USB glyph paired with the
+        // device's own silhouette — "USB, and specifically a webcam" reads as this
+        // module's own composite rather than a second, competing picture of a camera,
+        // which is what a plain camera glyph on its own would have been.
         case .webcam: return "USB-TypeWebcam"
         case .scanner: return "USB-TypeScanner"
         case .printer: return "USB-TypePrinter"
@@ -152,18 +205,41 @@ public extension USBDevice {
     /// exist and the icon would silently fall back to nothing.
     var disconnectedIconName: String {
         guard let base = iconBaseName else { return "USB-Off" }
-        return base == "Device-USBDrive" ? "Device-USBDrive-Unmounted" : "\(base)-Disconnected"
+        switch base {
+        case "Device-USBDrive": return "Device-USBDrive-Unmounted"
+        case "USB-On": return "USB-Off"
+        default: return "\(base)-Disconnected"
+        }
     }
 }
 
 public extension USBDevice {
     /// What the device says it is, in words — "Mass Storage", "HID (Keyboard/Mouse)".
     ///
-    /// The USB-IF's published base class codes. Nil for `0x00`, which means the device
-    /// declares its class per-interface rather than on itself: that is the common case,
-    /// not an error, and there is nothing useful to say about it.
+    /// The USB-IF's published base class codes. Nil for `0x00` with nothing recognised on
+    /// its interfaces either: that is the common case, not an error, and there is nothing
+    /// useful to say about it.
+    ///
+    /// `0xEF` gets the same "look at the interfaces instead" treatment as `0x00`, the same
+    /// reasoning `USBDeviceKind`'s own fallback rests on: it is the standard marker for a
+    /// composite device, not a description of one. Left as `className` describing a BRIO
+    /// as "Miscellaneous" while `kind` had already worked out "Webcam" from the same
+    /// interfaces — the notification's title and its own body line for "Type" disagreeing
+    /// about what it was.
     var className: String? {
-        guard let deviceClass else { return nil }
+        if let deviceClass, deviceClass != 0x00, deviceClass != 0xEF {
+            return Self.name(forClassByte: deviceClass)
+        }
+        let interfaceNames = interfaceClasses.compactMap(Self.name(forClassByte:))
+        if let name = interfaceNames.first(where: { $0 == "Video" }) ?? interfaceNames.first {
+            return name
+        }
+        // Nothing recognised on the interfaces either: for 0xEF, naming "more than one
+        // function" is at least honest, and better than falling silent about it.
+        return deviceClass.flatMap(Self.name(forClassByte:))
+    }
+
+    private static func name(forClassByte deviceClass: UInt8) -> String? {
         switch deviceClass {
         case 0x01: return "Audio"
         case 0x02: return "Communications"

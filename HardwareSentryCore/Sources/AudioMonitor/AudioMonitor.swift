@@ -50,11 +50,6 @@ public actor AudioMonitor: Monitor {
     /// and most people who see "Audio Device Connected: Zoom Audio Device" once do not
     /// want to see it again every time that app runs.
     private var notifiesVirtualDevices: Bool
-    /// On by default: the improvement over HG4MAC's own long-standing behaviour asked for
-    /// directly — a USB audio device used to be left to USB Monitor's generic notice
-    /// alone. Configurable rather than simply changed outright, for whoever preferred the
-    /// old, quieter pairing.
-    private var notifiesUSBDevices: Bool
     private var hasWarnedAboutVolume = false
     private var lastVolumePercent: Int?
 
@@ -79,22 +74,19 @@ public actor AudioMonitor: Monitor {
         context: MonitorContext,
         micStopDebounce: Double = 1.0,
         volumeCriticalThreshold: Int = 90,
-        notifiesVirtualDevices: Bool = false,
-        notifiesUSBDevices: Bool = true
+        notifiesVirtualDevices: Bool = false
     ) {
         self.source = source
         self.context = context
         self.micStopDebounceNanoseconds = UInt64(micStopDebounce * 1_000_000_000)
         self.volumeCriticalThreshold = volumeCriticalThreshold
         self.notifiesVirtualDevices = notifiesVirtualDevices
-        self.notifiesUSBDevices = notifiesUSBDevices
     }
 
     /// Called when a setting changes, so it applies without a relaunch.
-    public func apply(volumeCriticalThreshold: Int, notifiesVirtualDevices: Bool, notifiesUSBDevices: Bool) {
+    public func apply(volumeCriticalThreshold: Int, notifiesVirtualDevices: Bool) {
         self.volumeCriticalThreshold = volumeCriticalThreshold
         self.notifiesVirtualDevices = notifiesVirtualDevices
-        self.notifiesUSBDevices = notifiesUSBDevices
     }
 
     public func start() async {
@@ -257,7 +249,6 @@ public actor AudioMonitor: Monitor {
             let device = current[id]!
             guard !device.transport.isCoveredByAnotherMonitor else { continue }
             guard notifiesVirtualDevices || !device.transport.isVirtualOrAggregate else { continue }
-            guard notifiesUSBDevices || device.transport != .usb else { continue }
             reportedConnectedIDs.insert(id)
             await context.notify(
                 AudioEvent.connected.rawValue,
@@ -268,7 +259,15 @@ public actor AudioMonitor: Monitor {
             )
         }
         for id in knownIDs.subtracting(currentIDs) {
-            guard reportedConnectedIDs.remove(id) != nil else { continue }
+            let wasReported = reportedConnectedIDs.remove(id) != nil
+            // Judged against the settings as they stand, not only against what happened
+            // when the device arrived. A device already connected and already announced,
+            // with USB notices switched off afterwards, would otherwise still announce
+            // its departure — and only behave from the next cycle on.
+            let suppressedNow = knownDevices[id].map { device in
+                !notifiesVirtualDevices && device.transport.isVirtualOrAggregate
+            } ?? false
+            guard wasReported, !suppressedNow else { continue }
             let name = knownDevices[id]?.name ?? "Audio Device"
             await context.notify(AudioEvent.disconnected.rawValue, subject: id, title: "Audio Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
         }

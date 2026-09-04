@@ -133,9 +133,14 @@ final class MonitorTuningModel {
         didSet { defaults.set(notifiesVirtualCameraDevices, forKey: Self.virtualCameraDevicesKey); onChange?() }
     }
 
-    /// On by default: the improvement over HG4MAC's own behaviour asked for directly — a
-    /// USB audio device used to be left to USB Monitor's generic notice alone, and this is
-    /// what lets whoever preferred that quieter pairing go back to it.
+    /// "Notify for USB devices independently of USB Monitor" for audio.
+    ///
+    /// Audio Monitor always announces a USB device with its own, correct notice — that no
+    /// longer depends on this. What this decides is whether USB Monitor's own generic
+    /// notice *also* fires for the same physical device: on (the default) is both, the
+    /// full detail of a redundant pair, matching the improvement over HG4MAC's own
+    /// behaviour asked for directly; off folds USB Monitor's notice away and leaves only
+    /// Audio's own.
     var notifiesUSBAudioDevices: Bool {
         didSet { defaults.set(notifiesUSBAudioDevices, forKey: Self.usbAudioDevicesKey); onChange?() }
     }

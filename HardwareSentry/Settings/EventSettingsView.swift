@@ -341,7 +341,7 @@ private struct ModuleDetail: View {
             if module.category.rawValue == "Camera", title == titles.first {
                 Section {
                     Toggle("Notify for USB devices independently of USB Monitor", isOn: $tuning.notifiesUSBCameraDevices)
-                    Text("On by default: a USB webcam gets its own \u{201C}Camera Connected\u{201D} \u{2014} resolution, manufacturer, whether Center Stage is active \u{2014} alongside whatever USB Monitor already says, rather than only the generic USB notice. Switch off to go back to leaving USB cameras to USB Monitor alone.")
+                    Text("A USB webcam always gets its own, correctly-worded notice here \u{2014} \u{201C}Webcam Connected,\u{201D} not \u{201C}Camera Connected\u{201D} \u{2014} regardless of this switch. On by default: USB Monitor's own generic notice for the same device fires too, the full detail of a redundant pair. Switch off to fold that generic notice away and keep only this module's own.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -362,13 +362,17 @@ private struct ModuleDetail: View {
                         unit: "%"
                     )
 
-                    Toggle("Notify for virtual/aggregate devices", isOn: $tuning.notifiesVirtualAudioDevices)
-                    Text("A Multi-Output/Aggregate device built in Audio MIDI Setup, or a driver an app like Zoom or Teams installs to capture what is playing, is software rather than a device that arrived or left \u{2014} off by default so \u{201C}Connected\u{201D} keeps meaning hardware.")
+                    // Same relative order as Camera's own pair of switches below: the
+                    // USB-independence one first, the virtual-device one second — a
+                    // person comparing the two tabs should find the same switch in the
+                    // same place, not have to reread each one to tell which is which.
+                    Toggle("Notify for USB devices independently of USB Monitor", isOn: $tuning.notifiesUSBAudioDevices)
+                    Text("A USB audio interface always gets its own notice here \u{2014} sample rate, channel count, whether it became the default \u{2014} regardless of this switch. On by default: USB Monitor's own generic notice for the same device fires too, the full detail of a redundant pair. Switch off to fold that generic notice away and keep only this module's own.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Toggle("Notify for USB devices independently of USB Monitor", isOn: $tuning.notifiesUSBAudioDevices)
-                    Text("On by default: a USB audio interface gets its own \u{201C}Audio Device Connected\u{201D} \u{2014} sample rate, channel count, whether it became the default \u{2014} alongside whatever USB Monitor already says. Switch off to go back to leaving USB audio devices to USB Monitor alone.")
+                    Toggle("Notify for virtual/aggregate devices", isOn: $tuning.notifiesVirtualAudioDevices)
+                    Text("A Multi-Output/Aggregate device built in Audio MIDI Setup, or a driver an app like Zoom or Teams installs to capture what is playing, is software rather than a device that arrived or left \u{2014} off by default so \u{201C}Connected\u{201D} keeps meaning hardware.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -493,6 +497,16 @@ private struct ModuleDetail: View {
     /// The checkbox is here rather than on the subject tabs because these two questions
     /// are asked together — somebody scanning for the notification they want to silence
     /// recognises it by its icon before they read its name.
+    /// Where a new camera kind starts in the Icons list — Webcam, Continuity Camera, and
+    /// Desk View each open with a "Connected" row, so a divider drawn just above one of
+    /// these three names is a divider between kinds, without touching Camera's own pair
+    /// (nothing precedes it) or turning any of this into real sub-tab navigation.
+    private static let cameraKindDividerNames: Set<String> = [
+        "CameraWebcamConnected",
+        "CameraContinuityConnected",
+        "CameraDeskViewConnected"
+    ]
+
     private var iconsPane: some View {
         Form {
             Section("Module icon") {
@@ -517,6 +531,16 @@ private struct ModuleDetail: View {
             ForEach(module.eventGroups) { group in
                 Section(group.title ?? ModulePane.plainTitle) {
                     ForEach(group.rows, id: \.name) { event in
+                        // Camera lists four kinds back to back with nothing else between
+                        // them — Camera, Webcam, Continuity Camera, Desk View — and a row
+                        // ends where its "Disconnected" pair does. A divider there is
+                        // enough to read them as four kinds rather than one long list;
+                        // going further, into an actual tab per kind, was asked for and
+                        // then explicitly turned down in favour of keeping this the same
+                        // shape every other module's icon list already is.
+                        if Self.cameraKindDividerNames.contains(event.name) {
+                            Divider().padding(.vertical, 4)
+                        }
                         HStack(spacing: 8) {
                             // Leading, not trailing: the icon is how someone recognises the
                             // row they came to change, so it has to be where the eye lands

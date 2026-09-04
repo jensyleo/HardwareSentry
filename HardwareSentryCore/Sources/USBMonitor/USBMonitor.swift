@@ -36,18 +36,41 @@ public actor USBMonitor: Monitor {
     private let context: MonitorContext
     private var watching: Task<Void, Never>?
 
-    public init(source: any USBDeviceSource, context: MonitorContext) {
+    /// Which device kinds a more specific monitor already covers, and so this one should
+    /// step aside for — Camera or Audio's own "notify for USB devices independently"
+    /// switch, seen from the other side.
+    ///
+    /// Empty by default: parity with HG4MAC's own behaviour is showing everything, and a
+    /// composite webcam producing both "USB Webcam Connected" and "Camera Connected" was
+    /// the improvement asked for directly, not a defect to quietly undo. A kind only ever
+    /// belongs here while its own monitor is actually switched on to cover it — folding
+    /// this notice away for a webcam while Camera's own switch is also off would drop the
+    /// device from the log entirely, which is not what either switch, on its own, asks
+    /// for.
+    private var kindsCoveredElsewhere: Set<USBDeviceKind>
+
+    public init(
+        source: any USBDeviceSource,
+        context: MonitorContext,
+        kindsCoveredElsewhere: Set<USBDeviceKind> = []
+    ) {
         self.source = source
         self.context = context
+        self.kindsCoveredElsewhere = kindsCoveredElsewhere
+    }
+
+    /// Called when a setting changes, so it applies without a relaunch.
+    public func apply(kindsCoveredElsewhere: Set<USBDeviceKind>) {
+        self.kindsCoveredElsewhere = kindsCoveredElsewhere
     }
 
     public func start() async {
         guard watching == nil else { return }
 
-        watching = Task { [source, context] in
+        watching = Task { [source] in
             for await change in source.changes() {
                 guard !Task.isCancelled else { return }
-                await Self.report(change, through: context)
+                await self.handle(change)
             }
         }
     }
@@ -55,6 +78,16 @@ public actor USBMonitor: Monitor {
     public func stop() async {
         watching?.cancel()
         watching = nil
+    }
+
+    private func handle(_ change: USBDeviceChange) async {
+        let device = switch change {
+        case .attached(let device), .detached(let device): device
+        }
+        let isCoveredElsewhere = device.kind.map(kindsCoveredElsewhere.contains) ?? false
+        guard !isCoveredElsewhere else { return }
+
+        await Self.report(change, through: context)
     }
 
     private static func report(_ change: USBDeviceChange, through context: MonitorContext) async {

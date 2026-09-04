@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard terminateIfAlreadyRunning() else { return }
+
         Task {
             await registerEventDefaults()
             // Before the monitors start, and before anything opens the settings window.
@@ -50,6 +52,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await registry.start()
             await settleAfterStartupSweep()
         }
+    }
+
+    /// Quits this process immediately if another copy of this application is already
+    /// running, and returns whether the caller should continue starting up.
+    ///
+    /// Nothing else in the process guards against this — an accessory app with no Dock
+    /// icon and no window to glance at is exactly the shape that gets double-launched
+    /// without anyone noticing: `open`-ing it again while it is already running, a stale
+    /// process a previous quit didn't actually terminate, or a build script relaunching
+    /// it without confirming the old one exited first. Two copies do not fight visibly —
+    /// each has its own `BannerDelivery` drawing into the same screen corner with no idea
+    /// the other exists, so what shows up looks like a single, badly broken stacking bug:
+    /// banners from one process never move to make room for the other's, because nothing
+    /// in either one is watching for it. Confirmed live, reproduced by two overlapping
+    /// banners that carried different wording from two different builds.
+    private func terminateIfAlreadyRunning() -> Bool {
+        let bundleID = Bundle.main.bundleIdentifier
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let olderInstance = NSWorkspace.shared.runningApplications.first {
+            $0.bundleIdentifier == bundleID && $0.processIdentifier != pid
+        }
+
+        guard let olderInstance else { return true }
+
+        olderInstance.activate()
+        NSApp.terminate(nil)
+        return false
     }
 
     private func assemble() {

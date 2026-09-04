@@ -33,8 +33,7 @@ struct AudioMonitorTests {
     private func run(
         _ script: [AudioSourceEvent],
         settleFor debounce: Double = 0.05,
-        notifiesVirtualDevices: Bool = false,
-        notifiesUSBDevices: Bool = true
+        notifiesVirtualDevices: Bool = false
     ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
@@ -49,8 +48,7 @@ struct AudioMonitorTests {
                 announcesWhatIsAlreadyThere: false
             ),
             micStopDebounce: debounce,
-            notifiesVirtualDevices: notifiesVirtualDevices,
-            notifiesUSBDevices: notifiesUSBDevices
+            notifiesVirtualDevices: notifiesVirtualDevices
         )
 
         await monitor.start()
@@ -114,28 +112,22 @@ struct AudioMonitorTests {
         #expect(events.isEmpty)
     }
 
-    @Test("a USB audio device can be switched back to USB Monitor's own notice alone")
-    func usbTransportCanBeSuppressedAgain() async {
-        let events = await run(
-            [
-                .deviceSnapshot([]),
-                .deviceSnapshot([device("1", transport: .usb)])
-            ],
-            notifiesUSBDevices: false
-        )
-        #expect(events.isEmpty)
-    }
-
-    @Test("a suppressed USB device disconnecting never fires a stray disconnect, once turned off")
-    func suppressedUSBDeviceNeverFiresDisconnect() async {
-        let events = await run(
-            [
-                .deviceSnapshot([device("1", transport: .usb)]),
-                .deviceSnapshot([])
-            ],
-            notifiesUSBDevices: false
-        )
-        #expect(events.isEmpty)
+    // A USB audio device always gets its own notice here now — whether USB Monitor's own
+    // generic notice for the same device also fires is USB Monitor's own decision (fed by
+    // this module's setting through the registry), not something this module suppresses
+    // itself for any more. Reported live: "Notify for USB devices independently of USB
+    // Monitor" switched off used to silence this module's own notice, leaving only USB
+    // Monitor's — the opposite of what was asked for once Audio's own wording became the
+    // one worth keeping. The connect-only case above already covers this; this one is the
+    // disconnect side, since that used to be the one that stayed silent.
+    @Test("a USB device disconnecting is announced too, not just connecting")
+    func usbDeviceDisconnectIsAnnouncedToo() async {
+        let events = await run([
+            .deviceSnapshot([]),
+            .deviceSnapshot([device("1", transport: .usb)]),
+            .deviceSnapshot([])
+        ])
+        #expect(events.map(\.name) == ["AudioDeviceConnected", "AudioDeviceDisconnected"])
     }
 
     @Test("a virtual or aggregate device is not announced by default")
@@ -163,7 +155,7 @@ struct AudioMonitorTests {
                 announcesWhatIsAlreadyThere: false
             )
         )
-        await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true, notifiesUSBDevices: true)
+        await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))
@@ -418,7 +410,7 @@ struct AudioVolumeCriticalTests {
             ),
             volumeCriticalThreshold: 90
         )
-        await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false, notifiesUSBDevices: true)
+        await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))

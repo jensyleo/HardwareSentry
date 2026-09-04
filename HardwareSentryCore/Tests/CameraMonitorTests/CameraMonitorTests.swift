@@ -1,3 +1,4 @@
+import AppKit
 import CoreAudio
 import Foundation
 import SignalCore
@@ -16,6 +17,23 @@ struct ScriptedCameraSource: CameraSource {
     }
 }
 
+/// A source that can be driven event by event, for the cases where a setting has to be
+/// changed *between* two events rather than before both of them.
+final class LiveCameraSource: CameraSource, @unchecked Sendable {
+    private let continuation: AsyncStream<CameraSourceEvent>.Continuation
+    private let stream: AsyncStream<CameraSourceEvent>
+
+    init() {
+        var escaped: AsyncStream<CameraSourceEvent>.Continuation!
+        stream = AsyncStream { escaped = $0 }
+        continuation = escaped
+    }
+
+    func changes() -> AsyncStream<CameraSourceEvent> { stream }
+    func send(_ event: CameraSourceEvent) { continuation.yield(event) }
+    func finish() { continuation.finish() }
+}
+
 actor CollectingDelivery: NotificationDelivering {
     private(set) var events: [NotificationEvent] = []
 
@@ -31,8 +49,7 @@ struct CameraMonitorTests {
         _ script: [CameraSourceEvent],
         stopDebounce: Double = 0.02,
         settleSeconds: Double = 0,
-        notifiesVirtualDevices: Bool = false,
-        notifiesUSBDevices: Bool = true
+        notifiesVirtualDevices: Bool = false
     ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
@@ -40,8 +57,7 @@ struct CameraMonitorTests {
             source: ScriptedCameraSource(script: script),
             context: MonitorContext(dispatcher: dispatcher, category: CameraMonitor.category),
             stopDebounce: stopDebounce,
-            notifiesVirtualDevices: notifiesVirtualDevices,
-            notifiesUSBDevices: notifiesUSBDevices
+            notifiesVirtualDevices: notifiesVirtualDevices
         )
 
         await monitor.start()
@@ -88,7 +104,7 @@ struct CameraMonitorTests {
             ]),
             context: MonitorContext(dispatcher: NotificationDispatcher(delivery: delivery), category: CameraMonitor.category)
         )
-        await monitor.apply(notifiesVirtualDevices: true, notifiesUSBDevices: true)
+        await monitor.apply(notifiesVirtualDevices: true)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))
@@ -124,19 +140,102 @@ struct CameraMonitorTests {
             .connected(uid: "cam-1", name: "Composite Webcam", detail: CameraDetail(transport: "USB"))
         ])
         #expect(events.count == 1)
-        #expect(events.first?.name == "CameraConnected")
+        // Its own event, not the built-in camera's: switching one off must not silence
+        // the other, the same reasoning USB Monitor's own per-class rows rest on.
+        #expect(events.first?.name == "CameraWebcamConnected")
+        #expect(events.first?.title == "Webcam Connected")
     }
 
-    @Test("a USB camera can be switched back to USB Monitor's own notice alone")
-    func usbCameraCanBeSuppressedAgain() async {
-        let events = await run(
-            [
-                .connected(uid: "cam-1", name: "Composite Webcam", detail: CameraDetail(transport: "USB")),
+    // Reported live: with USB Monitor's own notice folded away for a kind Camera already
+    // covers, "Camera Connected" was the only wording left for what is, in hand, a
+    // webcam — the one place that word came from was the very notice being folded away.
+    @Test("a built-in camera still says Camera; a USB one says Webcam, connecting and disconnecting")
+    func wordingMatchesWhatActuallyConnected() async {
+        let builtIn = await run([
+            .connected(uid: "cam-1", name: "FaceTime HD Camera", detail: CameraDetail(transport: "Built-in")),
+            .disconnected(uid: "cam-1", name: "FaceTime HD Camera")
+        ])
+        #expect(builtIn.map(\.title) == ["Camera Connected", "Camera Disconnected"])
+        #expect(builtIn.map(\.name) == ["CameraConnected", "CameraDisconnected"])
+
+        let webcam = await run([
+            .connected(uid: "cam-2", name: "Logitech BRIO", detail: CameraDetail(transport: "USB")),
+            .disconnected(uid: "cam-2", name: "Logitech BRIO")
+        ])
+        #expect(webcam.map(\.title) == ["Webcam Connected", "Webcam Disconnected"])
+        #expect(webcam.map(\.name) == ["CameraWebcamConnected", "CameraWebcamDisconnected"])
+    }
+
+    @Test("an iPhone providing Continuity Camera is named as one, not as a webcam")
+    func continuityCameraIsNamedCorrectly() async {
+        // Continuity Camera is reported over a USB-shaped transport by the system, the
+        // same as an ordinary external webcam — checked ahead of the USB case on purpose,
+        // since the more specific answer is the useful one.
+        let events = await run([
+            .connected(uid: "cam-1", name: "Jensy's iPhone", detail: CameraDetail(transport: "USB", isContinuityCamera: true)),
+            .disconnected(uid: "cam-1", name: "Jensy's iPhone")
+        ])
+        #expect(events.map(\.title) == ["Continuity Camera Connected", "Continuity Camera Disconnected"])
+        #expect(events.map(\.name) == ["CameraContinuityConnected", "CameraContinuityDisconnected"])
+    }
+
+    @Test("Desk View is named as Desk View, ahead of Continuity or webcam")
+    func deskViewIsNamedCorrectly() async {
+        let events = await run([
+            .connected(
+                uid: "cam-1", name: "Jensy's iPhone",
+                detail: CameraDetail(transport: "USB", isContinuityCamera: true, isDeskViewCamera: true)
+            ),
+            .disconnected(uid: "cam-1", name: "Jensy's iPhone")
+        ])
+        #expect(events.map(\.title) == ["Desk View Connected", "Desk View Disconnected"])
+        #expect(events.map(\.name) == ["CameraDeskViewConnected", "CameraDeskViewDisconnected"])
+    }
+
+    /// The exact shape of a live failure this replaces: the source described the
+    /// transport in lower case, an old switch compared against "USB", and the check
+    /// never matched. There is no switch to break that way any more — a USB camera is
+    /// always announced as a webcam — but the case-insensitive naming still deserves its
+    /// own pin, independent of `CameraDetail.describe(transport:)`'s own test for it.
+    @Test("a USB camera is always named a webcam, whatever case the transport is spelled in")
+    func webcamNamingIgnoresCase() async {
+        for spelling in ["usb", "USB", "Usb"] {
+            let events = await run([
+                .connected(uid: "cam-1", name: "Composite Webcam", detail: CameraDetail(transport: spelling)),
                 .disconnected(uid: "cam-1", name: "Composite Webcam")
-            ],
-            notifiesUSBDevices: false
+            ])
+            #expect(events.map(\.name) == ["CameraWebcamConnected", "CameraWebcamDisconnected"], "\(spelling) should read as a webcam")
+        }
+    }
+
+    /// A camera is always announced as what it is, independent of any setting — the
+    /// invariant that replaced "notify for USB devices independently of USB Monitor"
+    /// ever silencing this module's own notice. Modelled live, across a setting change
+    /// mid-connection, to confirm nothing here still depends on it.
+    @Test("a webcam is announced connecting and disconnecting, unaffected by unrelated settings changing mid-flight")
+    func webcamAnnouncedRegardlessOfSettingChanges() async {
+        let source = LiveCameraSource()
+        let delivery = CollectingDelivery()
+        let monitor = CameraMonitor(
+            source: source,
+            context: MonitorContext(dispatcher: NotificationDispatcher(delivery: delivery), category: CameraMonitor.category),
+            stopDebounce: 0.01
         )
-        #expect(events.isEmpty)
+        await monitor.start()
+
+        source.send(.connected(uid: "cam-1", name: "Logitech BRIO", detail: CameraDetail(transport: "USB")))
+        for _ in 0..<200 { await Task.yield() }
+        #expect(await delivery.events.map(\.title) == ["Webcam Connected"])
+
+        // An unrelated setting changing mid-connection must not affect this camera.
+        await monitor.apply(notifiesVirtualDevices: true)
+
+        source.send(.disconnected(uid: "cam-1", name: "Logitech BRIO"))
+        for _ in 0..<200 { await Task.yield() }
+        source.finish()
+        await monitor.stop()
+
+        #expect(await delivery.events.map(\.title) == ["Webcam Connected", "Webcam Disconnected"])
     }
 
     @Test("the first running snapshot is a silent baseline")
@@ -191,6 +290,18 @@ struct CameraMonitorTests {
         #expect(events.first?.title == "Studio Light Enabled")
     }
 
+    // Reported live: "webcam.fill" compiles — `.symbol(_:)` just wraps a string — but does
+    // not exist as an SF Symbol on this system, and a banner asking for a symbol that does
+    // not exist shows no icon at all rather than a placeholder. A compile-clean typo in an
+    // icon name is exactly the kind of mistake this pins against happening silently again.
+    @Test("every SF Symbol icon this monitor declares actually exists on this system")
+    func declaredSymbolsExist() {
+        for event in CameraMonitor.events {
+            guard case .symbol(let name) = event.icon else { continue }
+            #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "\(event.name) names a symbol that does not exist: \(name)")
+        }
+    }
+
     @Test("every event it can raise is declared for preferences to find, with the right defaults")
     func eventsAreDeclaredWithDefaults() {
         let byName = Dictionary(uniqueKeysWithValues: CameraMonitor.events.map { ($0.name, $0.enabledByDefault) })
@@ -198,6 +309,12 @@ struct CameraMonitorTests {
         #expect(byName == [
             "CameraConnected": true,
             "CameraDisconnected": true,
+            "CameraWebcamConnected": true,
+            "CameraWebcamDisconnected": true,
+            "CameraContinuityConnected": true,
+            "CameraContinuityDisconnected": true,
+            "CameraDeskViewConnected": true,
+            "CameraDeskViewDisconnected": true,
             "CameraInUseChanged": true,
             "CameraPortraitEffectChanged": false,
             "CameraStudioLightChanged": false,
@@ -357,6 +474,25 @@ struct AVFoundationCameraSourceTransportTests {
     @Test("USB is announced by this monitor too now")
     func usbIsNotSuppressed() {
         #expect(AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(Int32(bitPattern: kAudioDeviceTransportTypeUSB)) == false)
+    }
+
+    // Reported live: the "notify for USB devices independently" switch did nothing at
+    // all. The switch compares the described transport against "USB", but no case here
+    // named USB, so a USB webcam fell through to the raw four-character code and
+    // described itself as "usb" — which never matched. The tests that covered the switch
+    // passed throughout, because they built a `CameraDetail(transport: "USB")` by hand
+    // rather than using the spelling the real source produces. This pins the spelling
+    // itself so the two halves cannot drift apart again.
+    @Test("a USB camera describes its transport as USB, the spelling the setting compares")
+    func usbTransportIsSpelledUSB() {
+        #expect(CameraDetail.describe(transport: Int32(bitPattern: kAudioDeviceTransportTypeUSB)) == "USB")
+    }
+
+    @Test("the named transports keep the spellings they are shown with")
+    func namedTransportsKeepTheirSpelling() {
+        #expect(CameraDetail.describe(transport: Int32(bitPattern: kAudioDeviceTransportTypeBuiltIn)) == "Built-in")
+        #expect(CameraDetail.describe(transport: Int32(bitPattern: kAudioDeviceTransportTypeVirtual)) == "Virtual")
+        #expect(CameraDetail.describe(transport: Int32(bitPattern: kAudioDeviceTransportTypeThunderbolt)) == "Thunderbolt")
     }
 
     @Test("Bluetooth stays Bluetooth Monitor's own announcement")
