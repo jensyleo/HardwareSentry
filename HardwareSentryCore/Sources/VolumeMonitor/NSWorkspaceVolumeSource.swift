@@ -243,25 +243,27 @@ private final class Watcher: @unchecked Sendable {
         )
     }
 
-    /// Disk Arbitration's own media name and device model, plus — when they say nothing —
-    /// the underlying USB device's own product string.
+    /// Disk Arbitration's own media name and device model, always joined with the
+    /// underlying USB device's own product string rather than only falling back to it —
+    /// see the note below on why "only when Disk Arbitration says nothing" was not enough.
     ///
     /// Confirmed live, 2026-09-05, with a genuine USB microSD reader plugged into a hub:
-    /// Disk Arbitration reported `MediaName` "MassStorageClass" and no `DeviceModel` at
-    /// all — a generic mass-storage class name with nothing SD-shaped in it, which is why
-    /// the card mounted as a plain external disk instead of an SD card. The USB device
-    /// one level up in the registry, asked directly, answers "USB3.0 Card Reader" — the
-    /// same descriptor `USBMonitor` already reads as `USB Product Name`. Disk Arbitration
-    /// simply does not surface that string; IOKit still has it.
+    /// for the mounted *volume* (as opposed to the raw disk), Disk Arbitration answers
+    /// `DeviceModel` "MassStorageClass" and `MediaName` "Untitled 1" — neither blank, so a
+    /// first version of this fix that only consulted IOKit when Disk Arbitration's own
+    /// strings were *empty* never ran at all here. Both strings are equally generic and
+    /// SD-shaped in neither. The USB device one level up in the registry, asked directly,
+    /// answers "USB3.0 Card Reader" — the same descriptor `USBMonitor` already reads as
+    /// `USB Product Name` — so it is joined in unconditionally, and left for
+    /// `VolumeKind.infer`'s own token matching to use whichever part of the combined
+    /// string actually says something.
     private static func mediaNameForGuessing(_ description: [String: Any]) -> String {
-        let fromArbitration = [
-            description[kDADiskDescriptionMediaNameKey as String] as? String,
-            description[kDADiskDescriptionDeviceModelKey as String] as? String
-        ].compactMap { $0 }.joined(separator: " ")
-        if !fromArbitration.isEmpty { return fromArbitration }
-
         let bsdName = description[kDADiskDescriptionMediaBSDNameKey as String] as? String
-        return Self.usbProductName(bsdName: bsdName) ?? ""
+        return [
+            description[kDADiskDescriptionMediaNameKey as String] as? String,
+            description[kDADiskDescriptionDeviceModelKey as String] as? String,
+            Self.usbProductName(bsdName: bsdName)
+        ].compactMap { $0 }.joined(separator: " ")
     }
 
     /// Walks up from a BSD disk device to the USB device that owns it, looking for its

@@ -5,43 +5,52 @@ not rediscovered from scratch. Anything larger belongs in the code it affects.
 
 ## Fixed: a microSD reader in a USB hub mounted as a plain external disk, not "SD card"
 
-**Status:** fixed 2026-09-05, against real hardware — a genuine USB microSD reader inside a
-hub, with two card slots (`disk6`/`disk7` in this session's own `diskutil list`).
+**Status:** fixed 2026-09-05, confirmed live — reported again after a first attempt at
+this same fix did not actually change anything, tracked down and confirmed this time with
+a standalone signed test binary reproducing the exact code path against the real,
+connected reader (a two-slot "USB3.0 Card Reader", `Generic`/idVendor 1507/idProduct 1865,
+mounting its FAT32 slot as `BATOCERA`).
 
 **What was happening.** Volume Monitor's own SD-card heuristic (`VolumeKind.infer`) reads
 Disk Arbitration's `MediaName`/`DeviceModel`, string-matching for tokens like "sd card",
-"sdxc", "card reader". This particular reader's Disk Arbitration description said none of
-that: `MediaName` was the literal string `"MassStorageClass"`, `DeviceModel` was empty —
-confirmed with `diskutil info disk6`/`disk7` while the reader was connected. Nothing
-SD-shaped anywhere in what Disk Arbitration exposes for this device, so the heuristic had
-no text to match and the volume mounted as a plain external disk.
+"card reader". For the *mounted volume* (as opposed to the raw disk), Disk Arbitration
+answers `DeviceModel` = `"MassStorageClass"` and `MediaName` = `"Untitled 1"` — confirmed
+directly against the running description with `DADiskCopyDescription`. Neither string is
+SD-shaped, so the heuristic had nothing to match and the volume mounted as a plain
+external disk, reporting "Interface: USB" rather than "SD/CF card (external reader)".
 
-**Root cause.** Disk Arbitration and IOKit disagree about what this device is called.
-`ioreg` against the same disk, at the same moment, shows the owning `IOUSBHostDevice`
-itself answering `"USB Product Name" = "USB3.0 Card Reader"` — the same descriptor
-`USBMonitor` already reads for its own device-class rows. Disk Arbitration simply does not
-surface that string for this device; IOKit still has it, nine registry levels up from the
-disk's own `IOMedia` node (`IOBlockStorageDriver` → `IOBlockStorageServices` →
-`IOSCSIPeripheralDeviceType00` → `IOSCSILogicalUnitNub` → `IOUSBMassStorageDriver` →
-`IOUSBMassStorageDriverNub` → `IOUSBMassStorageInterfaceNub` → `IOUSBHostInterface` → the
-device) — a SCSI translation stack sits between a Mass Storage disk and its own USB device
-where an ordinary USB peripheral has no such layer to cross.
+**Root cause.** Disk Arbitration and IOKit disagree about what this device is called. The
+owning `IOUSBHostDevice`, asked directly via IOKit, answers `"USB Product Name" = "USB3.0
+Card Reader"` — the same descriptor `USBMonitor` already reads for its own device-class
+rows — nine registry levels up from the volume's own `IOMedia` node. Disk Arbitration
+simply does not surface that string for this device; IOKit still has it.
 
-**The fix.** `NSWorkspaceVolumeSource.mediaNameForGuessing(_:)` now falls back to that USB
-product string — found via `usbProductName(bsdName:)`, a bounded (16-level) upward walk
-from the disk's BSD name — whenever Disk Arbitration's own `MediaName`/`DeviceModel` say
-nothing. No new token was needed: "USB3.0 Card Reader" already matches the existing "card
-reader" token in `VolumeKind.infer`; the fix was reading the right property, not widening
-the word list.
+**The first attempt at this fix did not work, and here is why.** It read the USB product
+string only when Disk Arbitration's own `MediaName`/`DeviceModel` were *empty* — reasoning
+from a whole-disk (`disk6`) query that genuinely did return blank fields. But Volume
+Monitor asks about the *mounted volume*, not the raw disk, and that query returns
+non-empty-but-still-generic strings (`"Untitled 1"`, `"MassStorageClass"`) instead of
+nothing — so the "only when empty" fallback never ran at all, and the fix silently did
+nothing. Confirmed by reading `DADiskCopyDescription` for `/Volumes/BATOCERA` directly
+against the live device, rather than assumed.
 
-**Not independently confirmed end-to-end.** Verified the data and the registry path by
-hand with `diskutil`/`ioreg` while the card was connected, and the code builds and passes
-its existing tests, but this session's own sandboxed shell could not run the exact IOKit
-call itself to prove the fix live (`IOServiceGetMatchingService` returned nothing for the
-same BSD name that `diskutil`/`ioreg` see fine — almost certainly a restriction of the
-tool's own shell sandbox, not of the built application, but not proven either way). The
-real confirmation is unplugging and replugging the reader with the installed build running
-and watching whether the notification now says "SD/CF card (external reader)".
+**The actual fix.** `NSWorkspaceVolumeSource.mediaNameForGuessing(_:)` now joins Disk
+Arbitration's own `MediaName`/`DeviceModel` with the USB product string
+unconditionally — found via `usbProductName(bsdName:)`, a bounded (16-level) upward walk
+from the disk's BSD name — rather than only consulting it as a last resort, and leaves
+`VolumeKind.infer`'s own token matching to use whichever part of the combined string
+actually says something. No new token was needed: "USB3.0 Card Reader" already matches the
+existing "card reader" token; the fix was joining in the right property unconditionally,
+not widening the word list.
+
+**Confirmed this time, precisely how the first attempt should have been.** A standalone
+binary — compiled and ad-hoc signed the same way the application itself is, since the
+interpreted `swift run-file.swift` mode this session tried first is blocked from
+`IOServiceGetMatchingService` in whatever sandbox this tool's own shell runs under —
+reproduced `mediaNameForGuessing`'s exact logic against `/Volumes/BATOCERA` live and
+printed the real combined string: `"Untitled 1 MassStorageClass USB3.0 Card Reader"`,
+which does contain "card reader". Not yet watched as an actual banner in the running
+application — that is the one step still worth doing after the next real unplug/replug.
 
 ## To revisit: "ignore identified devices without their own icon" works, but doesn't sit right
 
