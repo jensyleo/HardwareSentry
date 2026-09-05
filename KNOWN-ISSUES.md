@@ -98,11 +98,21 @@ tries at 250ms (8s) — nearly double the measured 4.4s, not merely matching it,
 enclosure's timing is a data point, not a guarantee for every enclosure this heuristic
 will ever meet.
 
-**Confirmed this time by watching the real timeline, not by reasoning about a snapshot —
-but the fixed code path itself has not yet been re-run against the live app.** Reconnect
-the same enclosure once more and say what the connect notification actually reads. If
-this is still wrong, the next step is *not* another guess at the mechanism — it is
-running the same diagnostic tool again to watch the fixed code's own timeline directly.
+**Confirmed working live**, 2026-09-06, against the same enclosure that reported this
+four times running.
+
+**Replaced the fixed timeout with an event, once it worked, on request.** A raised
+timeout fixes this one enclosure, but is still a guess about every other one — a
+spinning drive taking longer to ready itself, an encrypted container needing to unlock,
+a slower or busier bus, could each need longer than 8 seconds, and there is no honest
+number that covers all of them. `enrichedMassStorageHint` now asks Disk Arbitration's own
+`DARegisterDiskAppearedCallback` for the moment a disk becomes describable, rather than
+polling on any interval at all — see `MassStorageAppearanceWaiter`'s own doc comment.
+Whatever a given disk's real readying time turns out to be, this reacts to it exactly,
+with only a generous (30s) backstop for the case Disk Arbitration never manages to
+describe a disk at all. Not yet re-confirmed against real hardware in this event-driven
+form — the timeout-based version was watched working; this replacement has not been
+watched with eyes on it yet, only built and tested against the existing test suite.
 
 ## Fixed: USB Monitor showed a pendrive and an external HDD both as plain "Mass Storage"
 
