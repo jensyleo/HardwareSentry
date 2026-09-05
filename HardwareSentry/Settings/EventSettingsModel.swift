@@ -204,11 +204,22 @@ final class EventSettingsModel {
                 preferences.setEnabled(!off.contains(module.category.rawValue), for: module.category)
             }
         case .all:
-            // Each module back to what it declared, rather than all switched on: Scanner
-            // declares itself off, because starting it asks for permission to browse the
-            // local network, and "all elements" is not a reason to spring that on somebody.
+            // "All elements" was reported live as not actually meaning all: it only put
+            // each module back to whatever it declares by default, leaving individual
+            // notification and field checkboxes exactly where a person had last set
+            // them — Scanner off, and a notification or field somebody had switched off
+            // earlier stayed off. "Full" means every module, every one of its
+            // notifications, and every optional field it can include, without exception —
+            // Scanner included, which does mean accepting its Local Network permission
+            // prompt; choosing this preset is the person asking for exactly that.
             for module in modules {
-                preferences.reset(module.category)
+                preferences.setEnabled(true, for: module.category)
+                for event in module.events {
+                    preferences.setEnabled(true, for: event.name, in: module.category)
+                }
+                for field in module.fields {
+                    preferences.setFieldEnabled(true, for: field.name, in: module.category)
+                }
             }
         case .minimal, .recommended:
             guard let wanted = performanceMode.categories else { break }
