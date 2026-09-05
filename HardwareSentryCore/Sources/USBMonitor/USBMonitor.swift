@@ -108,7 +108,11 @@ public actor USBMonitor: Monitor {
         // reported under its own name. `className` asks the same question the generic
         // row's own body line already answers ("Type: Billboard") — here, to decide
         // whether this device counts as identified at all, not just to word a line.
-        if ignoresIdentifiedGenericDevices, device.kind == nil, device.className != nil {
+        // `isMeaningfullyIdentified` rather than a bare `className != nil`: "Vendor
+        // Specific"/"Application Specific" name nothing about what the device actually
+        // is, and silencing a device this switch cannot tell apart from that is not
+        // the same as silencing one that genuinely names a real class with no row.
+        if ignoresIdentifiedGenericDevices, device.kind == nil, device.isMeaningfullyIdentified {
             return
         }
 

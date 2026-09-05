@@ -3,6 +3,33 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: a USB-serial adapter went silent, read as a sibling hub instead
+
+**Status:** fixed 2026-09-06, reported live as "connected a serial device and it's
+detected as a USB hub" — confirmed with the real device connected, not assumed.
+
+**What was actually happening.** Two devices enumerate together: a genuine hub chip
+built into the adapter (a real, correctly-reporting "USB Hub Connected"), and the FTDI
+serial chip itself (`FT232R USB UART`, device class `0x00`, its interface class FTDI's
+own `0xFF` — "Vendor Specific", one of USB-IF's two escape hatches for a chip that uses
+no standard class at all). The serial device was never "detected as a hub" — it was
+detected as nothing, silently, so the one notification that did appear (the sibling
+hub's, entirely correct on its own) read as if it were describing the serial adapter.
+
+**Root cause.** `USBMonitor.ignoresIdentifiedGenericDevices` — "ignore identified devices
+without their own icon" — was on (confirmed via `defaults read`), and its check
+(`device.className != nil`) could not tell "Vendor Specific" apart from a class that
+names something real. The switch exists to silence a chip like Billboard or
+Communications, which *does* say something concrete about what it is; "Vendor Specific"
+says the opposite — "not one of the standard classes, ask the vendor" — and is exactly
+as uninformative as no class at all.
+
+**The fix.** A new `USBDevice.isMeaningfullyIdentified`, checked instead of a bare
+`className != nil`: true for a real class name, false for `className` resolving to
+"Vendor Specific" or "Application Specific" (`0xFF`/`0xFE`, USB-IF's other escape hatch).
+A vendor-specific device now announces through the generic row exactly as an
+unclassified one always has, regardless of the switch.
+
 ## Investigated and rejected: naming the port/protocol in "Video Link Detected"
 
 **Status:** investigated 2026-09-06, rejected — tested against 4 real connect/disconnect

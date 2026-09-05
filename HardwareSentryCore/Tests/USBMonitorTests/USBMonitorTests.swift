@@ -157,6 +157,29 @@ struct USBMonitorTests {
         #expect(events.first?.title == "USB Hub Connected")
     }
 
+    @Test("a vendor-specific device still announces even with the switch on, and the sibling hub it enumerates alongside is unaffected")
+    func vendorSpecificDeviceStillAnnouncesWhenSwitchedOn() async {
+        // Reported live, 2026-09-06: a real FTDI USB-serial adapter — device class 0x00,
+        // its interface class the FTDI chip's own 0xFF ("Vendor Specific", USB-IF's own
+        // "ask the vendor" escape hatch, naming nothing about what the device actually
+        // is) — went silent with the switch on, because `className` resolved to
+        // "Vendor Specific" and the switch could not tell that apart from a device
+        // naming a real class. A hub chip built into the same adapter enumerated
+        // alongside it and, correctly, kept announcing as "USB Hub Connected" — which
+        // is what made the FTDI's own silence read as "detected as a hub" instead of
+        // "not detected at all".
+        let events = await run(
+            [
+                .attached(USBDevice(name: "FT232R USB UART", deviceClass: 0x00, interfaceClasses: [0xFF])),
+                .attached(USBDevice(name: "USB 2.0 Hub", isHub: true))
+            ],
+            ignoresIdentifiedGenericDevices: true
+        )
+        #expect(events.count == 2)
+        #expect(events.contains { $0.title == "USB Device Connected" })
+        #expect(events.contains { $0.title == "USB Hub Connected" })
+    }
+
     @Test("a kind not covered elsewhere still gets its own notice")
     func uncoveredKindIsNeverSilenced() async {
         let events = await run(
@@ -394,6 +417,30 @@ struct USBClassNameTests {
     @Test("a device whose own class already says something is never overridden by its interfaces")
     func ownClassNameWinsOverInterfaces() {
         #expect(USBDevice(name: "Thing", deviceClass: 0x08, interfaceClasses: [0x0E]).className == "Mass Storage")
+    }
+
+    @Test("\"Vendor Specific\"/\"Application Specific\" name something but are not meaningfully identified")
+    func vendorAndApplicationSpecificAreNotMeaningfullyIdentified() {
+        // Reported live: an FTDI USB-serial adapter's own interface class (0xFF) resolves
+        // `className` to "Vendor Specific" — a real string, but one that says nothing
+        // about what the device actually does. `isMeaningfullyIdentified` is what
+        // `ignoresIdentifiedGenericDevices` actually checks, precisely so this class (and
+        // 0xFE, "Application Specific", USB-IF's other escape hatch) reads the same as a
+        // device with no class at all, not the same as Billboard/Communications.
+        let vendorSpecific = USBDevice(name: "FT232R USB UART", deviceClass: 0x00, interfaceClasses: [0xFF])
+        #expect(vendorSpecific.className == "Vendor Specific")
+        #expect(vendorSpecific.isMeaningfullyIdentified == false)
+
+        let applicationSpecific = USBDevice(name: "Thing", deviceClass: 0xFE)
+        #expect(applicationSpecific.className == "Application Specific")
+        #expect(applicationSpecific.isMeaningfullyIdentified == false)
+
+        // A real, named class — Billboard, the shape this whole switch exists for —
+        // still counts as meaningfully identified.
+        #expect(USBDevice(name: "Thing", deviceClass: 0x11).isMeaningfullyIdentified == true)
+
+        // Nothing recognised anywhere is, as ever, not identified either.
+        #expect(USBDevice(name: "Thing", deviceClass: 0x00).isMeaningfullyIdentified == false)
     }
 
     @Test("every class with a name has an icon, and every class with an icon has a name")

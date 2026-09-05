@@ -347,6 +347,24 @@ public extension USBDevice {
         return deviceClass.flatMap(Self.name(forClassByte:))
     }
 
+    /// Whether `className` names something that actually says what the device is, rather
+    /// than one of USB-IF's own two escape hatches — `0xFF`/`0xFE`, "ask the vendor" and
+    /// "ask the application" — which say nothing about the device's real function.
+    ///
+    /// Reported live, 2026-09-06: a genuine FTDI USB-serial adapter — declaring `0x00` at
+    /// the device level and its real interface class as `0xFF` (FTDI's own chip, like
+    /// many vendor-specific USB parts, uses no standard class at all) — was silenced by
+    /// "ignore identified devices without their own icon", because `className` resolved
+    /// to `"Vendor Specific"` and that switch only ever meant to silence a device that
+    /// names a *real* class with no row of its own (Billboard, Communications). A device
+    /// that names nothing more informative than "not standard" is, for this switch's own
+    /// purpose, exactly as unidentified as one with no class at all, and deserves the
+    /// same generic notification rather than silence.
+    var isMeaningfullyIdentified: Bool {
+        guard let className else { return false }
+        return className != "Vendor Specific" && className != "Application Specific"
+    }
+
     private static func name(forClassByte deviceClass: UInt8) -> String? {
         switch deviceClass {
         case 0x01: return "Audio"
