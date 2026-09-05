@@ -368,22 +368,23 @@ private final class RegistryWatcher: @unchecked Sendable {
         device.kind == .massStorage
     }
 
-    /// Finds a Mass Storage device's disk hint the moment it becomes knowable, rather
-    /// than guessing how long that takes.
+    /// Polls for the same physical device's disk description under a fresh registry
+    /// entry each time, exactly the reasoning `enrichedInterfaceClasses` already rests
+    /// on: a same-handle version of this retry was tried first and reported live as
+    /// still not working, which is itself the confirmation that this device's own entry
+    /// goes stale during the same driver-matching dance a composite device's does — not
+    /// only a plain composite device's, as first assumed.
     ///
-    /// A fixed polling interval was tried first — 1 second, then 8 — and both were
-    /// reported live as "still not working" against a real external HDD before a
-    /// purpose-built diagnostic tool measured why: that disk's own BSD name/description
-    /// was not readable until 4.4 seconds after its interfaces resolved. How long this
-    /// takes depends on the disk (spin-up time, an encrypted container unlocking,
-    /// partition-scheme recognition) and the enclosure bridging it, neither of which this
-    /// application controls or can predict — so no fixed number, however generously
-    /// padded, is honestly "enough" for every drive this heuristic will ever meet. Only
-    /// one number would be, and it is not a duration: the moment Disk Arbitration itself
-    /// says the disk is ready. `MassStorageAppearanceWaiter` asks for exactly that event
-    /// instead of polling for it, with a generous timeout as a backstop against Disk
-    /// Arbitration never managing to describe this particular disk at all, not as the
-    /// mechanism's real signal.
+    /// Bounded at 8 seconds (32 tries, 250ms apart), not the 1 second first tried here —
+    /// measured directly against the exact enclosure that kept reporting this unfixed,
+    /// with a purpose-built diagnostic tool watching the real timeline rather than
+    /// reasoning about it: its interfaces resolve within 200ms, comfortably inside
+    /// `enrichedInterfaceClasses`'s own window, but its disk's BSD name/description was
+    /// not readable until **4.4 seconds** after that — the whole reason every attempt at
+    /// this fix looked identical to "never resolves" from inside a 1-second window. A
+    /// device that still answers nothing by this longer deadline is left exactly as
+    /// generic as it always would have been; an ordinary device that resolves
+    /// immediately never pays any of this wait.
     private static func enrichedMassStorageHint(
         vendorID: UInt16?,
         productID: UInt16?,
@@ -391,122 +392,13 @@ private final class RegistryWatcher: @unchecked Sendable {
     ) async -> USBMassStorageHint? {
         guard vendorID != nil || productID != nil || locationID != nil else { return nil }
 
-        // The common case: already resolvable without waiting for anything.
-        if let hint = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) {
-            return hint
-        }
-
-        return await MassStorageAppearanceWaiter(vendorID: vendorID, productID: productID, locationID: locationID)
-            .wait(timeout: 30)
-    }
-
-    /// Walks up from a disk's own `IOMedia` service to the ancestor USB device carrying
-    /// an identity, the same upward walk `NSWorkspaceVolumeSource` uses in Volume
-    /// Monitor to find a USB product name — bounded generously (16 levels) for the same
-    /// reason: a disk sits behind a deeper stack (SCSI translation, block storage) than
-    /// a plain USB device does.
-    private static func usbIdentity(
-        of media: io_service_t
-    ) -> (vendorID: UInt16?, productID: UInt16?, locationID: UInt32?)? {
-        var current = media
-        IOObjectRetain(current)
-        defer { IOObjectRelease(current) }
-
-        for _ in 0..<16 {
-            if let vendorID = uint16(current, "idVendor") {
-                return (vendorID, uint16(current, "idProduct"), uint32(current, "locationID"))
+        for _ in 0..<32 {
+            if let hint = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) {
+                return hint
             }
-            var parent: io_registry_entry_t = 0
-            guard IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent) == KERN_SUCCESS else { return nil }
-            IOObjectRelease(current)
-            current = parent
+            try? await Task.sleep(nanoseconds: 250_000_000)
         }
         return nil
-    }
-
-    /// Waits for Disk Arbitration's own "a disk appeared" signal for one specific USB
-    /// device's identity, rather than polling on a guessed interval — see
-    /// `enrichedMassStorageHint`'s own doc comment for why a fixed number cannot be
-    /// honest here. `DARegisterDiskAppearedCallback` fires the moment Disk Arbitration
-    /// itself considers a *any* new disk's description ready, for every disk on the
-    /// system, not only the one being waited for — filtered here, on each callback, by
-    /// walking its `IOMedia` up to the identity that just arrived. `timeout` is a
-    /// backstop against Disk Arbitration never managing to describe this particular disk
-    /// at all, not the expected wait.
-    private final class MassStorageAppearanceWaiter: @unchecked Sendable {
-        private let vendorID: UInt16?
-        private let productID: UInt16?
-        private let locationID: UInt32?
-        private let lock = NSLock()
-        private var continuation: CheckedContinuation<USBMassStorageHint?, Never>?
-        private var session: DASession?
-
-        init(vendorID: UInt16?, productID: UInt16?, locationID: UInt32?) {
-            self.vendorID = vendorID
-            self.productID = productID
-            self.locationID = locationID
-        }
-
-        func wait(timeout: TimeInterval) async -> USBMassStorageHint? {
-            await withCheckedContinuation { continuation in
-                lock.lock()
-                self.continuation = continuation
-                lock.unlock()
-
-                guard let session = DASessionCreate(kCFAllocatorDefault) else {
-                    finish(nil)
-                    return
-                }
-                self.session = session
-                let queue = DispatchQueue(label: "com.jensyleo.hardwaresentry.usb.diskappeared")
-                DASessionSetDispatchQueue(session, queue)
-                let context = Unmanaged.passUnretained(self).toOpaque()
-                DARegisterDiskAppearedCallback(session, nil, { disk, context in
-                    guard let context else { return }
-                    Unmanaged<MassStorageAppearanceWaiter>.fromOpaque(context).takeUnretainedValue().diskAppeared(disk)
-                }, context)
-
-                queue.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                    self?.finish(nil)
-                }
-            }
-        }
-
-        private func diskAppeared(_ disk: DADisk) {
-            let media = DADiskCopyIOMedia(disk)
-            defer { if media != 0 { IOObjectRelease(media) } }
-            guard media != 0,
-                  let identity = RegistryWatcher.usbIdentity(of: media),
-                  identity.vendorID == vendorID, identity.productID == productID, identity.locationID == locationID,
-                  let description = DADiskCopyDescription(disk) as? [String: Any]
-            else { return }
-
-            let hint = USBMassStorageHint.infer(
-                protocolName: description[kDADiskDescriptionDeviceProtocolKey as String] as? String,
-                mediaName: [
-                    description[kDADiskDescriptionMediaNameKey as String] as? String,
-                    description[kDADiskDescriptionDeviceModelKey as String] as? String
-                ].compactMap { $0 }.joined(separator: " "),
-                sizeBytes: (description[kDADiskDescriptionMediaSizeKey as String] as? NSNumber)?.uint64Value
-            )
-            finish(hint)
-        }
-
-        /// Detaching the session from its queue, rather than hunting down the exact
-        /// callback registration to remove, is enough to stop delivery — this session
-        /// exists for nothing else, and is dropped right after.
-        private func finish(_ hint: USBMassStorageHint?) {
-            lock.lock()
-            let pending = continuation
-            continuation = nil
-            let activeSession = session
-            session = nil
-            lock.unlock()
-
-            guard let pending else { return }
-            if let activeSession { DASessionSetDispatchQueue(activeSession, nil) }
-            pending.resume(returning: hint)
-        }
     }
 
     /// A fresh, one-shot scan of every currently published device of this class, for the

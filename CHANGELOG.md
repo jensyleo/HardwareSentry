@@ -15,14 +15,6 @@ tagged release yet, so everything so far lives under **Unreleased**.
 - **Switching one notification or field by hand now falls into "Custom".** Only switching
   a whole module used to do this; the preset picker kept claiming "All elements" (or
   Minimal/Recommended) even after a single checkbox inside it no longer matched.
-- **A Mass Storage device's kind waits on the real "disk ready" signal, not a guessed
-  timeout.** Confirmed working live with a fixed 8-second window (raised from a 1-second
-  first attempt, after a purpose-built diagnostic tool measured a real external HDD's disk
-  description taking 4.4 seconds to become readable) — then, since a fixed number is still
-  a guess about every other drive's own readying time, replaced with Disk Arbitration's own
-  "disk appeared" event (`DARegisterDiskAppearedCallback`), reacting to exactly when a
-  disk becomes describable rather than polling for it. See `KNOWN-ISSUES.md` for the full
-  account of what several rounds of reasoning about the registry got wrong before this.
 - **A Mass Storage device's kind is no longer read too early.** Reported live right after
   the previous fix: the same external HDD showed generic "Mass Storage" on connect but
   correctly "External Disk" on disconnect. Same class of timing bug as the BRIO fix
