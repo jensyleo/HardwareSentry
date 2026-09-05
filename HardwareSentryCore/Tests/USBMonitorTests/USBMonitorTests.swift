@@ -814,4 +814,23 @@ struct USBSerialVendorDatabaseTests {
         #expect(db.vendorCount == before)
         #expect(db.isKnownVendor(0x0403))
     }
+
+    @Test("usb.ids' own format is parsed: vendor lines kept, comments and indented sub-entries skipped")
+    func decodesUSBIDsFormat() throws {
+        // A tiny excerpt in the Linux USB ID Repository's real shape: a comment line, two
+        // vendor lines, and — indented under the second with a leading tab, the way every
+        // device/interface sub-entry is — one line that must NOT be read as its own vendor.
+        let sample = """
+        # List of USB ID's
+        #
+        0001  Fry's Electronics
+        0403  Future Technology Devices International, Ltd
+        \t6001  FT8U232AM USB-Serial Converter
+        """
+        let data = try #require(sample.data(using: .utf8))
+        let parsed = try #require(USBSerialVendorDatabase.decode(data))
+        #expect(parsed[0x0001] == "Fry's Electronics")
+        #expect(parsed[0x0403] == "Future Technology Devices International, Ltd")
+        #expect(parsed.count == 2, "the indented device sub-entry must not be read as its own vendor")
+    }
 }

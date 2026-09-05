@@ -371,7 +371,7 @@ private struct ModuleDetail: View {
                             step: 1
                         )
                     }
-                    Text("A device like an FTDI or Silicon Labs USB-serial bridge, or a SEGGER J-Link/ST-Link debug probe, uses a USB class byte that says nothing about what it is \u{2014} the only way to tell it apart from any other unclassifiable device is by who made it. Built into the app is a fixed list of the common ones; this downloads a small, hand-maintained update to that list from the URL below, adding to it, never replacing it.")
+                    Text("A device like an FTDI or Silicon Labs USB-serial bridge, or a SEGGER J-Link/ST-Link debug probe, uses a USB class byte that says nothing about what it is \u{2014} the only way to tell it apart from any other unclassifiable device is by who made it. Built into the app is a fixed list of the common ones; this adds to that list from usb.ids, the Linux USB ID Repository's own vendor list — community-maintained, not by this application — mirrored at the URL below. Broader than just serial/debug vendors: once updated, any device whose class byte says nothing but whose vendor usb.ids recognises can read as “Serial/Debug Adapter” too.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -382,7 +382,7 @@ private struct ModuleDetail: View {
                                 .textFieldStyle(.roundedBorder)
                             Button("Restore Default") { tuning.restoreSerialVendorUpdateURLDefault() }
                         }
-                        Text("Where \u{201C}Check Now\u{201D} and the automatic schedule actually fetch from \u{2014} this application's own GitHub repository by default, editable in case that file ever moves.")
+                        Text("Where \u{201C}Check Now\u{201D} and the automatic schedule actually fetch from — Gentoo's mirror of usb.ids by default, editable to point at any other copy, in the same “XXXX  Vendor Name” format.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

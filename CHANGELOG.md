@@ -25,6 +25,18 @@ a small hand-maintained JSON file from this application's own GitHub repository 
 merging it into the built-in list — additive only, so a failed or empty check never
 loses what was already known.
 
+### The serial-vendor list now updates from usb.ids, not a repo this app alone maintains
+
+The vendor-ID lookup behind "Serial/Debug Adapter" pulled its update from a JSON file in
+this application's own GitHub repository — a file nobody but this project would ever
+keep current. Switched to `usb.ids`, the Linux USB ID Repository's own vendor list,
+community-maintained for decades and mirrored by Gentoo's `hwids` repo; the default
+Update URL and the parser both changed to match. This is deliberately broader than
+before: `usb.ids` names every USB vendor USB-IF has ever assigned an ID to, not only the
+ones that make serial/debug chips, so once updated, any device whose class byte says
+nothing but whose vendor `usb.ids` recognises can read as "Serial/Debug Adapter" too —
+accepted as the tradeoff for a source somebody else actually keeps up to date.
+
 ### The serial-vendor update URL is now visible and editable
 
 Settings → USB → "Serial/debug adapter vendors" showed only a "Check Now" button, with

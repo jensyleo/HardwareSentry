@@ -10,9 +10,20 @@ import Foundation
 /// A shared, synchronous, in-memory table (`@unchecked Sendable`, guarded by a lock) so
 /// `USBDevice.kind`, a plain synchronous computed property, can consult it without
 /// becoming async. Seeded at compile time with a fixed list of well-known vendors;
-/// extendable without a new build of the application by `refresh()`, which merges in a
-/// small downloaded JSON file — run manually from Settings, or on a schedule
+/// extendable without a new build of the application by `refresh()`, which merges in
+/// `usb.ids` — the Linux USB ID Repository's own vendor list, community-maintained for
+/// decades and mirrored at `updateURL` — run manually from Settings, or on a schedule
 /// `MonitorTuningModel` controls.
+///
+/// Widens what "known vendor" means, on purpose, once `refresh()` has run: `usb.ids`
+/// names every USB vendor USB-IF has ever assigned an ID to, not only the ones that make
+/// serial/debug chips — this application still only ever *consults* it for a device whose
+/// class byte already said nothing (`USBDevice.kind`'s own guard), so a printer or a
+/// phone with an uninformative class byte and a name `usb.ids` happens to recognise can
+/// now read as "Serial/Debug Adapter" too, same as this feature's original, narrower,
+/// built-in list already did for FTDI and the rest. Accepted deliberately: a small,
+/// hand-maintained list this application alone was responsible for keeping current was
+/// judged worse than a much broader one somebody else already maintains.
 public final class USBSerialVendorDatabase: @unchecked Sendable {
     public static let shared = USBSerialVendorDatabase()
 
@@ -75,7 +86,7 @@ public final class USBSerialVendorDatabase: @unchecked Sendable {
     private static var cacheURL: URL? {
         guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
         let ours = dir.appendingPathComponent("HardwareSentry", isDirectory: true)
-        return ours.appendingPathComponent("serial-vendors.json")
+        return ours.appendingPathComponent("usb.ids")
     }
 
     private static func loadCache() -> [UInt16: String]? {
@@ -83,28 +94,33 @@ public final class USBSerialVendorDatabase: @unchecked Sendable {
         return decode(data)
     }
 
-    private static func decode(_ data: Data) -> [UInt16: String]? {
-        guard let raw = try? JSONDecoder().decode([String: String].self, from: data) else { return nil }
+    /// Parses `usb.ids`' own format: one vendor per line, `"XXXX  Vendor Name"` (four hex
+    /// digits, two spaces, the name), comments starting with `#`, and every device- or
+    /// interface-level sub-entry indented under a vendor with a leading tab — skipped
+    /// here, since only the vendor's own name is wanted. `UInt16(_:radix:16)` already
+    /// rejects anything that is not four hex digits, which is what quietly skips every
+    /// non-vendor line (`#` comments, `C `/`AT `/... device-class section headers) without
+    /// a separate check for each.
+    static func decode(_ data: Data) -> [UInt16: String]? {
+        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { return nil }
         var result: [UInt16: String] = [:]
-        for (key, name) in raw {
-            let vid: UInt16?
-            if key.hasPrefix("0x") || key.hasPrefix("0X") {
-                vid = UInt16(key.dropFirst(2), radix: 16)
-            } else {
-                vid = UInt16(key)
-            }
-            if let vid { result[vid] = name }
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard !line.hasPrefix("#"), line.first != "\t", line.count > 6 else { continue }
+            guard let vid = UInt16(line.prefix(4), radix: 16) else { continue }
+            let name = line.dropFirst(4).trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            result[vid] = name
         }
         return result
     }
 
-    /// The URL this application's own repository serves the latest known-vendor list
-    /// from, once published — a small, hand-maintained JSON file kept in the same repo
-    /// as the source that reads it, so updating the list is an ordinary commit, not a
-    /// release. Format: `{"0x0403": "FTDI", ...}`, decimal or `0x`-prefixed hex keys both
-    /// accepted.
+    /// The Linux USB ID Repository's `usb.ids`, mirrored by Gentoo's `hwids` repository —
+    /// community-maintained since long before this application existed, rather than a
+    /// file this application alone would be responsible for keeping current. See this
+    /// type's own doc comment for what that widens "known vendor" to mean once this has
+    /// run at least once.
     public static let updateURL = URL(
-        string: "https://raw.githubusercontent.com/jensyleo/HardwareSentry/main/HardwareSentryCore/Sources/USBMonitor/Resources/serial-vendors.json"
+        string: "https://raw.githubusercontent.com/gentoo/hwids/master/usb.ids"
     )!
 
     /// Downloads the latest known-vendor list and merges it in, in memory and on disk.
