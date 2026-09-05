@@ -30,6 +30,11 @@ public enum USBEvent: String, NotificationEventKey, CaseIterable {
     // apart from a genuinely unclassifiable device by a known-vendor lookup — see
     // `USBSerialVendorDatabase`.
     case connectedSerialAdapter = "USBConnectedSerialAdapter"
+    // `0xE0` (Wireless Controller) told apart by subclass/protocol (Bluetooth, USB-IF's
+    // own reliable signature) or by vendor ID (WiFi, a best-effort guess — no USB-IF
+    // class exists for it) — see `USBWirelessDetectionSettings`.
+    case connectedBluetoothAdapter = "USBConnectedBluetoothAdapter"
+    case connectedWiFiAdapter = "USBConnectedWiFiAdapter"
 
     public static let category: NotificationCategory = "USB"
 }

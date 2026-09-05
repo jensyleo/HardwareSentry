@@ -604,6 +604,55 @@ struct USBDeviceDetailTests {
         #expect(realClass.kind == .hid)
     }
 
+    @Test("0xE0/subclass 1/protocol 1 resolves to Bluetooth Adapter, confirmed against two real dongles, and the switch can fall it back to plain Wireless")
+    func bluetoothSignatureResolvesToBluetoothAdapter() {
+        defer { USBWirelessDetectionSettings.shared.detectsBluetoothAdapters = true }
+
+        // Read live via `ioreg -p IOUSB -l`, 2026-09-06, from two actual Bluetooth dongles
+        // connected at once — a Broadcom and a CSR8510, different vendors, same USB-IF
+        // signature.
+        let broadcom = USBDevice(
+            name: "Broadcom Bluetooth 3.0 Dongle", deviceClass: 0xE0, deviceSubClass: 0x01, deviceProtocol: 0x01,
+            detail: USBDeviceDetail(vendorID: 0x0A5C, productID: 0x218C)
+        )
+        let csr = USBDevice(
+            name: "CSR8510 A10", deviceClass: 0xE0, deviceSubClass: 0x01, deviceProtocol: 0x01,
+            detail: USBDeviceDetail(vendorID: 0x0A12, productID: 0x0001)
+        )
+        #expect(broadcom.kind == .bluetoothAdapter)
+        #expect(csr.kind == .bluetoothAdapter)
+
+        // A `0xE0` device that is not this exact subclass/protocol pair stays the plain,
+        // original "Wireless Controller" row — this only narrows, never widens, what
+        // `0xE0` can mean.
+        let genericWireless = USBDevice(name: "Some Dongle", deviceClass: 0xE0, deviceSubClass: 0x02, deviceProtocol: 0x01)
+        #expect(genericWireless.kind == .wireless)
+
+        USBWirelessDetectionSettings.shared.detectsBluetoothAdapters = false
+        #expect(broadcom.kind == .wireless, "switched off, a Bluetooth dongle must read exactly as it did before this feature existed")
+    }
+
+    @Test("a device with no informative class byte, but a known WiFi-chip vendor ID, resolves to WiFi Adapter, gated by its own switch")
+    func knownWiFiVendorResolvesUnclassifiedDeviceToWiFiAdapter() {
+        defer { USBWirelessDetectionSettings.shared.detectsWiFiAdapters = true }
+
+        let realtek = USBDevice(
+            name: "802.11ac NIC", deviceClass: 0xFF,
+            detail: USBDeviceDetail(vendorID: 0x0BDA)
+        )
+        #expect(realtek.kind == .wifiAdapter)
+
+        // Not asserted as `nil`: `USBSerialVendorDatabase.shared` is a live, process-wide
+        // singleton that a real "Check Now" (this machine's own, or another test) may
+        // already have widened with a `usb.ids` download, in which case a real, widely
+        // registered vendor like Realtek can legitimately fall back to `.serialAdapter`
+        // instead — that is correct behaviour, not something this test owns. What this
+        // switch alone promises is narrower: WiFi Adapter specifically stops being
+        // reachable.
+        USBWirelessDetectionSettings.shared.detectsWiFiAdapters = false
+        #expect(realtek.kind != .wifiAdapter, "switched off, WiFi Adapter must never be the answer")
+    }
+
     @Test("version words are read as the decimal halves they encode")
     func bcdVersionsAreDecoded() {
         // 0x0210 is version 2.10, not 528 — reading it as a plain number is meaningless.
@@ -663,8 +712,9 @@ struct USBDeviceKindRowTests {
         // genuinely unidentified device — plus USB Drive, SD Card Reader and External
         // Disk, Mass Storage's own sub-kinds told apart heuristically (see
         // `USBMassStorageHint`) — plus Serial/Debug Adapter, told apart by vendor ID
-        // rather than class byte (see `USBSerialVendorDatabase`).
-        #expect(USBDeviceKind.allCases.count == 17)
+        // rather than class byte (see `USBSerialVendorDatabase`) — plus Bluetooth Adapter
+        // and WiFi Adapter, `0xE0`'s own two sub-kinds (see `USBWirelessDetectionSettings`).
+        #expect(USBDeviceKind.allCases.count == 19)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }

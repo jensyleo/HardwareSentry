@@ -329,6 +329,8 @@ private final class RegistryWatcher: @unchecked Sendable {
                     vendorName: device.vendorName,
                     isHub: device.isHub,
                     deviceClass: device.deviceClass,
+                    deviceSubClass: device.deviceSubClass,
+                    deviceProtocol: device.deviceProtocol,
                     interfaceClasses: interfaceClasses,
                     detail: detail
                 )))
@@ -379,6 +381,8 @@ private final class RegistryWatcher: @unchecked Sendable {
                             vendorName: device.vendorName,
                             isHub: device.isHub,
                             deviceClass: device.deviceClass,
+                            deviceSubClass: device.deviceSubClass,
+                            deviceProtocol: device.deviceProtocol,
                             interfaceClasses: device.interfaceClasses,
                             detail: device.detail.withMassStorageHint(hint)
                         )
@@ -421,6 +425,8 @@ private final class RegistryWatcher: @unchecked Sendable {
                     vendorName: device.vendorName,
                     isHub: device.isHub,
                     deviceClass: device.deviceClass,
+                    deviceSubClass: device.deviceSubClass,
+                    deviceProtocol: device.deviceProtocol,
                     interfaceClasses: classes,
                     detail: device.detail
                 )
@@ -446,6 +452,8 @@ private final class RegistryWatcher: @unchecked Sendable {
                             vendorName: enriched.vendorName,
                             isHub: enriched.isHub,
                             deviceClass: enriched.deviceClass,
+                            deviceSubClass: enriched.deviceSubClass,
+                            deviceProtocol: enriched.deviceProtocol,
                             interfaceClasses: enriched.interfaceClasses,
                             detail: enriched.detail.withMassStorageHint(hint)
                         )
@@ -623,6 +631,8 @@ private final class RegistryWatcher: @unchecked Sendable {
             vendorName: string(service, "USB Vendor Name") ?? string(service, kUSBVendorString),
             isHub: IOObjectConformsTo(service, "IOUSBHostHubDevice") != 0,
             deviceClass: byte(service, "bDeviceClass"),
+            deviceSubClass: byte(service, "bDeviceSubClass"),
+            deviceProtocol: byte(service, "bDeviceProtocol"),
             interfaceClasses: Self.interfaceClasses(service),
             detail: Self.detail(service)
         )

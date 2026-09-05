@@ -196,9 +196,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             massStoragePollInterval: tuning.massStoragePollMilliseconds / 1000,
             massStorageTimeout: tuning.massStorageTimeoutSeconds
         )
+        // Consulted directly by `USBDevice.kind`, not threaded through `MonitorRegistry` —
+        // there is nothing here for a source to rebuild, so this can just be set, both
+        // now and again below on every change.
+        USBWirelessDetectionSettings.shared.detectsBluetoothAdapters = tuning.usbDetectsBluetoothAdapters
+        USBWirelessDetectionSettings.shared.detectsWiFiAdapters = tuning.usbDetectsWiFiAdapters
         // Changed numbers reach the running monitors rather than waiting for a relaunch.
         tuning.onChange = { [weak self] in
             guard let self, let registry else { return }
+            USBWirelessDetectionSettings.shared.detectsBluetoothAdapters = tuning.usbDetectsBluetoothAdapters
+            USBWirelessDetectionSettings.shared.detectsWiFiAdapters = tuning.usbDetectsWiFiAdapters
             Task {
                 await registry.apply(
                     powerRefire: tuning.powerRefire,

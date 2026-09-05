@@ -45,6 +45,8 @@ final class MonitorTuningModel {
             Self.massStoragePollMillisecondsKey: 250.0,
             Self.massStorageTimeoutSecondsKey: 8.0,
             Self.wifiSignalPollingEnabledKey: true,
+            Self.usbDetectsBluetoothAdaptersKey: true,
+            Self.usbDetectsWiFiAdaptersKey: true,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -82,6 +84,8 @@ final class MonitorTuningModel {
         massStoragePollMilliseconds = defaults.double(forKey: Self.massStoragePollMillisecondsKey)
         massStorageTimeoutSeconds = defaults.double(forKey: Self.massStorageTimeoutSecondsKey)
         wifiSignalPollingEnabled = defaults.bool(forKey: Self.wifiSignalPollingEnabledKey)
+        usbDetectsBluetoothAdapters = defaults.bool(forKey: Self.usbDetectsBluetoothAdaptersKey)
+        usbDetectsWiFiAdapters = defaults.bool(forKey: Self.usbDetectsWiFiAdaptersKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -186,6 +190,21 @@ final class MonitorTuningModel {
     /// announcing there exactly as it always has.
     var usbIgnoresIdentifiedGenericDevices: Bool {
         didSet { defaults.set(usbIgnoresIdentifiedGenericDevices, forKey: Self.usbIgnoresIdentifiedGenericDevicesKey); onChange?() }
+    }
+
+    /// Off falls a `0xE0` device back to the plain "Wireless Controller" row, exactly as
+    /// it read before this distinction existed — see `USBWirelessDetectionSettings`. On
+    /// by default: this is a reliable USB-IF signature, not a guess.
+    var usbDetectsBluetoothAdapters: Bool {
+        didSet { defaults.set(usbDetectsBluetoothAdapters, forKey: Self.usbDetectsBluetoothAdaptersKey); onChange?() }
+    }
+
+    /// Off stops an unclassified device from ever reading as "WiFi Adapter" on a
+    /// vendor-ID guess — see `USBWiFiVendorDatabase`'s own doc comment for why this
+    /// earned a separate switch from Bluetooth's: these vendors also sell plenty that is
+    /// not WiFi, so this can mislabel one of those. On by default.
+    var usbDetectsWiFiAdapters: Bool {
+        didSet { defaults.set(usbDetectsWiFiAdapters, forKey: Self.usbDetectsWiFiAdaptersKey); onChange?() }
     }
 
     /// Whether the serial/debug-adapter vendor list (see `USBSerialVendorDatabase`) checks
@@ -403,6 +422,8 @@ final class MonitorTuningModel {
     private static let massStoragePollMillisecondsKey = "USB.MassStoragePollMilliseconds"
     private static let massStorageTimeoutSecondsKey = "USB.MassStorageTimeoutSeconds"
     private static let wifiSignalPollingEnabledKey = "Network.WiFiSignalPollingEnabled"
+    private static let usbDetectsBluetoothAdaptersKey = "USB.DetectsBluetoothAdapters"
+    private static let usbDetectsWiFiAdaptersKey = "USB.DetectsWiFiAdapters"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

@@ -10,6 +10,13 @@ public struct USBDevice: Sendable, Equatable {
     /// a composite device (an Interface Association Descriptor) rather than a class of
     /// its own. Either way, a device saying one of those has told us nothing on its own.
     public let deviceClass: UInt8?
+    /// `bDeviceSubClass`/`bDeviceProtocol`, read only to tell apart the handful of
+    /// device classes whose class byte alone is ambiguous — today, only `0xE0`
+    /// ("Wireless Controller"), where subclass `0x01`/protocol `0x01` is USB-IF's own
+    /// standard signature for "this is specifically a Bluetooth radio" (see
+    /// `USBDeviceKind`'s Bluetooth branch). Nil for a device this never mattered for.
+    public let deviceSubClass: UInt8?
+    public let deviceProtocol: UInt8?
     /// Every interface's own `bInterfaceClass`, read for exactly the case above: a
     /// composite device — a webcam that is also a microphone, most often — names its real
     /// classes here instead. Empty for the ordinary device that already said what it is.
@@ -23,6 +30,8 @@ public struct USBDevice: Sendable, Equatable {
         vendorName: String? = nil,
         isHub: Bool = false,
         deviceClass: UInt8? = nil,
+        deviceSubClass: UInt8? = nil,
+        deviceProtocol: UInt8? = nil,
         interfaceClasses: [UInt8] = [],
         detail: USBDeviceDetail = USBDeviceDetail()
     ) {
@@ -30,6 +39,8 @@ public struct USBDevice: Sendable, Equatable {
         self.vendorName = vendorName
         self.isHub = isHub
         self.deviceClass = deviceClass
+        self.deviceSubClass = deviceSubClass
+        self.deviceProtocol = deviceProtocol
         self.interfaceClasses = interfaceClasses
         self.detail = detail
     }
@@ -42,6 +53,16 @@ public struct USBDevice: Sendable, Equatable {
     /// stays nil only for a device that names nothing at either level.
     public var kind: USBDeviceKind? {
         if isHub { return .hub }
+        // USB-IF's own signature for "this `0xE0` device is specifically a Bluetooth
+        // radio" — subclass `0x01`, protocol `0x01` — checked before the generic class
+        // resolution below, which would otherwise file every `0xE0` device, Bluetooth or
+        // not, under the same plain "Wireless Controller" row. Toggled off, this falls
+        // through to that same generic resolution instead, exactly as it did before this
+        // distinction existed.
+        if deviceClass == 0xE0, deviceSubClass == 0x01, deviceProtocol == 0x01,
+           USBWirelessDetectionSettings.shared.detectsBluetoothAdapters {
+            return .bluetoothAdapter
+        }
         // `0x00` carries the same "look at the interfaces" meaning `0xEF` does, so an
         // absent device class is treated the same way rather than skipping straight to
         // the interfaces without also giving `0x00` itself a chance to (harmlessly) fail.
@@ -52,8 +73,21 @@ public struct USBDevice: Sendable, Equatable {
         // vendor-specific class, so nothing above ever resolves them. Checked only once the
         // class byte itself has nothing to say, so an actually-classified device is never
         // second-guessed by a vendor that happens to also sell serial chips.
-        if resolved == nil, let vendorID = detail.vendorID, USBSerialVendorDatabase.shared.isKnownVendor(vendorID) {
-            return .serialAdapter
+        if resolved == nil, let vendorID = detail.vendorID {
+            // Checked before the serial-vendor lookup below, on purpose: once that lookup
+            // has been widened by a `usb.ids` update (see `USBSerialVendorDatabase`'s own
+            // doc comment), it recognises essentially every real vendor there is,
+            // including every one of these — a small, specifically-WiFi-chip list would
+            // otherwise never get a turn, since the much broader check would always claim
+            // the vendor first. Unlike Bluetooth above, nothing on a WiFi USB dongle's own
+            // descriptor says "this is WiFi" — there is no USB-IF class for it — so this
+            // is still only a vendor-ID guess, and these vendors sell plenty that is not
+            // WiFi too (card readers, GPUs, phones); documented, and why this has its own
+            // toggle, separate from Bluetooth's more reliable one.
+            if USBWirelessDetectionSettings.shared.detectsWiFiAdapters, USBWiFiVendorDatabase.isKnownVendor(vendorID) {
+                return .wifiAdapter
+            }
+            if USBSerialVendorDatabase.shared.isKnownVendor(vendorID) { return .serialAdapter }
         }
         // Mass Storage covers three different things somebody plugs in — a flash drive, an
         // SD card reader, a portable HDD/SSD enclosure — and the class byte alone cannot
@@ -85,6 +119,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case hub, massStorage, hid, webcam, scanner, printer, smartCard
     case audio, healthcare, audioVideo, typeCBridge, wireless, communications
     case usbDrive, sdCardReader, externalDisk, serialAdapter
+    case bluetoothAdapter, wifiAdapter
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
@@ -192,6 +227,10 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .sdCardReader: return "Device-SDCard"
         case .externalDisk: return "Device-ExternalDisk"
         case .serialAdapter: return "USB-TypeSerial"
+        // Neither has artwork of its own yet — both borrow the same generic wireless
+        // glyph `.wireless` already uses, honest for what it is (a wireless controller of
+        // some kind) even without saying specifically Bluetooth or WiFi in the picture.
+        case .bluetoothAdapter, .wifiAdapter: return "USB-TypeWireless"
         }
     }
 
@@ -220,6 +259,8 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .sdCardReader: return "SD Card Reader"
         case .externalDisk: return "External Disk"
         case .serialAdapter: return "Serial/Debug Adapter"
+        case .bluetoothAdapter: return "Bluetooth Adapter"
+        case .wifiAdapter: return "WiFi Adapter"
         }
     }
 
@@ -243,7 +284,59 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .sdCardReader: return .connectedSDCard
         case .externalDisk: return .connectedExternalDisk
         case .serialAdapter: return .connectedSerialAdapter
+        case .bluetoothAdapter: return .connectedBluetoothAdapter
+        case .wifiAdapter: return .connectedWiFiAdapter
         }
+    }
+}
+
+/// Whether `USBDevice.kind` is allowed to resolve `.bluetoothAdapter`/`.wifiAdapter` at
+/// all, rather than falling back to the plain `.wireless` row (Bluetooth) or staying
+/// unclassified (WiFi) — see each check's own doc comment in `USBDevice.kind` for why
+/// they earned separate toggles: one is a reliable USB-IF signature, the other a
+/// vendor-ID guess with real false-positive risk.
+///
+/// A shared, thread-safe singleton for the same reason `USBSerialVendorDatabase.shared`
+/// is: `kind` is a plain synchronous computed property with nowhere to receive settings
+/// through, so this is consulted directly rather than threaded through as a parameter.
+public final class USBWirelessDetectionSettings: @unchecked Sendable {
+    public static let shared = USBWirelessDetectionSettings()
+
+    private let lock = NSLock()
+    private var _detectsBluetoothAdapters = true
+    private var _detectsWiFiAdapters = true
+
+    public var detectsBluetoothAdapters: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _detectsBluetoothAdapters }
+        set { lock.lock(); defer { lock.unlock() }; _detectsBluetoothAdapters = newValue }
+    }
+
+    public var detectsWiFiAdapters: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _detectsWiFiAdapters }
+        set { lock.lock(); defer { lock.unlock() }; _detectsWiFiAdapters = newValue }
+    }
+}
+
+/// USB vendor IDs commonly found on WiFi (802.11) USB dongles — there is no USB-IF class
+/// for WiFi the way there is for Bluetooth, so every one of these ships under its own
+/// vendor-specific class and driver, and the only thing left to recognise it by is who
+/// made the chip. Deliberately small and named plainly: every one of these vendors also
+/// sells plenty that is not a WiFi adapter, so this is a best-effort guess, not a
+/// certainty the way `USBSerialVendorDatabase`'s FTDI-and-friends list mostly is — see
+/// `USBWirelessDetectionSettings.detectsWiFiAdapters` for the toggle this earned because
+/// of it.
+enum USBWiFiVendorDatabase {
+    static let knownVendors: Set<UInt16> = [
+        0x0BDA, // Realtek
+        0x0E8D, // MediaTek
+        0x148F, // Ralink Technology
+        0x0CF3, // Qualcomm Atheros
+        0x0A5C, // Broadcom
+        0x2357  // TP-Link
+    ]
+
+    static func isKnownVendor(_ vendorID: UInt16) -> Bool {
+        knownVendors.contains(vendorID)
     }
 }
 

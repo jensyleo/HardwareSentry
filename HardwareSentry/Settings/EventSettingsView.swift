@@ -361,6 +361,18 @@ private struct ModuleDetail: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Wireless dongles") {
+                    Toggle("Tell a Bluetooth dongle apart from a plain wireless controller", isOn: $tuning.usbDetectsBluetoothAdapters)
+                    Text("Reads a `0xE0` device's own subclass/protocol \u{2014} USB-IF's standard signature for a Bluetooth radio, not a guess. Off falls back to the plain \u{201C}Wireless Controller\u{201D} row it used to show. On by default.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Guess a WiFi dongle by its vendor", isOn: $tuning.usbDetectsWiFiAdapters)
+                    Text("There is no USB class for WiFi, so this is a vendor-ID guess (Realtek, MediaTek, Ralink, Atheros, Broadcom, TP-Link) rather than something the device says outright \u{2014} these vendors also sell plenty that is not WiFi, so it can occasionally mislabel one of those too. Off leaves such a device unclassified, as it was before this existed. On by default.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Serial/debug adapter vendors") {
                     Toggle("Check for new vendors automatically", isOn: $tuning.usbSerialVendorAutoUpdate)
                     if tuning.usbSerialVendorAutoUpdate {

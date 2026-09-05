@@ -25,6 +25,24 @@ a small hand-maintained JSON file from this application's own GitHub repository 
 merging it into the built-in list — additive only, so a failed or empty check never
 loses what was already known.
 
+### USB Monitor tells a Bluetooth dongle apart from a plain wireless controller — and, as a best-effort guess, a WiFi one
+
+Both used to read as the same generic "Wireless Controller" row (`0xE0`). Bluetooth is
+now told apart reliably, by USB-IF's own subclass/protocol signature for it (confirmed
+live against two real dongles, a Broadcom and a CSR8510, both connected at once) — not a
+guess. WiFi has no USB-IF class of its own to read, so it is a vendor-ID guess instead
+(Realtek, MediaTek, Ralink, Atheros, Broadcom, TP-Link), with the false-positive risk
+that implies for a vendor that also sells things that are not WiFi. Settings → USB →
+"Wireless dongles" has a separate on/off switch for each, reflecting that difference in
+confidence; both on by default, falling back to the exact previous behaviour when off.
+
+Found and fixed in the same change: the WiFi vendor check has to run *before* the
+serial-vendor one, not after — once the serial-vendor list has been widened by a
+`usb.ids` update, it recognises essentially any real vendor, WiFi ones included, so
+checking it first would have silently swallowed every WiFi Adapter match into a Serial/
+Debug Adapter one instead. Caught by a test using a real, live-observed vendor ID
+(Realtek) against this machine's own already-updated vendor list, not assumed.
+
 ### "Check Now" says what it actually did
 
 Pressing it gave no feedback beyond a silently-updated "Last checked" timestamp — a
