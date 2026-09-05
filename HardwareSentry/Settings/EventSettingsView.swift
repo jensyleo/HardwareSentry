@@ -78,7 +78,7 @@ private struct PerformancePicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Performance")
+            Text("Profiles")
                 .font(.headline)
 
             Picker("", selection: Binding(
