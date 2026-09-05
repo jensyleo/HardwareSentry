@@ -3,6 +3,30 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Confirmed working live: the experimental "Video Link Detected" early warning
+
+**Status:** confirmed 2026-09-05 — the first time this feature has been seen firing
+against real hardware. Connecting a display over a USB-C-to-HDMI cable produced "Video
+Link Detected" (Display Monitor) alongside a correct, detailed "Audio Device Connected"
+(HDMI carries audio too), where before it had only ever been theoretical.
+
+**Whether the message can say more than it does — checked directly against the actual
+kernel log line, not assumed.** The real entry from this session:
+
+```
+kernel: (DCPAVFamilyProxy) IOAV[3960] AppleDCPDPTXRemoteHDCPAuthSessionProxy<0x100012e9c>
+  ::handleMessage: ... Processed ReceiverConnected<0>
+```
+
+Repeated roughly every two seconds during the HDCP handshake retry. No port, no cable
+type (HDMI vs. DisplayPort), no display identity anywhere in it — `IOAV[3960]` is a
+message counter, `0x100012e9c` an in-process object address, neither stable enough to
+mean anything to a person and neither naming the actual hardware. The generic message
+`VideoLinkDetector`/`DisplayMonitor` already show is not a shortcoming to fix; it is the
+honest ceiling of what this specific kernel log line contains. Nothing else to improve
+here without a different, more specific log line to key on — not attempted, since none is
+known to exist.
+
 ## Fixed: same teardown race, found for `mediumType` too, by an audit rather than a new report
 
 **Status:** fixed 2026-09-06, confirmed working live for the two-disks-at-once case;
