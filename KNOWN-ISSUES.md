@@ -44,9 +44,39 @@ of the exact reporting enclosure, not merely reasoned about: its `bInterfaceClas
 present and is `0x08`, so `device.kind == .massStorage` correctly recognises it as needing
 the retry, where the raw-byte comparison never could.
 
-**Still not watched end-to-end against the real disk** — the registry data was read
-directly, and the condition was traced by hand against it, but the fixed retry path
-itself has not yet been watched producing the corrected connect notification live.
+**That fix, too, did not work — reported live, unchanged, as "still detects it as USB
+Mass Storage on both connect and disconnect now."** Read the live registry a third time
+rather than guess again. Two things were wrong at once:
+
+1. **Two separate ambiguity branches, and this device takes the one with no
+   `massStorageHint` retry at all.** `isAmbiguous(_:)` is false for this device once its
+   interface has appeared — which, confirmed live, is already true at the very first
+   read — so it never enters the composite-device branch (interfaces-only retry) in the
+   first place; it takes the plain "not ambiguous" branch. The kind-comparison fix from
+   the previous round was real and necessary, but it only helped a device that reaches
+   that branch. This one always did — the retry it added should have applied — which
+   means:
+2. **The same-handle retry itself does not work for this device**, confirming that its
+   own IOKit entry *is* replaced during driver matching, the same as a composite
+   device's, contrary to this fix's first assumption ("nothing here replaces this
+   entry"). A retry that keeps re-asking a handle that has already gone stale finds
+   nothing no matter how long it waits — indistinguishable, from a single read, from a
+   disk that will never resolve.
+
+**The fix, unified with the existing mechanism rather than layered beside it.**
+`enrichedMassStorageHint` now re-finds the device by vendor/product/location each poll —
+exactly `matchingInterfaceClasses`'s own re-finding, now shared by both retries — instead
+of trusting a handle to stay valid. Both branches in `drain(_:arriving:)` now chain this
+retry in whenever the resolved kind is plain `.massStorage`: the already-ambiguous
+composite branch chains it on *after* interfaces resolve (so a device ambiguous at both
+levels gets both retries, one yield, not two), and the not-ambiguous branch runs it
+directly, both keyed by identity rather than a handle.
+
+**Still not watched end-to-end against the real disk that reported this three times in a
+row.** Given how many turns this took to see and be told wrong, this needs eyes on the
+actual notification the next time this exact enclosure connects, not another round of
+reasoning about the registry — reconnect it, and say plainly whether the connect
+notification now reads "External Disk Connected."
 
 ## Fixed: USB Monitor showed a pendrive and an external HDD both as plain "Mass Storage"
 

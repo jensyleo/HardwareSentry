@@ -216,25 +216,30 @@ private final class RegistryWatcher: @unchecked Sendable {
                     rememberInterfaceClasses(device.interfaceClasses, for: key)
                 }
 
-                // A Mass Storage device's own IOKit entry is never replaced the way a
-                // composite device's is — only the driver stack *below* it (the SCSI
-                // translation layer, then the block-storage driver, then the disk's own
-                // BSD name) is still attaching at the instant this notification fires.
-                // Reported live, 2026-09-06: a real external HDD read as plain generic
-                // "Mass Storage" on connect and correctly as "External Disk" on
-                // disconnect — by the time it left, that stack had long since finished
-                // attaching, which arrival never waits for. Retried here on the very
-                // same handle, not re-found by identity, because nothing about it goes
-                // stale in the meantime.
+                // Reported live, 2026-09-06: an external HDD enclosure that declares
+                // Mass Storage on an *interface* (device class `0x00`, same as the
+                // composite devices above) already has that interface visible at the
+                // very first read — `isAmbiguous` is false, so this is the branch it
+                // takes — but its own disk (the SCSI translation layer, then the
+                // block-storage driver, then the BSD name) is still attaching
+                // underneath. Retried by identity, the same way the composite-device
+                // branch below retries interfaces: this device's own registry entry can
+                // be replaced during the same driver-matching dance a composite device's
+                // is, confirmed live once already for interfaces — a same-handle retry,
+                // tried first, was reported unchanged, because it stayed a stale handle
+                // through the wait rather than a live one.
                 if Self.isUnresolvedMassStorage(device) {
-                    IOObjectRetain(service)
+                    let vendorID = device.detail.vendorID
+                    let productID = device.detail.productID
+                    let locationID = device.detail.locationID
                     let continuation = self.continuation
                     let queue = self.queue
                     let taskID = UUID()
 
                     let task = Task.detached { [weak self] in
-                        let hint = await Self.enrichedMassStorageHint(service)
-                        IOObjectRelease(service)
+                        let hint = await Self.enrichedMassStorageHint(
+                            vendorID: vendorID, productID: productID, locationID: locationID
+                        )
                         guard !Task.isCancelled else { return }
                         let enriched = hint == nil ? device : USBDevice(
                             name: device.name,
@@ -269,7 +274,7 @@ private final class RegistryWatcher: @unchecked Sendable {
                 // The watcher may have been stopped while this was polling — nothing left
                 // to write back to or yield into.
                 guard !Task.isCancelled else { return }
-                let enriched = classes.isEmpty ? device : USBDevice(
+                var enriched = classes.isEmpty ? device : USBDevice(
                     name: device.name,
                     vendorName: device.vendorName,
                     isHub: device.isHub,
@@ -282,6 +287,26 @@ private final class RegistryWatcher: @unchecked Sendable {
                     // touched, so this and every `drain` call stay serialized against it
                     // without a lock of their own.
                     queue.async { [weak self] in self?.rememberInterfaceClasses(classes, for: key) }
+                }
+                // A device this ambiguous at the device level can resolve, once its
+                // interfaces arrive, to a Mass Storage device whose own disk is still
+                // attaching too — the same wait `isUnresolvedMassStorage` guards against
+                // on an otherwise-ordinary device, chained on here rather than yielding
+                // once now and again later for what is still one arrival.
+                if Self.isUnresolvedMassStorage(enriched) {
+                    let hint = await Self.enrichedMassStorageHint(
+                        vendorID: vendorID, productID: productID, locationID: locationID
+                    )
+                    if let hint {
+                        enriched = USBDevice(
+                            name: enriched.name,
+                            vendorName: enriched.vendorName,
+                            isHub: enriched.isHub,
+                            deviceClass: enriched.deviceClass,
+                            interfaceClasses: enriched.interfaceClasses,
+                            detail: enriched.detail.withMassStorageHint(hint)
+                        )
+                    }
                 }
                 continuation.yield(.attached(enriched))
                 queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }
@@ -343,20 +368,56 @@ private final class RegistryWatcher: @unchecked Sendable {
         device.kind == .massStorage
     }
 
-    /// Polls the very same registry entry for a Mass Storage device's disk description,
-    /// rather than re-finding it under a fresh one the way `enrichedInterfaceClasses`
-    /// must: unlike a composite device, nothing here replaces this entry while its own
-    /// driver stack finishes attaching underneath it, so the handle stays good throughout.
+    /// Polls for the same physical device's disk description under a fresh registry
+    /// entry each time, exactly the reasoning `enrichedInterfaceClasses` already rests
+    /// on: a same-handle version of this retry was tried first and reported live as
+    /// still not working, which is itself the confirmation that this device's own entry
+    /// goes stale during the same driver-matching dance a composite device's does — not
+    /// only a plain composite device's, as first assumed.
     ///
     /// Bounded at 20 tries, 50ms apart (1s total) — generously wider than
     /// `enrichedInterfaceClasses`'s 400ms, since a disk's BSD name has a deeper stack to
     /// wait on (SCSI translation, then block storage, then the partition scheme) than an
     /// interface descriptor does. A device that still answers nothing by the deadline is
     /// left exactly as generic as it always would have been.
-    private static func enrichedMassStorageHint(_ service: io_service_t) async -> USBMassStorageHint? {
+    private static func enrichedMassStorageHint(
+        vendorID: UInt16?,
+        productID: UInt16?,
+        locationID: UInt32?
+    ) async -> USBMassStorageHint? {
+        guard vendorID != nil || productID != nil || locationID != nil else { return nil }
+
         for _ in 0..<20 {
-            if let hint = Self.massStorageHint(service) { return hint }
+            if let hint = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) {
+                return hint
+            }
             try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return nil
+    }
+
+    /// A fresh, one-shot scan of every currently published device of this class, for the
+    /// one matching the identity given, the same re-finding `matchingInterfaceClasses`
+    /// does and for the same reason — the entry this device was first read from is
+    /// exactly what may have gone stale by the time this runs.
+    private static func matchingMassStorageHint(
+        vendorID: UInt16?,
+        productID: UInt16?,
+        locationID: UInt32?
+    ) -> USBMassStorageHint? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(Self.deviceClass), &iterator) == KERN_SUCCESS else {
+            return nil
+        }
+        defer { IOObjectRelease(iterator) }
+
+        while case let candidate = IOIteratorNext(iterator), candidate != 0 {
+            defer { IOObjectRelease(candidate) }
+            let candidateVendor = uint16(candidate, "idVendor")
+            let candidateProduct = uint16(candidate, "idProduct")
+            let candidateLocation = uint32(candidate, "locationID")
+            guard candidateVendor == vendorID, candidateProduct == productID, candidateLocation == locationID else { continue }
+            return Self.massStorageHint(candidate)
         }
         return nil
     }
