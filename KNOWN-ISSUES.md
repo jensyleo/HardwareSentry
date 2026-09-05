@@ -72,11 +72,37 @@ composite branch chains it on *after* interfaces resolve (so a device ambiguous 
 levels gets both retries, one yield, not two), and the not-ambiguous branch runs it
 directly, both keyed by identity rather than a handle.
 
-**Still not watched end-to-end against the real disk that reported this three times in a
-row.** Given how many turns this took to see and be told wrong, this needs eyes on the
-actual notification the next time this exact enclosure connects, not another round of
-reasoning about the registry — reconnect it, and say plainly whether the connect
-notification now reads "External Disk Connected."
+**That fix, too, did not work — reported live as "exactly the same" a fourth time.**
+Stopped reasoning about static registry snapshots at this point and built a purpose-made
+diagnostic tool instead: a small signed binary watching this exact enclosure's real
+connect live, polling its resolved state every 200ms and logging a timestamped timeline,
+rather than inferring anything from a single read. The real timeline, measured directly:
+
+```
+t+0.0s   interfaces empty (bDeviceClass 0x00, ambiguous — matches isAmbiguous)
+t+0.2s   interfaces resolve to [8, 8, 8] — comfortably inside enrichedInterfaceClasses's own window
+t+0.2s – t+4.2s   disk description still unreadable ("no-bsd-name")
+t+4.4s   BSD name + Disk Arbitration description finally readable — real media name, real size
+```
+
+**The actual bug, finally: the retry bound itself was too short by roughly 4×.** Every
+previous round changed *which* mechanism ran the retry (same handle vs. re-found by
+identity, which branch triggers it) and each change was a real, necessary fix for what it
+targeted — but none of them touched the *timeout*, which stayed at 1 second throughout,
+against a disk that needed 4.4. From inside a 1-second window, "still resolving" and
+"will never resolve" are indistinguishable, so every fix looked unchanged no matter how
+correct its own logic was.
+
+**The fix.** `enrichedMassStorageHint`'s bound raised from 20 tries at 50ms (1s) to 32
+tries at 250ms (8s) — nearly double the measured 4.4s, not merely matching it, since one
+enclosure's timing is a data point, not a guarantee for every enclosure this heuristic
+will ever meet.
+
+**Confirmed this time by watching the real timeline, not by reasoning about a snapshot —
+but the fixed code path itself has not yet been re-run against the live app.** Reconnect
+the same enclosure once more and say what the connect notification actually reads. If
+this is still wrong, the next step is *not* another guess at the mechanism — it is
+running the same diagnostic tool again to watch the fixed code's own timeline directly.
 
 ## Fixed: USB Monitor showed a pendrive and an external HDD both as plain "Mass Storage"
 

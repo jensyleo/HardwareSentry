@@ -375,11 +375,16 @@ private final class RegistryWatcher: @unchecked Sendable {
     /// goes stale during the same driver-matching dance a composite device's does — not
     /// only a plain composite device's, as first assumed.
     ///
-    /// Bounded at 20 tries, 50ms apart (1s total) — generously wider than
-    /// `enrichedInterfaceClasses`'s 400ms, since a disk's BSD name has a deeper stack to
-    /// wait on (SCSI translation, then block storage, then the partition scheme) than an
-    /// interface descriptor does. A device that still answers nothing by the deadline is
-    /// left exactly as generic as it always would have been.
+    /// Bounded at 8 seconds (32 tries, 250ms apart), not the 1 second first tried here —
+    /// measured directly against the exact enclosure that kept reporting this unfixed,
+    /// with a purpose-built diagnostic tool watching the real timeline rather than
+    /// reasoning about it: its interfaces resolve within 200ms, comfortably inside
+    /// `enrichedInterfaceClasses`'s own window, but its disk's BSD name/description was
+    /// not readable until **4.4 seconds** after that — the whole reason every attempt at
+    /// this fix looked identical to "never resolves" from inside a 1-second window. A
+    /// device that still answers nothing by this longer deadline is left exactly as
+    /// generic as it always would have been; an ordinary device that resolves
+    /// immediately never pays any of this wait.
     private static func enrichedMassStorageHint(
         vendorID: UInt16?,
         productID: UInt16?,
@@ -387,11 +392,11 @@ private final class RegistryWatcher: @unchecked Sendable {
     ) async -> USBMassStorageHint? {
         guard vendorID != nil || productID != nil || locationID != nil else { return nil }
 
-        for _ in 0..<20 {
+        for _ in 0..<32 {
             if let hint = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) {
                 return hint
             }
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            try? await Task.sleep(nanoseconds: 250_000_000)
         }
         return nil
     }
