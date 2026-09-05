@@ -406,6 +406,20 @@ public struct USBDeviceDetail: Sendable, Equatable {
     /// The connector type code the port reports — 0 is Type-A, 3 is Type-C.
     public let connectorType: Int?
 
+    /// A copy with only the mass-storage hint changed — for the arrival-time retry that
+    /// re-reads a Mass Storage device once its BSD name/disk description has had time to
+    /// attach, without having to repeat or guess at every other field already read.
+    func withMassStorageHint(_ hint: USBMassStorageHint?) -> USBDeviceDetail {
+        USBDeviceDetail(
+            productName: productName, vendorID: vendorID, productID: productID,
+            speedCode: speedCode, requiredCurrent: requiredCurrent, availableCurrent: availableCurrent,
+            requestedMoreThanAvailable: requestedMoreThanAvailable, mediumType: mediumType,
+            massStorageHint: hint, serialNumber: serialNumber, releaseVersion: releaseVersion,
+            locationID: locationID, configurationCount: configurationCount, specVersion: specVersion,
+            isTunnelled: isTunnelled, isPortRemovable: isPortRemovable, connectorType: connectorType
+        )
+    }
+
     public init(
         productName: String? = nil,
         vendorID: UInt16? = nil,

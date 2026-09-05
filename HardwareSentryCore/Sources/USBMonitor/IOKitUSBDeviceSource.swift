@@ -215,6 +215,42 @@ private final class RegistryWatcher: @unchecked Sendable {
                 if let key, !device.interfaceClasses.isEmpty {
                     rememberInterfaceClasses(device.interfaceClasses, for: key)
                 }
+
+                // A Mass Storage device's own IOKit entry is never replaced the way a
+                // composite device's is — only the driver stack *below* it (the SCSI
+                // translation layer, then the block-storage driver, then the disk's own
+                // BSD name) is still attaching at the instant this notification fires.
+                // Reported live, 2026-09-06: a real external HDD read as plain generic
+                // "Mass Storage" on connect and correctly as "External Disk" on
+                // disconnect — by the time it left, that stack had long since finished
+                // attaching, which arrival never waits for. Retried here on the very
+                // same handle, not re-found by identity, because nothing about it goes
+                // stale in the meantime.
+                if Self.isUnresolvedMassStorage(device) {
+                    IOObjectRetain(service)
+                    let continuation = self.continuation
+                    let queue = self.queue
+                    let taskID = UUID()
+
+                    let task = Task.detached { [weak self] in
+                        let hint = await Self.enrichedMassStorageHint(service)
+                        IOObjectRelease(service)
+                        guard !Task.isCancelled else { return }
+                        let enriched = hint == nil ? device : USBDevice(
+                            name: device.name,
+                            vendorName: device.vendorName,
+                            isHub: device.isHub,
+                            deviceClass: device.deviceClass,
+                            interfaceClasses: device.interfaceClasses,
+                            detail: device.detail.withMassStorageHint(hint)
+                        )
+                        continuation.yield(.attached(enriched))
+                        queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }
+                    }
+                    pendingEnrichments[taskID] = task
+                    continue
+                }
+
                 continuation.yield(.attached(device))
                 continue
             }
@@ -291,6 +327,31 @@ private final class RegistryWatcher: @unchecked Sendable {
             try? await Task.sleep(nanoseconds: 40_000_000)
         }
         return []
+    }
+
+    /// A Mass Storage device (class `0x08`, not a hub) whose disk the heuristic could not
+    /// yet say anything about — worth a retry, since "nothing yet" and "never will" look
+    /// identical from a single read and only time tells them apart.
+    private static func isUnresolvedMassStorage(_ device: USBDevice) -> Bool {
+        device.deviceClass == 0x08 && !device.isHub && device.detail.massStorageHint == nil
+    }
+
+    /// Polls the very same registry entry for a Mass Storage device's disk description,
+    /// rather than re-finding it under a fresh one the way `enrichedInterfaceClasses`
+    /// must: unlike a composite device, nothing here replaces this entry while its own
+    /// driver stack finishes attaching underneath it, so the handle stays good throughout.
+    ///
+    /// Bounded at 20 tries, 50ms apart (1s total) — generously wider than
+    /// `enrichedInterfaceClasses`'s 400ms, since a disk's BSD name has a deeper stack to
+    /// wait on (SCSI translation, then block storage, then the partition scheme) than an
+    /// interface descriptor does. A device that still answers nothing by the deadline is
+    /// left exactly as generic as it always would have been.
+    private static func enrichedMassStorageHint(_ service: io_service_t) async -> USBMassStorageHint? {
+        for _ in 0..<20 {
+            if let hint = Self.massStorageHint(service) { return hint }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return nil
     }
 
     /// A fresh, one-shot scan of every currently published device of this class, for the

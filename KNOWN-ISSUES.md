@@ -3,6 +3,36 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: USB Monitor's external-disk detection read generic on connect, correct on disconnect
+
+**Status:** fixed 2026-09-06, reported live immediately after the fix directly above —
+"the external HDD shows Mass Storage on connect but External Disk Disconnected on
+disconnect." Same disk, disagreeing with itself across the two notifications.
+
+**Root cause.** The same shape as the composite-device (BRIO) bug fixed 2026-09-03, but
+for a different reason. A Mass Storage device's own IOKit entry is *not* replaced the way
+a composite device's is — what is still incomplete at `kIOFirstPublishNotification` is
+the driver stack *underneath* it: the SCSI translation layer, then the block-storage
+driver, then the disk's own BSD name, all of which the size-based `.externalDisk`
+fallback depends on reading. By the time the device disconnects, that stack has long
+since finished attaching — which is exactly why departure read the drive correctly and
+arrival did not.
+
+**The fix.** `IOKitUSBDeviceSource.drain(_:arriving:)` now recognises a Mass Storage
+device whose `massStorageHint` came back nil (`isUnresolvedMassStorage(_:)`) and retries
+on the very same `io_service_t` — not a fresh one, since nothing about this entry goes
+stale while its own stack attaches beneath it, unlike the composite-device case. Bounded
+at 20 tries, 50ms apart (1 second total): wider than the composite-device retry's 400ms,
+since a disk's BSD name has a deeper stack to wait on than an interface descriptor does.
+A device that still answers nothing by the deadline is left exactly as generic as it
+always would have been.
+
+**Not yet confirmed live against the exact disk that reported this** — the fix follows
+directly from the same measured, already-proven root cause as the BRIO fix, but this
+specific retry path has not itself been watched end-to-end against real hardware. Worth
+reconnecting the same external HDD and checking that it now reads "External Disk
+Connected" on arrival too, not only on departure.
+
 ## Fixed: USB Monitor showed a pendrive and an external HDD both as plain "Mass Storage"
 
 **Status:** fixed 2026-09-05, confirmed against real hardware — a genuine 1 TB external

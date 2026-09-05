@@ -15,6 +15,12 @@ tagged release yet, so everything so far lives under **Unreleased**.
 - **Switching one notification or field by hand now falls into "Custom".** Only switching
   a whole module used to do this; the preset picker kept claiming "All elements" (or
   Minimal/Recommended) even after a single checkbox inside it no longer matched.
+- **A Mass Storage device's kind is no longer read too early.** Reported live right after
+  the previous fix: the same external HDD showed generic "Mass Storage" on connect but
+  correctly "External Disk" on disconnect. Same class of timing bug as the BRIO fix
+  (2026-09-03), for a different layer: the disk's BSD name/description is still attaching
+  underneath the USB device at the instant of arrival. Now retried on the same registry
+  entry (up to 1 second) before falling back to generic — see `KNOWN-ISSUES.md`.
 - **USB Monitor now tells an external disk enclosure apart from a pendrive too, not just
   an SD card.** Confirmed live, 2026-09-05, against a real pendrive and a real 1 TB
   external HDD connected at once, both showing as plain "Mass Storage": the drive's Disk
