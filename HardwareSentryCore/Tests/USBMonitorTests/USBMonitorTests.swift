@@ -411,7 +411,12 @@ struct USBClassNameTests {
     func compositeDeviceWithNoRecognisedInterfaceStaysMiscellaneous() {
         // 0x04 and 0x42 have never been assigned a USB-IF base class; unlike 0x02
         // ("Communications"), neither names anything real for `className` to prefer.
-        #expect(USBDevice(name: "Thing", deviceClass: 0xEF, interfaceClasses: [0x04, 0x42]).className == "Miscellaneous")
+        let device = USBDevice(name: "Thing", deviceClass: 0xEF, interfaceClasses: [0x04, 0x42])
+        #expect(device.className == "Miscellaneous")
+        // Same reasoning as "Vendor Specific"/"Application Specific": "more than one
+        // function, none of them nameable" is not an answer either, and should not
+        // silence this device's generic notice when the switch is on.
+        #expect(device.isMeaningfullyIdentified == false)
     }
 
     @Test("a device whose own class already says something is never overridden by its interfaces")
@@ -425,8 +430,9 @@ struct USBClassNameTests {
         // `className` to "Vendor Specific" — a real string, but one that says nothing
         // about what the device actually does. `isMeaningfullyIdentified` is what
         // `ignoresIdentifiedGenericDevices` actually checks, precisely so this class (and
-        // 0xFE, "Application Specific", USB-IF's other escape hatch) reads the same as a
-        // device with no class at all, not the same as Billboard/Communications.
+        // 0xFE/"Application Specific" here, 0xEF/"Miscellaneous" covered alongside its
+        // own `className` test above — USB-IF's three escape hatches) reads the same as
+        // a device with no class at all, not the same as Billboard/Communications.
         let vendorSpecific = USBDevice(name: "FT232R USB UART", deviceClass: 0x00, interfaceClasses: [0xFF])
         #expect(vendorSpecific.className == "Vendor Specific")
         #expect(vendorSpecific.isMeaningfullyIdentified == false)

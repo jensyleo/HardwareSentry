@@ -30,6 +30,15 @@ as uninformative as no class at all.
 A vendor-specific device now announces through the generic row exactly as an
 unclassified one always has, regardless of the switch.
 
+**Generalised on request, immediately after confirming the fix worked, rather than left
+scoped to the exact device reported.** "Vendor Specific"/"Application Specific" are two
+of USB-IF's three "not a real answer" class names; the third, "Miscellaneous" (`0xEF`,
+`className`'s own honest label for a composite device whose interfaces name nothing
+recognisable either), was the identical shape and would have silenced a device hitting
+that path the same way — confirmed by re-reading `className`'s own fallback, not by a
+second live report. Folded into the same check (`Self.uninformativeClassNames`) rather
+than left as a narrower fix that only covered the one class byte actually seen live.
+
 ## Investigated and rejected: naming the port/protocol in "Video Link Detected"
 
 **Status:** investigated 2026-09-06, rejected — tested against 4 real connect/disconnect

@@ -348,8 +348,9 @@ public extension USBDevice {
     }
 
     /// Whether `className` names something that actually says what the device is, rather
-    /// than one of USB-IF's own two escape hatches — `0xFF`/`0xFE`, "ask the vendor" and
-    /// "ask the application" — which say nothing about the device's real function.
+    /// than one of USB-IF's own three escape hatches — `0xFF`/`0xFE`/`0xEF`, "ask the
+    /// vendor", "ask the application", and "this is more than one function" — none of
+    /// which say anything about what the device actually *does*.
     ///
     /// Reported live, 2026-09-06: a genuine FTDI USB-serial adapter — declaring `0x00` at
     /// the device level and its real interface class as `0xFF` (FTDI's own chip, like
@@ -360,10 +361,22 @@ public extension USBDevice {
     /// that names nothing more informative than "not standard" is, for this switch's own
     /// purpose, exactly as unidentified as one with no class at all, and deserves the
     /// same generic notification rather than silence.
+    ///
+    /// `"Miscellaneous"` (`0xEF`) belongs in the same set on the same reasoning, not
+    /// added for a live report of its own: it is `className`'s own honest label for a
+    /// composite device whose interfaces named nothing recognisable either — see its
+    /// doc comment above — the identical "not really an answer" shape the other two
+    /// escape hatches have, just reached from the device-composite side rather than a
+    /// single interface's own vendor-specific one.
     var isMeaningfullyIdentified: Bool {
         guard let className else { return false }
-        return className != "Vendor Specific" && className != "Application Specific"
+        return !Self.uninformativeClassNames.contains(className)
     }
+
+    /// USB-IF's own three "not a real answer" class names — see `isMeaningfullyIdentified`.
+    private static let uninformativeClassNames: Set<String> = [
+        "Vendor Specific", "Application Specific", "Miscellaneous"
+    ]
 
     private static func name(forClassByte deviceClass: UInt8) -> String? {
         switch deviceClass {
