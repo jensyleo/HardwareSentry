@@ -39,6 +39,8 @@ final class MonitorTuningModel {
             Self.usbIgnoresIdentifiedGenericDevicesKey: false,
             Self.usbSerialVendorAutoUpdateKey: true,
             Self.usbSerialVendorUpdateDaysKey: 30.0,
+            Self.massStoragePollMillisecondsKey: 250.0,
+            Self.massStorageTimeoutSecondsKey: 8.0,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -70,6 +72,8 @@ final class MonitorTuningModel {
         usbIgnoresIdentifiedGenericDevices = defaults.bool(forKey: Self.usbIgnoresIdentifiedGenericDevicesKey)
         usbSerialVendorAutoUpdate = defaults.bool(forKey: Self.usbSerialVendorAutoUpdateKey)
         usbSerialVendorUpdateDays = defaults.double(forKey: Self.usbSerialVendorUpdateDaysKey)
+        massStoragePollMilliseconds = defaults.double(forKey: Self.massStoragePollMillisecondsKey)
+        massStorageTimeoutSeconds = defaults.double(forKey: Self.massStorageTimeoutSecondsKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -185,6 +189,24 @@ final class MonitorTuningModel {
 
     var usbSerialVendorUpdateDays: Double {
         didSet { defaults.set(usbSerialVendorUpdateDays, forKey: Self.usbSerialVendorUpdateDaysKey); onChange?() }
+    }
+
+    /// How often an unresolved Mass Storage device is re-checked while USB Monitor waits
+    /// for its disk description — see `IOKitUSBDeviceSource`'s own retry. Mirrors Wi-Fi's
+    /// two-slider shape (`wifiSignalSeconds`/`wifiSignalCooldownSeconds`) on purpose:
+    /// same idea, a check interval and a bound on how long to keep checking. Takes effect
+    /// the next time the application starts, like every other USB source setting here.
+    var massStoragePollMilliseconds: Double {
+        didSet { defaults.set(massStoragePollMilliseconds, forKey: Self.massStoragePollMillisecondsKey); onChange?() }
+    }
+
+    /// The backstop: a device that still has not resolved by this deadline stays as
+    /// generically classified as it always would have been. Measured at 8s against a
+    /// real slow enclosure — see `IOKitUSBDeviceSource.enrichedMassStorageHint`'s own
+    /// comment — lowering it risks reintroducing that exact, already-fixed bug for a
+    /// disk slower than whatever this is tested against.
+    var massStorageTimeoutSeconds: Double {
+        didSet { defaults.set(massStorageTimeoutSeconds, forKey: Self.massStorageTimeoutSecondsKey); onChange?() }
     }
 
     /// How often a network scanner is asked what it is doing.
@@ -326,6 +348,8 @@ final class MonitorTuningModel {
     private static let usbIgnoresIdentifiedGenericDevicesKey = "USB.IgnoresIdentifiedGenericDevices"
     private static let usbSerialVendorAutoUpdateKey = "USB.SerialVendorAutoUpdate"
     private static let usbSerialVendorUpdateDaysKey = "USB.SerialVendorUpdateDays"
+    private static let massStoragePollMillisecondsKey = "USB.MassStoragePollMilliseconds"
+    private static let massStorageTimeoutSecondsKey = "USB.MassStorageTimeoutSeconds"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

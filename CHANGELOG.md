@@ -25,6 +25,17 @@ a small hand-maintained JSON file from this application's own GitHub repository 
 merging it into the built-in list — additive only, so a failed or empty check never
 loses what was already known.
 
+### USB Mass Storage detection timing is now tunable, not fixed
+
+The 250ms poll interval and 8-second backstop USB Monitor uses while waiting for an
+external disk's own description (see `KNOWN-ISSUES.md`'s multi-round External Disk saga)
+were fixed numbers. Settings → USB → "Mass Storage detection" now exposes both as
+sliders — poll interval (100–2000ms) and give-up deadline (2–20s) — the same two-slider
+shape Wi-Fi's own signal-check-interval/cooldown pair already has. Defaults are
+unchanged, so nothing behaves any differently until these are actually moved; this exists
+for tuning against a particular Mac's own disks rather than as a fix on its own. Takes
+effect the next time the application starts.
+
 ### Every polling loop is now a setting, not a hardcoded number
 
 An audit of every place this application checks state on a timer rather than reacting to

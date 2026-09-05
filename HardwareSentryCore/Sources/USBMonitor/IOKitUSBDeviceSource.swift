@@ -9,7 +9,18 @@ import IOKit.usb
 /// adapter is: none of it can run without real hardware events. Everything worth
 /// reasoning about lives in `USBMonitor`, behind `USBDeviceSource`.
 public struct IOKitUSBDeviceSource: USBDeviceSource {
-    public init() {}
+    private let massStoragePollInterval: TimeInterval
+    private let massStorageTimeout: TimeInterval
+
+    /// `massStoragePollInterval`/`massStorageTimeout` tune `enrichedMassStorageHint`'s own
+    /// retry — see its doc comment for how the defaults were measured. Configurable rather
+    /// than fixed so a Mac where the default 8-second worst case is annoying, or too short
+    /// for a particular disk, can be adjusted without a new build — see
+    /// `MonitorTuningModel.massStoragePollMilliseconds`/`massStorageTimeoutSeconds`.
+    public init(massStoragePollInterval: TimeInterval = 0.25, massStorageTimeout: TimeInterval = 8.0) {
+        self.massStoragePollInterval = massStoragePollInterval
+        self.massStorageTimeout = massStorageTimeout
+    }
 
     /// The Mac's own USB controllers report themselves under names from the driver, not
     /// names for people: "XHCI Root Hub SS Simulation" is the USB 3 bus. Renamed here so
@@ -30,7 +41,11 @@ public struct IOKitUSBDeviceSource: USBDeviceSource {
 
     public func changes() -> AsyncStream<USBDeviceChange> {
         AsyncStream { continuation in
-            let watcher = RegistryWatcher(continuation: continuation)
+            let watcher = RegistryWatcher(
+                continuation: continuation,
+                massStoragePollInterval: massStoragePollInterval,
+                massStorageTimeout: massStorageTimeout
+            )
             continuation.onTermination = { _ in watcher.stop() }
             watcher.start()
         }
@@ -100,8 +115,19 @@ private final class RegistryWatcher: @unchecked Sendable {
     /// and the stream it feeds — is already gone.
     private var pendingEnrichments: [UUID: Task<Void, Never>] = [:]
 
-    init(continuation: AsyncStream<USBDeviceChange>.Continuation) {
+    /// How often, and for how long, `enrichedMassStorageHint` re-checks an unresolved
+    /// disk — see `IOKitUSBDeviceSource.init` for where these come from.
+    private let massStoragePollInterval: TimeInterval
+    private let massStorageTimeout: TimeInterval
+
+    init(
+        continuation: AsyncStream<USBDeviceChange>.Continuation,
+        massStoragePollInterval: TimeInterval = 0.25,
+        massStorageTimeout: TimeInterval = 8.0
+    ) {
         self.continuation = continuation
+        self.massStoragePollInterval = massStoragePollInterval
+        self.massStorageTimeout = massStorageTimeout
     }
 
     /// Remembers a device's interfaces under its identity, evicting the oldest entry once
@@ -323,10 +349,13 @@ private final class RegistryWatcher: @unchecked Sendable {
                     let continuation = self.continuation
                     let queue = self.queue
                     let taskID = UUID()
+                    let pollInterval = massStoragePollInterval
+                    let timeout = massStorageTimeout
 
                     let task = Task.detached { [weak self] in
                         let hint = await Self.enrichedMassStorageHint(
-                            vendorID: vendorID, productID: productID, locationID: locationID
+                            vendorID: vendorID, productID: productID, locationID: locationID,
+                            pollInterval: pollInterval, timeout: timeout
                         )
                         guard !Task.isCancelled else { return }
                         let enriched = hint == nil ? device : USBDevice(
@@ -360,6 +389,8 @@ private final class RegistryWatcher: @unchecked Sendable {
             let continuation = self.continuation
             let queue = self.queue
             let taskID = UUID()
+            let pollInterval = massStoragePollInterval
+            let timeout = massStorageTimeout
 
             let task = Task.detached { [weak self] in
                 let classes = await Self.enrichedInterfaceClasses(
@@ -389,7 +420,8 @@ private final class RegistryWatcher: @unchecked Sendable {
                 // once now and again later for what is still one arrival.
                 if Self.isUnresolvedMassStorage(enriched) {
                     let hint = await Self.enrichedMassStorageHint(
-                        vendorID: vendorID, productID: productID, locationID: locationID
+                        vendorID: vendorID, productID: productID, locationID: locationID,
+                        pollInterval: pollInterval, timeout: timeout
                     )
                     if let hint {
                         enriched = USBDevice(
@@ -475,28 +507,39 @@ private final class RegistryWatcher: @unchecked Sendable {
     /// goes stale during the same driver-matching dance a composite device's does — not
     /// only a plain composite device's, as first assumed.
     ///
-    /// Bounded at 8 seconds (32 tries, 250ms apart), not the 1 second first tried here —
-    /// measured directly against the exact enclosure that kept reporting this unfixed,
-    /// with a purpose-built diagnostic tool watching the real timeline rather than
-    /// reasoning about it: its interfaces resolve within 200ms, comfortably inside
-    /// `enrichedInterfaceClasses`'s own window, but its disk's BSD name/description was
-    /// not readable until **4.4 seconds** after that — the whole reason every attempt at
-    /// this fix looked identical to "never resolves" from inside a 1-second window. A
-    /// device that still answers nothing by this longer deadline is left exactly as
-    /// generic as it always would have been; an ordinary device that resolves
-    /// immediately never pays any of this wait.
+    /// Bounded at 8 seconds by default (32 tries, 250ms apart), not the 1 second first
+    /// tried here — measured directly against the exact enclosure that kept reporting
+    /// this unfixed, with a purpose-built diagnostic tool watching the real timeline
+    /// rather than reasoning about it: its interfaces resolve within 200ms, comfortably
+    /// inside `enrichedInterfaceClasses`'s own window, but its disk's BSD
+    /// name/description was not readable until **4.4 seconds** after that — the whole
+    /// reason every attempt at this fix looked identical to "never resolves" from inside
+    /// a 1-second window. A device that still answers nothing by this longer deadline is
+    /// left exactly as generic as it always would have been; an ordinary device that
+    /// resolves immediately never pays any of this wait, since the very first check —
+    /// before any sleep — already catches it.
+    ///
+    /// `pollInterval`/`timeout` are configurable (see `IOKitUSBDeviceSource.init`) rather
+    /// than the fixed 250ms/8s measured above: a Mac where those numbers are wrong for
+    /// its own disks can be tuned without a new build, the same reasoning
+    /// `MonitorTuningModel`'s other polling settings already rest on.
     private static func enrichedMassStorageHint(
         vendorID: UInt16?,
         productID: UInt16?,
-        locationID: UInt32?
+        locationID: UInt32?,
+        pollInterval: TimeInterval,
+        timeout: TimeInterval
     ) async -> USBMassStorageHint? {
         guard vendorID != nil || productID != nil || locationID != nil else { return nil }
+        guard pollInterval > 0 else { return matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) }
 
-        for _ in 0..<32 {
+        let attempts = max(1, Int((timeout / pollInterval).rounded(.up)))
+        let nanoseconds = UInt64(max(0, pollInterval) * 1_000_000_000)
+        for _ in 0..<attempts {
             if let hint = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) {
                 return hint
             }
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
         }
         return nil
     }

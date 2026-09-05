@@ -62,6 +62,12 @@ public actor MonitorRegistry {
     private let bluetoothBLEPollInterval: Duration
     private let printerPollInterval: Duration
     private let volumeFreeSpacePollInterval: Duration
+    /// How often, and for how long, USB Monitor re-checks an unresolved Mass Storage
+    /// device's disk description — see `IOKitUSBDeviceSource.init`. Read only when
+    /// `IOKitUSBDeviceSource` is built in `assemble()`, so a change takes effect the next
+    /// time the application starts, the same as `networkRadioPollInterval` above.
+    private let massStoragePollInterval: TimeInterval
+    private let massStorageTimeout: TimeInterval
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -96,7 +102,9 @@ public actor MonitorRegistry {
         bluetoothSignalPollInterval: Duration = .seconds(10),
         bluetoothBLEPollInterval: Duration = .seconds(30),
         printerPollInterval: Duration = .seconds(8),
-        volumeFreeSpacePollInterval: Duration = .seconds(300)
+        volumeFreeSpacePollInterval: Duration = .seconds(300),
+        massStoragePollInterval: TimeInterval = 0.25,
+        massStorageTimeout: TimeInterval = 8.0
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
@@ -124,6 +132,8 @@ public actor MonitorRegistry {
         self.bluetoothBLEPollInterval = bluetoothBLEPollInterval
         self.printerPollInterval = printerPollInterval
         self.volumeFreeSpacePollInterval = volumeFreeSpacePollInterval
+        self.massStoragePollInterval = massStoragePollInterval
+        self.massStorageTimeout = massStorageTimeout
     }
 
     /// Passes changed tuning to the monitors that care about it, without rebuilding them.
@@ -217,7 +227,10 @@ public actor MonitorRegistry {
     public func assemble() {
         monitors = [
             USBMonitor(
-                source: IOKitUSBDeviceSource(),
+                source: IOKitUSBDeviceSource(
+                    massStoragePollInterval: massStoragePollInterval,
+                    massStorageTimeout: massStorageTimeout
+                ),
                 context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 kindsCoveredElsewhere: Self.kindsCoveredElsewhere(
                     cameraNotifiesUSBDevices: cameraNotifiesUSBDevices,

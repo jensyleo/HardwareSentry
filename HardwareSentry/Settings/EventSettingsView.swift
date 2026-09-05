@@ -385,6 +385,22 @@ private struct ModuleDetail: View {
                         }
                     }
                 }
+
+                Section("Mass Storage detection") {
+                    slider(
+                        "Poll interval",
+                        value: $tuning.massStoragePollMilliseconds,
+                        range: 100...2000,
+                        caption: "How often an external disk's own description is re-checked while its kind (USB Drive, SD Card, External Disk) is still unresolved (100–2000 ms). A disk that resolves before the first check pays none of this wait; a shorter interval only speeds up the ones that don\u{2019}t.",
+                        unit: "ms"
+                    )
+                    slider(
+                        "Give up after",
+                        value: $tuning.massStorageTimeoutSeconds,
+                        range: 2...20,
+                        caption: "The longest USB Monitor waits for a slow disk\u{2019}s description before showing it generically as \u{201C}Mass Storage\u{201D} instead (2\u{2013}20 s). Measured at 8 s against a real, unusually slow enclosure \u{2014} lowering it risks that same device going generic again. Volume Monitor's own \u{201C}Volume Mounted\u{201D} notice does not wait for this at all, so a slow disk can still show as mounted before USB Monitor names it specifically; see TODO.md. Takes effect the next time the application starts."
+                    )
+                }
             }
 
             if module.category.rawValue == "Camera", title == titles.first {

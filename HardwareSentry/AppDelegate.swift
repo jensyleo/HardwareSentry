@@ -178,7 +178,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bluetoothSignalPollInterval: tuning.bluetoothSignalPollInterval,
             bluetoothBLEPollInterval: tuning.bluetoothBLEPollInterval,
             printerPollInterval: tuning.printerPollInterval,
-            volumeFreeSpacePollInterval: tuning.volumeFreeSpacePollInterval
+            volumeFreeSpacePollInterval: tuning.volumeFreeSpacePollInterval,
+            massStoragePollInterval: tuning.massStoragePollMilliseconds / 1000,
+            massStorageTimeout: tuning.massStorageTimeoutSeconds
         )
         // Changed numbers reach the running monitors rather than waiting for a relaunch.
         tuning.onChange = { [weak self] in
