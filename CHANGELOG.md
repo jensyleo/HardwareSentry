@@ -25,6 +25,15 @@ a small hand-maintained JSON file from this application's own GitHub repository 
 merging it into the built-in list — additive only, so a failed or empty check never
 loses what was already known.
 
+### "Check Now" says what it actually did
+
+Pressing it gave no feedback beyond a silently-updated "Last checked" timestamp — a
+successful check that found nothing new looked identical to one that failed outright.
+Now shows one of three outcomes right under the button: "Updated — N vendors added or
+renamed," "Already up to date — nothing new," or "Check failed — no connection, or the
+URL did not respond." The scheduled background check stays silent either way, on
+purpose — this is feedback for a button somebody just pressed, not a notification.
+
 ### The serial-vendor list now updates from usb.ids, not a repo this app alone maintains
 
 The vendor-ID lookup behind "Serial/Debug Adapter" pulled its update from a JSON file in

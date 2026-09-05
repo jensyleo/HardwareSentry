@@ -358,6 +358,12 @@ final class MonitorTuningModel {
         set { defaults.set(newValue, forKey: "USB.LastSerialVendorUpdate") }
     }
 
+    /// What the most recent "Check Now" actually did — new vendors merged in, nothing new
+    /// to add, or the request itself failed. Session-only, on purpose: this is feedback
+    /// for the button that was just pressed, not a durable setting, so it is never written
+    /// to `UserDefaults` and starts `nil` again on every launch.
+    var serialVendorUpdateStatus: String?
+
     // MARK: - What the monitors are given
 
     var powerRefire: PowerRefireSettings {

@@ -809,8 +809,8 @@ struct USBSerialVendorDatabaseTests {
         let before = db.vendorCount
         // Loopback address with nothing listening: the request itself fails, which is the
         // point — a network hiccup must never wipe out what was already known.
-        let ok = await db.refresh(from: URL(string: "http://127.0.0.1:1/nonexistent.json")!)
-        #expect(!ok)
+        let outcome = await db.refresh(from: URL(string: "http://127.0.0.1:1/nonexistent.json")!)
+        #expect(outcome == .failed)
         #expect(db.vendorCount == before)
         #expect(db.isKnownVendor(0x0403))
     }

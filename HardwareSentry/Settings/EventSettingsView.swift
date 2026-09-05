@@ -396,6 +396,11 @@ private struct ModuleDetail: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    if let status = tuning.serialVendorUpdateStatus {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Mass Storage detection") {

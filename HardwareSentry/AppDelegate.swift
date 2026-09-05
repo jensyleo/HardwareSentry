@@ -75,12 +75,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The "Check Now" button in Settings — runs regardless of the auto-update toggle or
-    /// the schedule, since asking outright is always allowed.
+    /// the schedule, since asking outright is always allowed. Unlike the scheduled check,
+    /// this one reports what actually happened: somebody who pressed a button is owed an
+    /// answer, not silence indistinguishable from the button having done nothing at all.
     func checkSerialVendorUpdateNow() {
         let url = tuning.usbSerialVendorUpdateURL
+        tuning.serialVendorUpdateStatus = "Checking…"
         Task {
-            await USBSerialVendorDatabase.shared.refresh(from: url)
+            let outcome = await USBSerialVendorDatabase.shared.refresh(from: url)
             tuning.lastSerialVendorUpdate = Date()
+            switch outcome {
+            case .updated(let count):
+                tuning.serialVendorUpdateStatus = "Updated — \(count) vendor\(count == 1 ? "" : "s") added or renamed."
+            case .upToDate:
+                tuning.serialVendorUpdateStatus = "Already up to date — nothing new."
+            case .failed:
+                tuning.serialVendorUpdateStatus = "Check failed — no connection, or the URL did not respond."
+            }
         }
     }
 

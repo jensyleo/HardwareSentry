@@ -76,9 +76,20 @@ public final class USBSerialVendorDatabase: @unchecked Sendable {
         return vendors.count
     }
 
-    private func merge(_ additions: [UInt16: String]) {
+    /// Merges in whatever is new, and reports how many entries actually changed — a
+    /// vendor this database did not already have, under this exact name, either because
+    /// its ID is new or because the name on file for it changed. What `refresh` uses to
+    /// tell "downloaded successfully, nothing was actually new" apart from "downloaded
+    /// successfully, N vendors added or renamed" for whoever pressed "Check Now".
+    @discardableResult
+    private func merge(_ additions: [UInt16: String]) -> Int {
         lock.lock(); defer { lock.unlock() }
+        var changed = 0
+        for (vid, name) in additions where vendors[vid] != name {
+            changed += 1
+        }
         vendors.merge(additions) { _, new in new }
+        return changed
     }
 
     // MARK: - Updating
@@ -123,22 +134,32 @@ public final class USBSerialVendorDatabase: @unchecked Sendable {
         string: "https://raw.githubusercontent.com/gentoo/hwids/master/usb.ids"
     )!
 
+    /// What `refresh` actually did, for whoever pressed "Check Now" rather than only the
+    /// background schedule: a silent success is indistinguishable from a silent failure
+    /// otherwise, and "it downloaded fine, there was just nothing new in it" is a
+    /// perfectly normal outcome that a bare `Bool` cannot say.
+    public enum RefreshOutcome: Equatable {
+        case updated(vendorCount: Int)
+        case upToDate
+        case failed
+    }
+
     /// Downloads the latest known-vendor list and merges it in, in memory and on disk.
     /// Additive over the built-in list, never destructive: a network failure, a bad
     /// response, or an empty file all leave whatever was already known exactly as it was.
     @discardableResult
-    public func refresh(from url: URL = USBSerialVendorDatabase.updateURL) async -> Bool {
+    public func refresh(from url: URL = USBSerialVendorDatabase.updateURL) async -> RefreshOutcome {
         guard let (data, response) = try? await URLSession.shared.data(from: url),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
               let parsed = Self.decode(data), !parsed.isEmpty
-        else { return false }
+        else { return .failed }
 
-        merge(parsed)
+        let changed = merge(parsed)
 
         if let cacheURL = Self.cacheURL {
             try? FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: cacheURL)
         }
-        return true
+        return changed > 0 ? .updated(vendorCount: changed) : .upToDate
     }
 }
