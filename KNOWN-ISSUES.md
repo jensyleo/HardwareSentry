@@ -3,6 +3,30 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Investigated and rejected: naming the port/protocol in "Video Link Detected"
+
+**Status:** investigated 2026-09-06, rejected — tested against 4 real connect/disconnect
+cycles, not reasoned about from a single sample. Not worth retrying without new evidence.
+
+**The idea.** A single connect's kernel log also showed `IOAccessoryManager` lines naming
+the actual port and protocol — `IOPortTransportState::handleStateChange(): [Port-USB-C@2:
+DisplayPort]` — which looked, from that one sample, like a clean one-shot marker that
+could let the notification say "USB-C port 2, DisplayPort" instead of the generic
+message.
+
+**Why it doesn't work.** Streamed the same log across 4 real connect/disconnect cycles.
+`handleStateChange` fired 44 times against `ReceiverConnected`'s 4 — not a 1:1 marker at
+all. It fires for the port's USB3 *data* role changing (`[Port-USB-C@2: USB3]`, nothing
+to do with video), for DisplayPort renegotiation with no cable event nearby, and in
+clusters at moments with no connect or disconnect happening at all (14:40:19, 14:40:22 in
+the captured run, both quiet). Building on it would trade one reliable, narrow marker for
+one that fires roughly eleven times as often for unrelated reasons — a worse experimental
+feature, not a better one.
+
+**Left as it is.** The existing generic message stays exactly as it was — see the
+adjoining entry below on why the message content itself already reflects the honest
+ceiling of the *good* marker this feature already uses.
+
 ## Confirmed working live: the experimental "Video Link Detected" early warning
 
 **Status:** confirmed 2026-09-05 — the first time this feature has been seen firing
