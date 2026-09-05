@@ -16,10 +16,6 @@ public actor GamepadMonitor: Monitor {
     public static let events: [MonitorEventDescription] = [
         .init(name: GamepadEvent.controllerConnected.rawValue, title: "Game controller connected", icon: .asset("GamepadMonitor-Icon", in: .module)),
         .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected", icon: .asset("GamepadMonitor-Icon", in: .module)),
-        .init(name: GamepadEvent.keyboardConnected.rawValue, title: "Game-recognized keyboard connected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
-        .init(name: GamepadEvent.keyboardDisconnected.rawValue, title: "Game-recognized keyboard disconnected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
-        .init(name: GamepadEvent.mouseConnected.rawValue, title: "Game-recognized mouse connected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
-        .init(name: GamepadEvent.mouseDisconnected.rawValue, title: "Game-recognized mouse disconnected", enabledByDefault: false, icon: .asset("GamepadMonitor-Icon", in: .module)),
         .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected", icon: .asset("GamepadMonitor-Icon", in: .module)),
         .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected", icon: .asset("GamepadMonitor-Icon", in: .module))
     ]
@@ -103,16 +99,6 @@ public actor GamepadMonitor: Monitor {
         case .controller:
             let name = change.name ?? "Game Controller"
             return (change.connected ? "Game Controller Connected" : "Game Controller Disconnected", name)
-        case .keyboard:
-            return (
-                change.connected ? "Game-Recognized Keyboard Connected" : "Game-Recognized Keyboard Disconnected",
-                change.connected ? "A keyboard is now available to GameController-based games/apps" : ""
-            )
-        case .mouse:
-            return (
-                change.connected ? "Game-Recognized Mouse Connected" : "Game-Recognized Mouse Disconnected",
-                change.connected ? "A mouse is now available to GameController-based games/apps" : ""
-            )
         case .racingWheel:
             let name = change.name ?? "Racing Wheel"
             return (change.connected ? "Racing Wheel Connected" : "Racing Wheel Disconnected", name)

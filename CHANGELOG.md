@@ -6,6 +6,23 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Fixed, reported live
+
+- **"All elements" now actually means all.** It only put each module back to its own
+  declared default, leaving individual notification/field checkboxes wherever they had
+  last been set. Now switches on every module, every one of its notifications, and every
+  optional field, without exception.
+- **Switching one notification or field by hand now falls into "Custom".** Only switching
+  a whole module used to do this; the preset picker kept claiming "All elements" (or
+  Minimal/Recommended) even after a single checkbox inside it no longer matched.
+- **Gamepad Monitor no longer has a keyboard/mouse row.** Turning it on was reported to
+  announce an entirely ordinary keyboard and mouse — nothing gaming-specific — because
+  macOS's GameController framework cannot tell "a dedicated gaming peripheral opted into
+  game input" apart from "any keyboard/mouse the system already has". HG4MAC's own switch
+  for this rests on the opposite, incorrect assumption. Removed rather than kept and
+  mislabelled; recorded in `PARITY.md`/`Tools/parity-map.tsv` as a deliberate,
+  zero-replacement omission, not a gap.
+
 ### Security and robustness
 
 A full adversarial pass over `HardwareSentryCore` and the app target (memory/resource

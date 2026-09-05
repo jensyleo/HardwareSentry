@@ -38,14 +38,18 @@ first event, so changing the order of the list silently changed the icon.
 
 ```
 HG4MAC declares      106 notifications
-HardwareSentry has   13 modules, 194 events, 170 optional body fields
-covered by name      101
-covered by mapping   5 original names -> 16 finer-grained events
+HardwareSentry has   13 modules, 200 events, 170 optional body fields
+covered by name      97
+covered by mapping   9 original names -> 16 finer-grained events
 tuning knobs         13 settings in HG4MAC, all reachable
 optional lines       148 preference keys in HG4MAC, all accounted for
 ```
 
-No gaps on any axis. 77 events have no counterpart in HG4MAC at all.
+No gaps on any axis. 87 events have no counterpart in HG4MAC at all. Of the 9 mapped
+original names, 4 (`GamepadKeyboardConnected`/`Disconnected`,
+`GamepadMouseConnected`/`Disconnected`) map to zero replacement events — a deliberate
+omission, not a renaming — see "Where this application is deliberately not identical"
+below.
 
 ## The five notifications that are not name-for-name
 
@@ -75,6 +79,14 @@ announce what kind of thing was plugged in, and Power has a row per ten percent,
   controls could not disagree about whether it is running.
 - **Volumes can be ignored individually.** A Time Machine disk that mounts on a schedule
   used to cost either its notifications or every other volume's.
+- **Gamepad has no keyboard/mouse row.** The original's own comment claims
+  `GCKeyboardDidConnect`/`GCMouseDidConnect` only fire for a "Made for Game
+  Controllers"-recognized keyboard/mouse. Reported live, 2026-09-05: with that switch on,
+  an entirely ordinary keyboard and mouse announced themselves through it — the framework
+  has no way to tell "opted into game input" apart from "any keyboard/mouse the system
+  has". Recorded as a deliberate, zero-replacement omission in `Tools/parity-map.tsv`
+  (`GamepadKeyboardConnected`/`Disconnected`, `GamepadMouseConnected`/`Disconnected`)
+  rather than kept and mislabelled.
 
 ## What this does not prove
 

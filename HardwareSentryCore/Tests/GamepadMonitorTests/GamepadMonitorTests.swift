@@ -59,28 +59,6 @@ struct GamepadMonitorTests {
         #expect(events.first?.body == "Game Controller")
     }
 
-    @Test("a keyboard connecting and disconnecting use their own dedicated events")
-    func keyboardUsesOwnEvents() async {
-        let events = await run([
-            .init(kind: .keyboard, connected: true),
-            .init(kind: .keyboard, connected: false)
-        ])
-
-        #expect(events[0].name == "GamepadKeyboardConnected")
-        #expect(events[1].name == "GamepadKeyboardDisconnected")
-    }
-
-    @Test("a mouse connecting and disconnecting use their own dedicated events")
-    func mouseUsesOwnEvents() async {
-        let events = await run([
-            .init(kind: .mouse, connected: true),
-            .init(kind: .mouse, connected: false)
-        ])
-
-        #expect(events[0].name == "GamepadMouseConnected")
-        #expect(events[1].name == "GamepadMouseDisconnected")
-    }
-
     @Test("a racing wheel connecting and disconnecting share a subject")
     func racingWheelSharesSubject() async {
         let events = await run([
@@ -100,10 +78,6 @@ struct GamepadMonitorTests {
         #expect(byName == [
             "GamepadConnected": true,
             "GamepadDisconnected": true,
-            "GamepadKeyboardConnected": false,
-            "GamepadKeyboardDisconnected": false,
-            "GamepadMouseConnected": false,
-            "GamepadMouseDisconnected": false,
             "GamepadRacingWheelConnected": true,
             "GamepadRacingWheelDisconnected": true
         ])

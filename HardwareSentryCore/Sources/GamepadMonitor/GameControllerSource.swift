@@ -1,8 +1,8 @@
 import Foundation
 import GameController
 
-/// Watches the real system for game controllers, and the keyboards/mice/racing wheels
-/// GameController.framework separately recognizes.
+/// Watches the real system for game controllers and the racing wheels GameController
+/// framework separately recognizes.
 ///
 /// Deliberately thin and untested, for the same reason `IOKitUSBDeviceSource` is: none of
 /// it can run without a real device connecting. Everything worth reasoning about lives in
@@ -40,10 +40,9 @@ public final class GameControllerSource: GamepadSource, @unchecked Sendable {
 
             observe(.GCControllerDidConnect, kind: .controller, connected: true) { ($0.object as? GCController)?.vendorName }
             observe(.GCControllerDidDisconnect, kind: .controller, connected: false) { ($0.object as? GCController)?.vendorName }
-            observe(.GCKeyboardDidConnect, kind: .keyboard, connected: true) { _ in nil }
-            observe(.GCKeyboardDidDisconnect, kind: .keyboard, connected: false) { _ in nil }
-            observe(.GCMouseDidConnect, kind: .mouse, connected: true) { _ in nil }
-            observe(.GCMouseDidDisconnect, kind: .mouse, connected: false) { _ in nil }
+            // No GCKeyboardDidConnect/GCMouseDidConnect observers — see GamepadEvent's own
+            // doc comment: reported live, these fire for an ordinary keyboard/mouse, not
+            // only a dedicated gaming one, which the switch that used to gate them promised.
             observe(.GCRacingWheelDidConnect, kind: .racingWheel, connected: true) { ($0.object as? GCRacingWheel)?.vendorName }
             observe(.GCRacingWheelDidDisconnect, kind: .racingWheel, connected: false) { ($0.object as? GCRacingWheel)?.vendorName }
 

@@ -97,6 +97,11 @@ final class EventSettingsModel {
 
     func setEnabled(_ enabled: Bool, for event: MonitorEventDescription, in category: NotificationCategory) {
         preferences.setEnabled(enabled, for: event.name, in: category)
+        // Reported live: switching one notification by hand, with a preset selected, left
+        // the picker still reading "All elements"/"Minimal elements"/"Recommended" even
+        // though the arrangement no longer matched any of them. Touching a notification is
+        // exactly as much "custom" as touching a module is.
+        fallIntoCustom()
         revision += 1
     }
 
@@ -107,6 +112,9 @@ final class EventSettingsModel {
 
     func setShown(_ shown: Bool, for field: MonitorFieldDescription, in category: NotificationCategory) {
         preferences.setFieldEnabled(shown, for: field.name, in: category)
+        // Same reasoning as the notification switch above: a body-field checkbox is part
+        // of "the arrangement" too.
+        fallIntoCustom()
         revision += 1
     }
 

@@ -13,3 +13,7 @@ BluetoothSignalChange	BluetoothSignalNone,BluetoothSignalWeak,BluetoothSignalFai
 ThermalStateChanged	ThermalNominal,ThermalFair,ThermalSerious,ThermalCritical	one row per pressure level: "tell me when it gets serious" is the request, and a single switch cannot express it
 DarkWakeThermalEmergency	ThermalDarkWakeEmergency	renamed for the prefix every event in the module carries
 AudioMicInUse	AudioMicInUseChanged	renamed: it fires when the microphone starts *and* stops being used, which the original name reads as only the former
+GamepadKeyboardConnected		deliberately dropped, 2026-09-05 — GCKeyboardDidConnectNotification fires for any keyboard the system has, not only a dedicated gaming one; the original's own comment claims otherwise, reported live as wrong
+GamepadKeyboardDisconnected		as above
+GamepadMouseConnected		as above, for GCMouseDidConnectNotification and an ordinary mouse
+GamepadMouseDisconnected		as above
