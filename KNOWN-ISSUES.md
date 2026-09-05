@@ -3,6 +3,36 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: same teardown race, found for `mediumType` too, by an audit rather than a new report
+
+**Status:** fixed 2026-09-06, confirmed working live for the two-disks-at-once case;
+this one specific field was found by auditing the codebase for the same shape of bug
+after the fix directly below, not by a fresh live report of it happening.
+
+**What was checked.** After the departure-cache fix for `massStorageHint` was confirmed
+working, an audit went looking for every other place in the application that re-reads
+live system state for one specific device at disconnect with no cache — the same shape
+of race. It found one real, currently-unprotected instance: `mediumType` ("Solid
+State"/"Rotational") is read via the exact same `storageMedium(_:)` registry walk that
+`massStorageHint`'s BSD name comes from — same disk-layer subtree, same teardown timing
+— but had no cache of its own, unlike `massStorageHint` and `interfaceClasses`. A
+disconnect notification could lose its "Medium" line for the identical reason one of the
+two disks lost its "External Disk" kind, just not yet reported live because losing one
+line reads as less obviously wrong than losing the whole kind.
+
+Everything else checked — Camera, Gamepad, Thunderbolt, Bluetooth, Audio, Display, Power,
+Printer, Scanner, Volume — either never re-reads live per-device state at departure at
+all (most of them), or already has its own fallback for the one place it does
+(`NetworkMonitor`'s Wi-Fi SSID). Camera's `AVCaptureDevice.uniqueID`/`localizedName` and
+Gamepad's `GCController.vendorName` are re-read live at disconnect too, but both are
+simple client-side-cached properties rather than a multi-layer registry/DiskArbitration
+walk, and neither has ever been reported doing this — left unguarded rather than fixed on
+spec.
+
+**The fix.** A third cache, `resolvedMediumTypes`, mirrors the other two exactly: filled
+in on arrival wherever a mediumType is read (whichever of the three code paths that
+happens on), read back on departure whenever the fresh read comes back nil.
+
 ## Fixed: one of two external disks read generic "Mass Storage" only on disconnect
 
 **Status:** fixed 2026-09-06, reported live with two real external HDDs connected at

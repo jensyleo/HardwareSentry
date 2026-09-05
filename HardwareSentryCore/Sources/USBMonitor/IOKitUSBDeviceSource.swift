@@ -84,6 +84,17 @@ private final class RegistryWatcher: @unchecked Sendable {
     private var resolvedMassStorageHintsOrder: [String] = []
     private static let maxResolvedMassStorageHints = 256
 
+    /// What a Mass Storage device's medium ("Solid State"/"Rotational") turned out to be,
+    /// remembered by identity for exactly the same reason `resolvedMassStorageHints` is:
+    /// `storageMedium(_:)` reads `mediumType` off the very same disk-layer registry
+    /// subtree, in the very same walk, that `massStorageHint` reads the disk's BSD name
+    /// from — the identical teardown race that made one of two disconnected disks lose
+    /// its "External Disk" kind can just as easily make either one lose its "Solid
+    /// State"/"Rotational" line instead, or as well.
+    private var resolvedMediumTypes: [String: String] = [:]
+    private var resolvedMediumTypesOrder: [String] = []
+    private static let maxResolvedMediumTypes = 256
+
     /// The still-polling ambiguous-device enrichment tasks, so `stop()` can cancel them
     /// instead of leaving them to keep hitting IOKit for up to 400ms after the watcher —
     /// and the stream it feeds — is already gone.
@@ -126,6 +137,24 @@ private final class RegistryWatcher: @unchecked Sendable {
     private func forgetMassStorageHint(for key: String) -> USBMassStorageHint? {
         resolvedMassStorageHintsOrder.removeAll { $0 == key }
         return resolvedMassStorageHints.removeValue(forKey: key)
+    }
+
+    /// Remembers a device's storage medium under its identity, evicting the oldest entry
+    /// once the cache is full — the same bound and the same reason the other two caches
+    /// have one.
+    private func rememberMediumType(_ medium: String, for key: String) {
+        if resolvedMediumTypes.updateValue(medium, forKey: key) == nil {
+            resolvedMediumTypesOrder.append(key)
+        }
+        while resolvedMediumTypesOrder.count > Self.maxResolvedMediumTypes {
+            let oldest = resolvedMediumTypesOrder.removeFirst()
+            resolvedMediumTypes.removeValue(forKey: oldest)
+        }
+    }
+
+    private func forgetMediumType(for key: String) -> String? {
+        resolvedMediumTypesOrder.removeAll { $0 == key }
+        return resolvedMediumTypes.removeValue(forKey: key)
     }
 
     /// A device's physical identity, stable across the registry-entry replacement a
@@ -237,14 +266,21 @@ private final class RegistryWatcher: @unchecked Sendable {
                 // real external HDDs disconnected in the same session, one read correctly
                 // and the other read plain generic "Mass Storage" — the cache below is
                 // what arrival already worked out, the same fallback the interfaces get.
+                // `mediumType` ("Solid State"/"Rotational") comes from the identical
+                // registry walk `massStorageHint`'s BSD name does, so it races the exact
+                // same way and gets the exact same fallback.
                 let cachedInterfaces = key.flatMap { forgetInterfaceClasses(for: $0) }
                 let cachedHint = key.flatMap { forgetMassStorageHint(for: $0) }
+                let cachedMedium = key.flatMap { forgetMediumType(for: $0) }
                 let interfaceClasses = (Self.isAmbiguous(device) && !(cachedInterfaces ?? []).isEmpty)
                     ? cachedInterfaces!
                     : device.interfaceClasses
-                let detail = device.detail.massStorageHint == nil
+                var detail = device.detail.massStorageHint == nil
                     ? device.detail.withMassStorageHint(cachedHint)
                     : device.detail
+                if detail.mediumType == nil {
+                    detail = detail.withMediumType(cachedMedium)
+                }
 
                 continuation.yield(.detached(USBDevice(
                     name: device.name,
@@ -263,6 +299,9 @@ private final class RegistryWatcher: @unchecked Sendable {
                 }
                 if let key, let hint = device.detail.massStorageHint {
                     rememberMassStorageHint(hint, for: key)
+                }
+                if let key, let medium = device.detail.mediumType {
+                    rememberMediumType(medium, for: key)
                 }
 
                 // Reported live, 2026-09-06: an external HDD enclosure that declares
@@ -300,6 +339,9 @@ private final class RegistryWatcher: @unchecked Sendable {
                         )
                         if let key, let hint {
                             queue.async { [weak self] in self?.rememberMassStorageHint(hint, for: key) }
+                        }
+                        if let key, let medium = device.detail.mediumType {
+                            queue.async { [weak self] in self?.rememberMediumType(medium, for: key) }
                         }
                         continuation.yield(.attached(enriched))
                         queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }
@@ -362,6 +404,9 @@ private final class RegistryWatcher: @unchecked Sendable {
                             queue.async { [weak self] in self?.rememberMassStorageHint(hint, for: key) }
                         }
                     }
+                }
+                if let key, let medium = enriched.detail.mediumType {
+                    queue.async { [weak self] in self?.rememberMediumType(medium, for: key) }
                 }
                 continuation.yield(.attached(enriched))
                 queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }

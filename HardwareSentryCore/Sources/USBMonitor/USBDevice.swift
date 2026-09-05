@@ -420,6 +420,19 @@ public struct USBDeviceDetail: Sendable, Equatable {
         )
     }
 
+    /// A copy with only the storage medium changed — for departure falling back to what
+    /// arrival already found, the same reasoning `withMassStorageHint` rests on.
+    func withMediumType(_ medium: String?) -> USBDeviceDetail {
+        USBDeviceDetail(
+            productName: productName, vendorID: vendorID, productID: productID,
+            speedCode: speedCode, requiredCurrent: requiredCurrent, availableCurrent: availableCurrent,
+            requestedMoreThanAvailable: requestedMoreThanAvailable, mediumType: medium,
+            massStorageHint: massStorageHint, serialNumber: serialNumber, releaseVersion: releaseVersion,
+            locationID: locationID, configurationCount: configurationCount, specVersion: specVersion,
+            isTunnelled: isTunnelled, isPortRemovable: isPortRemovable, connectorType: connectorType
+        )
+    }
+
     public init(
         productName: String? = nil,
         vendorID: UInt16? = nil,
