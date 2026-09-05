@@ -399,6 +399,44 @@ private final class RegistryWatcher: @unchecked Sendable {
                     continue
                 }
 
+                // A device already resolved to `.hid` at this very first read — a
+                // gamepad declaring HID directly at the device level, not only the
+                // composite kind the branch below retries for — can still be waiting on
+                // its own `IOHIDDevice` object to publish a Usage Page/Usage. Reported
+                // live, 2026-09-06: a real generic USB gamepad connected as "Keyboard/
+                // Mouse", then correctly as "Gamepad/Joystick" on its own disconnect —
+                // departure re-reads a registry entry that has been alive long enough
+                // for this to have settled, arrival does not get that luxury.
+                if Self.isUnresolvedHIDUsage(device) {
+                    let vendorID = device.detail.vendorID
+                    let productID = device.detail.productID
+                    let locationID = device.detail.locationID
+                    let continuation = self.continuation
+                    let queue = self.queue
+                    let taskID = UUID()
+
+                    let task = Task.detached { [weak self] in
+                        let usage = await Self.enrichedHIDUsage(
+                            vendorID: vendorID, productID: productID, locationID: locationID
+                        )
+                        guard !Task.isCancelled else { return }
+                        let enriched = usage == nil ? device : USBDevice(
+                            name: device.name,
+                            vendorName: device.vendorName,
+                            isHub: device.isHub,
+                            deviceClass: device.deviceClass,
+                            deviceSubClass: device.deviceSubClass,
+                            deviceProtocol: device.deviceProtocol,
+                            interfaceClasses: device.interfaceClasses,
+                            detail: device.detail.withHIDUsage(page: usage?.page, usage: usage?.usage)
+                        )
+                        continuation.yield(.attached(enriched))
+                        queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }
+                    }
+                    pendingEnrichments[taskID] = task
+                    continue
+                }
+
                 continuation.yield(.attached(device))
                 continue
             }
@@ -464,6 +502,29 @@ private final class RegistryWatcher: @unchecked Sendable {
                 }
                 if let key, let medium = enriched.detail.mediumType {
                     queue.async { [weak self] in self?.rememberMediumType(medium, for: key) }
+                }
+                // A composite device (a gamepad enumerating as `0x00` at the device level,
+                // most often) can resolve, once its interfaces arrive, to a HID device
+                // whose own `IOHIDDevice` Usage Page/Usage is still being published — the
+                // same wait `isUnresolvedHIDUsage` guards against on the non-composite
+                // branch above, chained on here for the same reason `isUnresolvedMassStorage`
+                // is.
+                if Self.isUnresolvedHIDUsage(enriched) {
+                    let usage = await Self.enrichedHIDUsage(
+                        vendorID: vendorID, productID: productID, locationID: locationID
+                    )
+                    if let usage {
+                        enriched = USBDevice(
+                            name: enriched.name,
+                            vendorName: enriched.vendorName,
+                            isHub: enriched.isHub,
+                            deviceClass: enriched.deviceClass,
+                            deviceSubClass: enriched.deviceSubClass,
+                            deviceProtocol: enriched.deviceProtocol,
+                            interfaceClasses: enriched.interfaceClasses,
+                            detail: enriched.detail.withHIDUsage(page: usage.page, usage: usage.usage)
+                        )
+                    }
                 }
                 continuation.yield(.attached(enriched))
                 queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }
@@ -591,6 +652,67 @@ private final class RegistryWatcher: @unchecked Sendable {
             let candidateLocation = uint32(candidate, "locationID")
             guard candidateVendor == vendorID, candidateProduct == productID, candidateLocation == locationID else { continue }
             return Self.massStorageHint(candidate)
+        }
+        return nil
+    }
+
+    /// A fresh, one-shot scan for the HID Usage Page/Usage of the device matching this
+    /// identity — the same re-finding `matchingMassStorageHint` does, for the same
+    /// reason: the `IOHIDDevice` object underneath a HID interface, unlike the interface
+    /// itself, is not there yet at the instant a device first arrives.
+    private static func matchingHIDUsage(
+        vendorID: UInt16?,
+        productID: UInt16?,
+        locationID: UInt32?
+    ) -> (page: Int, usage: Int)? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(Self.deviceClass), &iterator) == KERN_SUCCESS else {
+            return nil
+        }
+        defer { IOObjectRelease(iterator) }
+
+        while case let candidate = IOIteratorNext(iterator), candidate != 0 {
+            defer { IOObjectRelease(candidate) }
+            let candidateVendor = uint16(candidate, "idVendor")
+            let candidateProduct = uint16(candidate, "idProduct")
+            let candidateLocation = uint32(candidate, "locationID")
+            guard candidateVendor == vendorID, candidateProduct == productID, candidateLocation == locationID else { continue }
+            return Self.hidPrimaryUsage(candidate)
+        }
+        return nil
+    }
+
+    /// Whether this device resolved to `.hid` but has not yet had its Usage Page/Usage
+    /// read — the same "not there yet" gap `isUnresolvedMassStorage` retries for, on the
+    /// `IOHIDDevice` object rather than the disk description. A device that stays this
+    /// way past `enrichedHIDUsage`'s own deadline is left exactly `.hid` — the honest,
+    /// original answer, not a wrong specific guess.
+    private static func isUnresolvedHIDUsage(_ device: USBDevice) -> Bool {
+        device.kind == .hid && device.detail.hidUsagePage == nil
+    }
+
+    /// Polls for the same device's HID Usage Page/Usage under a fresh registry entry each
+    /// time — the same identity-based re-finding `enrichedMassStorageHint` rests on, and
+    /// for a device this ambiguous at the device level, chained after that function's own
+    /// interface retry rather than raced against it.
+    ///
+    /// Bounded far more tightly than `enrichedMassStorageHint`'s own 8-second worst case:
+    /// there is no physical disk to wait on here, only the HID family's own software
+    /// registration of a `IOHIDDevice`/`IOHIDInterface` pair, which the interface class
+    /// itself (already retried for 400ms above) is the slower of the two steps in
+    /// practice. 15 tries, 40ms apart — the same cadence `enrichedInterfaceClasses` uses —
+    /// is paid by every HID device this resolves for at all, keyboard and mouse included,
+    /// not only a gamepad, so it stays short on purpose.
+    private static func enrichedHIDUsage(
+        vendorID: UInt16?,
+        productID: UInt16?,
+        locationID: UInt32?
+    ) async -> (page: Int, usage: Int)? {
+        for _ in 0..<15 {
+            if let found = matchingHIDUsage(vendorID: vendorID, productID: productID, locationID: locationID) {
+                return found
+            }
+            try? await Task.sleep(nanoseconds: 40_000_000)
         }
         return nil
     }

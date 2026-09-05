@@ -3,6 +3,30 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: a USB gamepad connected as "Keyboard/Mouse", disconnected as "Gamepad/Joystick"
+
+**Status:** fixed 2026-09-06, reported live immediately after the Gamepad/Joystick
+classification itself shipped — the same real generic USB gamepad (`idVendor` 0x0810)
+used to confirm that feature, connected and disconnected in the same session.
+
+**What was actually happening.** The same teardown/enumeration race this file already
+has three entries for (External Disk's connect/disconnect saga; `mediumType`'s own,
+found by audit rather than report), on a fourth registry subtree: the HID interface's
+own `bInterfaceClass` (`0x03`) is visible immediately, but the `IOHIDDevice` object
+underneath it — the only place a Usage Page/Usage ever appears — is not published yet
+at the instant a device first arrives. Confirmed live: connect read `hidUsagePage` as
+nil and fell back to plain `.hid` ("Keyboard/Mouse"); disconnect, re-reading a registry
+entry that had been alive for however long the device was actually connected, found the
+Usage Page/Usage already settled and correctly read `.gamepad`.
+
+**The fix.** The exact same shape as `enrichedMassStorageHint`/`enrichedInterfaceClasses`
+before it: `enrichedHIDUsage`, a short identity-based retry (15 tries, 40ms apart — the
+same cadence as the interface-class retry, since this is software registration with no
+physical device to wait on, unlike a disk's own description) chained onto both arrival
+paths a HID device can take — the plain one (device class `0x03` directly) and the
+composite one (device class `0x00`/`0xEF`, `0x03` on an interface). A device that still
+has not resolved by the deadline is left exactly `.hid`, the honest, original answer.
+
 ## Fixed: a USB-serial adapter went silent, read as a sibling hub instead
 
 **Status:** fixed 2026-09-06, reported live as "connected a serial device and it's

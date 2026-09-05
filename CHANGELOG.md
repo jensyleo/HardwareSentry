@@ -42,6 +42,15 @@ devices independently of USB Monitor" switch Camera/Audio already have, to fold 
 plainer USB Monitor duplicate away in favor of Gamepad Monitor's own. On by default,
 matching the original pair's own defaults.
 
+**Found immediately after shipping the above, same live device:** connect read as
+"Keyboard/Mouse," disconnect correctly as "Gamepad/Joystick" — the same teardown/
+enumeration race `KNOWN-ISSUES.md` already has entries for, on a fourth registry
+subtree (the `IOHIDDevice` object a HID interface's Usage Page/Usage lives on, not
+published yet at the instant a device first arrives). Fixed the same way: a short
+identity-based retry (`enrichedHIDUsage`, 15 tries/40ms — no physical device to wait on
+here, so far shorter than the disk-description retry), chained onto both arrival paths
+a HID device can take.
+
 ### USB Monitor tells a Bluetooth dongle apart from a plain wireless controller — and, as a best-effort guess, a WiFi one
 
 Both used to read as the same generic "Wireless Controller" row (`0xE0`). Bluetooth is

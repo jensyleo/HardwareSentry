@@ -583,6 +583,21 @@ public struct USBDeviceDetail: Sendable, Equatable {
         )
     }
 
+    /// A copy with only the HID Usage Page/Usage changed — for the arrival-time retry
+    /// that re-reads a HID device once its `IOHIDDevice` object has had time to publish
+    /// them, the same reasoning above rests on.
+    func withHIDUsage(page: Int?, usage: Int?) -> USBDeviceDetail {
+        USBDeviceDetail(
+            productName: productName, vendorID: vendorID, productID: productID,
+            speedCode: speedCode, requiredCurrent: requiredCurrent, availableCurrent: availableCurrent,
+            requestedMoreThanAvailable: requestedMoreThanAvailable, mediumType: mediumType,
+            massStorageHint: massStorageHint, serialNumber: serialNumber, releaseVersion: releaseVersion,
+            locationID: locationID, configurationCount: configurationCount, specVersion: specVersion,
+            isTunnelled: isTunnelled, isPortRemovable: isPortRemovable, connectorType: connectorType,
+            hidUsagePage: page, hidUsage: usage
+        )
+    }
+
     /// A copy with only the storage medium changed — for departure falling back to what
     /// arrival already found, the same reasoning `withMassStorageHint` rests on.
     func withMediumType(_ medium: String?) -> USBDeviceDetail {
