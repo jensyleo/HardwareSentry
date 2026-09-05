@@ -25,11 +25,17 @@ public struct SystemNetworkSource: NetworkSource {
     /// consumed — a setting that appeared to work and did nothing.
     public struct SignalPolling: Sendable, Equatable {
         public var interval: TimeInterval
+        /// Off entirely stops this timer — no signal read, no promiscuous-interface
+        /// check, no bond-member check, since `startWiFiSignalPoll` rolls all three onto
+        /// the same cadence. For whoever wants zero periodic work from this module
+        /// rather than a slower one; on by default, matching every prior behaviour.
+        public var enabled: Bool
 
         public static let intervalRange: ClosedRange<TimeInterval> = 5...60
 
-        public init(interval: TimeInterval = 12) {
+        public init(interval: TimeInterval = 12, enabled: Bool = true) {
             self.interval = interval.clamped(to: Self.intervalRange)
+            self.enabled = enabled
         }
     }
 
@@ -521,6 +527,7 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     /// figure: often enough to notice walking out of range, rare enough that a laptop
     /// sitting still is not doing constant work.
     private func startWiFiSignalPoll() {
+        guard signalPolling.enabled else { return }
         signalPollTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(self?.signalPolling.interval ?? 12))

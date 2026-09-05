@@ -387,19 +387,25 @@ private struct ModuleDetail: View {
                 }
 
                 Section("Mass Storage detection") {
-                    slider(
-                        "Poll interval",
-                        value: $tuning.massStoragePollMilliseconds,
-                        range: 100...2000,
-                        caption: "How often an external disk's own description is re-checked while its kind (USB Drive, SD Card, External Disk) is still unresolved (100–2000 ms). A disk that resolves before the first check pays none of this wait; a shorter interval only speeds up the ones that don\u{2019}t.",
-                        unit: "ms"
-                    )
-                    slider(
-                        "Give up after",
-                        value: $tuning.massStorageTimeoutSeconds,
-                        range: 2...20,
-                        caption: "The longest USB Monitor waits for a slow disk\u{2019}s description before showing it generically as \u{201C}Mass Storage\u{201D} instead (2\u{2013}20 s). Measured at 8 s against a real, unusually slow enclosure \u{2014} lowering it risks that same device going generic again. Volume Monitor's own \u{201C}Volume Mounted\u{201D} notice does not wait for this at all, so a slow disk can still show as mounted before USB Monitor names it specifically; see TODO.md. Takes effect the next time the application starts."
-                    )
+                    Toggle("Wait for a slow disk to resolve its own kind", isOn: $tuning.massStorageDetectionEnabled)
+                    Text("Off skips the retry outright \u{2014} an ambiguous disk (USB Drive, SD Card or External Disk not yet told apart) is announced immediately as generic \u{201C}Mass Storage\u{201D}, and no background task ever polls for it. For a Mac where that extra, per-connection work is not worth waiting for the more specific icon; on by default. Takes effect the next time the application starts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if tuning.massStorageDetectionEnabled {
+                        slider(
+                            "Poll interval",
+                            value: $tuning.massStoragePollMilliseconds,
+                            range: 100...2000,
+                            caption: "How often an external disk's own description is re-checked while its kind is still unresolved (100–2000 ms). A disk that resolves before the first check pays none of this wait; a shorter interval only speeds up the ones that don\u{2019}t.",
+                            unit: "ms"
+                        )
+                        slider(
+                            "Give up after",
+                            value: $tuning.massStorageTimeoutSeconds,
+                            range: 2...20,
+                            caption: "The longest USB Monitor waits for a slow disk\u{2019}s description before showing it generically as \u{201C}Mass Storage\u{201D} instead (2\u{2013}20 s). Measured at 8 s against a real, unusually slow enclosure \u{2014} lowering it risks that same device going generic again. Volume Monitor's own \u{201C}Volume Mounted\u{201D} notice does not wait for this at all, so a slow disk can still show as mounted before USB Monitor names it specifically; see TODO.md."
+                        )
+                    }
                 }
             }
 
@@ -445,18 +451,24 @@ private struct ModuleDetail: View {
 
             if module.category.rawValue == "Network", title == "Wi-Fi" {
                 Section {
-                    slider(
-                        "Wi-Fi signal check interval",
-                        value: $tuning.wifiSignalSeconds,
-                        range: 5...60,
-                        caption: "How often the Wi-Fi signal strength is checked (5–60 s)."
-                    )
-                    slider(
-                        "Minimum time between signal-change notices",
-                        value: $tuning.wifiSignalCooldownSeconds,
-                        range: 0...60,
-                        caption: "Prevents repeat notices if the signal hovers at a threshold (0–60 s, 0 = off)."
-                    )
+                    Toggle("Check Wi-Fi signal strength periodically", isOn: $tuning.wifiSignalPollingEnabled)
+                    Text("Off stops this timer entirely \u{2014} no signal read, no promiscuous-interface check, no bond-member check, since all three share this one cadence. For a Mac where that periodic wake-up is not worth its cost; on by default. Takes effect the next time the application starts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if tuning.wifiSignalPollingEnabled {
+                        slider(
+                            "Wi-Fi signal check interval",
+                            value: $tuning.wifiSignalSeconds,
+                            range: 5...60,
+                            caption: "How often the Wi-Fi signal strength is checked (5–60 s)."
+                        )
+                        slider(
+                            "Minimum time between signal-change notices",
+                            value: $tuning.wifiSignalCooldownSeconds,
+                            range: 0...60,
+                            caption: "Prevents repeat notices if the signal hovers at a threshold (0–60 s, 0 = off)."
+                        )
+                    }
                     slider(
                         "Radio-power backstop interval",
                         value: $tuning.wifiRadioSeconds,

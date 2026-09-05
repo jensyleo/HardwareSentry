@@ -9,6 +9,7 @@ import IOKit.usb
 /// adapter is: none of it can run without real hardware events. Everything worth
 /// reasoning about lives in `USBMonitor`, behind `USBDeviceSource`.
 public struct IOKitUSBDeviceSource: USBDeviceSource {
+    private let massStorageDetectionEnabled: Bool
     private let massStoragePollInterval: TimeInterval
     private let massStorageTimeout: TimeInterval
 
@@ -17,7 +18,18 @@ public struct IOKitUSBDeviceSource: USBDeviceSource {
     /// than fixed so a Mac where the default 8-second worst case is annoying, or too short
     /// for a particular disk, can be adjusted without a new build — see
     /// `MonitorTuningModel.massStoragePollMilliseconds`/`massStorageTimeoutSeconds`.
-    public init(massStoragePollInterval: TimeInterval = 0.25, massStorageTimeout: TimeInterval = 8.0) {
+    ///
+    /// `massStorageDetectionEnabled`, off, skips the retry outright rather than shrinking
+    /// it to nothing — no background task is spawned at all for an otherwise-ambiguous
+    /// disk, which is the point for whoever wants zero extra work from this feature: the
+    /// device is announced immediately, as generically classified as it would have been
+    /// before this retry existed.
+    public init(
+        massStorageDetectionEnabled: Bool = true,
+        massStoragePollInterval: TimeInterval = 0.25,
+        massStorageTimeout: TimeInterval = 8.0
+    ) {
+        self.massStorageDetectionEnabled = massStorageDetectionEnabled
         self.massStoragePollInterval = massStoragePollInterval
         self.massStorageTimeout = massStorageTimeout
     }
@@ -43,6 +55,7 @@ public struct IOKitUSBDeviceSource: USBDeviceSource {
         AsyncStream { continuation in
             let watcher = RegistryWatcher(
                 continuation: continuation,
+                massStorageDetectionEnabled: massStorageDetectionEnabled,
                 massStoragePollInterval: massStoragePollInterval,
                 massStorageTimeout: massStorageTimeout
             )
@@ -115,17 +128,20 @@ private final class RegistryWatcher: @unchecked Sendable {
     /// and the stream it feeds — is already gone.
     private var pendingEnrichments: [UUID: Task<Void, Never>] = [:]
 
-    /// How often, and for how long, `enrichedMassStorageHint` re-checks an unresolved
-    /// disk — see `IOKitUSBDeviceSource.init` for where these come from.
+    /// Whether an unresolved disk is retried at all, and how often/for how long — see
+    /// `IOKitUSBDeviceSource.init` for where these come from.
+    private let massStorageDetectionEnabled: Bool
     private let massStoragePollInterval: TimeInterval
     private let massStorageTimeout: TimeInterval
 
     init(
         continuation: AsyncStream<USBDeviceChange>.Continuation,
+        massStorageDetectionEnabled: Bool = true,
         massStoragePollInterval: TimeInterval = 0.25,
         massStorageTimeout: TimeInterval = 8.0
     ) {
         self.continuation = continuation
+        self.massStorageDetectionEnabled = massStorageDetectionEnabled
         self.massStoragePollInterval = massStoragePollInterval
         self.massStorageTimeout = massStorageTimeout
     }
@@ -342,7 +358,7 @@ private final class RegistryWatcher: @unchecked Sendable {
                 // is, confirmed live once already for interfaces — a same-handle retry,
                 // tried first, was reported unchanged, because it stayed a stale handle
                 // through the wait rather than a live one.
-                if Self.isUnresolvedMassStorage(device) {
+                if massStorageDetectionEnabled, Self.isUnresolvedMassStorage(device) {
                     let vendorID = device.detail.vendorID
                     let productID = device.detail.productID
                     let locationID = device.detail.locationID
@@ -389,6 +405,7 @@ private final class RegistryWatcher: @unchecked Sendable {
             let continuation = self.continuation
             let queue = self.queue
             let taskID = UUID()
+            let detectionEnabled = massStorageDetectionEnabled
             let pollInterval = massStoragePollInterval
             let timeout = massStorageTimeout
 
@@ -418,7 +435,7 @@ private final class RegistryWatcher: @unchecked Sendable {
                 // attaching too — the same wait `isUnresolvedMassStorage` guards against
                 // on an otherwise-ordinary device, chained on here rather than yielding
                 // once now and again later for what is still one arrival.
-                if Self.isUnresolvedMassStorage(enriched) {
+                if detectionEnabled, Self.isUnresolvedMassStorage(enriched) {
                     let hint = await Self.enrichedMassStorageHint(
                         vendorID: vendorID, productID: productID, locationID: locationID,
                         pollInterval: pollInterval, timeout: timeout

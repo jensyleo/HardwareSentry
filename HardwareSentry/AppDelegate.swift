@@ -168,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices,
             usbIgnoresIdentifiedGenericDevices: tuning.usbIgnoresIdentifiedGenericDevices,
             scannerStatusInterval: tuning.scannerStatusInterval,
-            networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
+            networkSignalPolling: .init(interval: tuning.wifiSignalSeconds, enabled: tuning.wifiSignalPollingEnabled),
             networkRadioPollInterval: tuning.wifiRadioPollInterval,
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
             videoLinkPollInterval: tuning.videoLinkPollInterval,
@@ -179,6 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bluetoothBLEPollInterval: tuning.bluetoothBLEPollInterval,
             printerPollInterval: tuning.printerPollInterval,
             volumeFreeSpacePollInterval: tuning.volumeFreeSpacePollInterval,
+            massStorageDetectionEnabled: tuning.massStorageDetectionEnabled,
             massStoragePollInterval: tuning.massStoragePollMilliseconds / 1000,
             massStorageTimeout: tuning.massStorageTimeoutSeconds
         )

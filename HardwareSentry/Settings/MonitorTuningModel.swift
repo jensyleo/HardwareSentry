@@ -39,8 +39,10 @@ final class MonitorTuningModel {
             Self.usbIgnoresIdentifiedGenericDevicesKey: false,
             Self.usbSerialVendorAutoUpdateKey: true,
             Self.usbSerialVendorUpdateDaysKey: 30.0,
+            Self.massStorageDetectionEnabledKey: true,
             Self.massStoragePollMillisecondsKey: 250.0,
             Self.massStorageTimeoutSecondsKey: 8.0,
+            Self.wifiSignalPollingEnabledKey: true,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -72,8 +74,10 @@ final class MonitorTuningModel {
         usbIgnoresIdentifiedGenericDevices = defaults.bool(forKey: Self.usbIgnoresIdentifiedGenericDevicesKey)
         usbSerialVendorAutoUpdate = defaults.bool(forKey: Self.usbSerialVendorAutoUpdateKey)
         usbSerialVendorUpdateDays = defaults.double(forKey: Self.usbSerialVendorUpdateDaysKey)
+        massStorageDetectionEnabled = defaults.bool(forKey: Self.massStorageDetectionEnabledKey)
         massStoragePollMilliseconds = defaults.double(forKey: Self.massStoragePollMillisecondsKey)
         massStorageTimeoutSeconds = defaults.double(forKey: Self.massStorageTimeoutSecondsKey)
+        wifiSignalPollingEnabled = defaults.bool(forKey: Self.wifiSignalPollingEnabledKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -191,6 +195,14 @@ final class MonitorTuningModel {
         didSet { defaults.set(usbSerialVendorUpdateDays, forKey: Self.usbSerialVendorUpdateDaysKey); onChange?() }
     }
 
+    /// Off skips the retry outright — an ambiguous disk is announced immediately, as
+    /// generically classified as it would have been before this feature existed, and no
+    /// background polling task ever runs for it. On by default, matching every prior
+    /// behaviour.
+    var massStorageDetectionEnabled: Bool {
+        didSet { defaults.set(massStorageDetectionEnabled, forKey: Self.massStorageDetectionEnabledKey); onChange?() }
+    }
+
     /// How often an unresolved Mass Storage device is re-checked while USB Monitor waits
     /// for its disk description — see `IOKitUSBDeviceSource`'s own retry. Mirrors Wi-Fi's
     /// two-slider shape (`wifiSignalSeconds`/`wifiSignalCooldownSeconds`) on purpose:
@@ -239,6 +251,14 @@ final class MonitorTuningModel {
 
     var connectionNaming: ConnectionNaming {
         didSet { defaults.set(connectionNaming.rawValue, forKey: Self.connectionNamingKey) }
+    }
+
+    /// Off stops the signal-strength timer entirely — no signal read, no
+    /// promiscuous-interface check, no bond-member check, since all three share this one
+    /// cadence (see `SystemNetworkSource.startWiFiSignalPoll`). For whoever wants zero
+    /// periodic work from this feature rather than a slower one. On by default.
+    var wifiSignalPollingEnabled: Bool {
+        didSet { defaults.set(wifiSignalPollingEnabled, forKey: Self.wifiSignalPollingEnabledKey); onChange?() }
     }
 
     /// How often the Wi-Fi signal is read, and how long to leave between saying anything
@@ -348,8 +368,10 @@ final class MonitorTuningModel {
     private static let usbIgnoresIdentifiedGenericDevicesKey = "USB.IgnoresIdentifiedGenericDevices"
     private static let usbSerialVendorAutoUpdateKey = "USB.SerialVendorAutoUpdate"
     private static let usbSerialVendorUpdateDaysKey = "USB.SerialVendorUpdateDays"
+    private static let massStorageDetectionEnabledKey = "USB.MassStorageDetectionEnabled"
     private static let massStoragePollMillisecondsKey = "USB.MassStoragePollMilliseconds"
     private static let massStorageTimeoutSecondsKey = "USB.MassStorageTimeoutSeconds"
+    private static let wifiSignalPollingEnabledKey = "Network.WiFiSignalPollingEnabled"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

@@ -25,6 +25,16 @@ a small hand-maintained JSON file from this application's own GitHub repository 
 merging it into the built-in list — additive only, so a failed or empty check never
 loses what was already known.
 
+### Wi-Fi signal polling and Mass Storage detection can now be switched off entirely
+
+Both were only sliders — how often, never whether. Settings → Network → Wi-Fi and
+Settings → USB now each have a checkbox above their sliders: off stops the periodic
+work outright (no timer at all for Wi-Fi's signal/promiscuous-interface/bond-member
+check; no background retry task spawned for an ambiguous disk, which is instead
+announced immediately, as generically classified as it would have been before this
+feature existed). On by default, matching every prior behaviour. For a Mac where the
+periodic wake-up itself, not just its frequency, is not worth its cost.
+
 ### USB Mass Storage detection timing is now tunable, not fixed
 
 The 250ms poll interval and 8-second backstop USB Monitor uses while waiting for an

@@ -66,6 +66,7 @@ public actor MonitorRegistry {
     /// device's disk description — see `IOKitUSBDeviceSource.init`. Read only when
     /// `IOKitUSBDeviceSource` is built in `assemble()`, so a change takes effect the next
     /// time the application starts, the same as `networkRadioPollInterval` above.
+    private let massStorageDetectionEnabled: Bool
     private let massStoragePollInterval: TimeInterval
     private let massStorageTimeout: TimeInterval
     private var monitors: [any Monitor] = []
@@ -103,6 +104,7 @@ public actor MonitorRegistry {
         bluetoothBLEPollInterval: Duration = .seconds(30),
         printerPollInterval: Duration = .seconds(8),
         volumeFreeSpacePollInterval: Duration = .seconds(300),
+        massStorageDetectionEnabled: Bool = true,
         massStoragePollInterval: TimeInterval = 0.25,
         massStorageTimeout: TimeInterval = 8.0
     ) {
@@ -132,6 +134,7 @@ public actor MonitorRegistry {
         self.bluetoothBLEPollInterval = bluetoothBLEPollInterval
         self.printerPollInterval = printerPollInterval
         self.volumeFreeSpacePollInterval = volumeFreeSpacePollInterval
+        self.massStorageDetectionEnabled = massStorageDetectionEnabled
         self.massStoragePollInterval = massStoragePollInterval
         self.massStorageTimeout = massStorageTimeout
     }
@@ -228,6 +231,7 @@ public actor MonitorRegistry {
         monitors = [
             USBMonitor(
                 source: IOKitUSBDeviceSource(
+                    massStorageDetectionEnabled: massStorageDetectionEnabled,
                     massStoragePollInterval: massStoragePollInterval,
                     massStorageTimeout: massStorageTimeout
                 ),
