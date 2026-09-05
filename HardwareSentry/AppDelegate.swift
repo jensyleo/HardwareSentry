@@ -142,10 +142,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             usbIgnoresIdentifiedGenericDevices: tuning.usbIgnoresIdentifiedGenericDevices,
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds),
+            networkRadioPollInterval: tuning.wifiRadioPollInterval,
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
             videoLinkPollInterval: tuning.videoLinkPollInterval,
             connectionNaming: tuning.connectionNaming,
-            volumeExclusions: tuning.volumeExclusions
+            volumeExclusions: tuning.volumeExclusions,
+            bluetoothPairedPollInterval: tuning.bluetoothPairedPollInterval,
+            bluetoothSignalPollInterval: tuning.bluetoothSignalPollInterval,
+            bluetoothBLEPollInterval: tuning.bluetoothBLEPollInterval,
+            printerPollInterval: tuning.printerPollInterval,
+            volumeFreeSpacePollInterval: tuning.volumeFreeSpacePollInterval
         )
         // Changed numbers reach the running monitors rather than waiting for a relaunch.
         tuning.onChange = { [weak self] in

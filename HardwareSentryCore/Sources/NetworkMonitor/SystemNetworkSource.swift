@@ -34,9 +34,16 @@ public struct SystemNetworkSource: NetworkSource {
     }
 
     private let signalPolling: SignalPolling
+    /// How often the radio-power/interface-mode backstop re-checks itself — see
+    /// `startWiFiRadioPoll`'s own doc comment for why this exists at all. Not clamped the
+    /// way `SignalPolling` is: this is a rare-miss safety net, not something anyone is
+    /// expected to tune for a particular use, but it is a real, if cheap, wake-up, so it
+    /// is configurable rather than silently unconditional.
+    private let radioPollInterval: TimeInterval
 
-    public init(signalPolling: SignalPolling = SignalPolling()) {
+    public init(signalPolling: SignalPolling = SignalPolling(), radioPollInterval: TimeInterval = 30) {
         self.signalPolling = signalPolling
+        self.radioPollInterval = radioPollInterval
     }
 
     /// "State:/Network/Interface/en0/Link" → "en0".
@@ -60,7 +67,7 @@ public struct SystemNetworkSource: NetworkSource {
 
     public func changes() -> AsyncStream<NetworkSourceEvent> {
         AsyncStream { continuation in
-            let watcher = Watcher(continuation: continuation, signalPolling: signalPolling)
+            let watcher = Watcher(continuation: continuation, signalPolling: signalPolling, radioPollInterval: radioPollInterval)
             continuation.onTermination = { _ in watcher.stop() }
             watcher.start()
         }
@@ -115,13 +122,16 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     private var adapterArrivalIterator: io_iterator_t = 0
 
     private let signalPolling: SystemNetworkSource.SignalPolling
+    private let radioPollInterval: TimeInterval
 
     init(
         continuation: AsyncStream<NetworkSourceEvent>.Continuation,
-        signalPolling: SystemNetworkSource.SignalPolling = .init()
+        signalPolling: SystemNetworkSource.SignalPolling = .init(),
+        radioPollInterval: TimeInterval = 30
     ) {
         self.continuation = continuation
         self.signalPolling = signalPolling
+        self.radioPollInterval = radioPollInterval
     }
 
     /// The order of these calls is the order the opening notifications appear in, and it
@@ -492,9 +502,9 @@ private final class Watcher: NSObject, CWEventDelegate, CLLocationManagerDelegat
     /// notification after that reads as inexplicable. Thirty seconds, the original's
     /// figure, is cheap: reading a power flag is not work.
     private func startWiFiRadioPoll() {
-        radioPollTask = Task { [weak self] in
+        radioPollTask = Task { [weak self, radioPollInterval] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(radioPollInterval))
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     self?.emitWiFiRadioPower()

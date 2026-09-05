@@ -11,15 +11,20 @@ import IOBluetooth
 public struct IOBluetoothSource: BluetoothSource {
     private let pairedPollInterval: Duration
     private let signalPollInterval: Duration
+    private let blePollInterval: Duration
 
     /// - Parameter signalPollInterval: ten seconds, the original's figure. There is no
     ///   push notification for RSSI moving, so it has to be asked for.
+    /// - Parameter blePollInterval: thirty seconds — a BLE accessory does not come and go
+    ///   the way a cable does, so this can afford to ask far less often than the other two.
     public init(
         pairedPollInterval: Duration = .seconds(15),
-        signalPollInterval: Duration = .seconds(10)
+        signalPollInterval: Duration = .seconds(10),
+        blePollInterval: Duration = .seconds(30)
     ) {
         self.pairedPollInterval = pairedPollInterval
         self.signalPollInterval = signalPollInterval
+        self.blePollInterval = blePollInterval
     }
 
     public func changes() -> AsyncStream<BluetoothSourceEvent> {
@@ -27,7 +32,8 @@ public struct IOBluetoothSource: BluetoothSource {
             let watcher = Watcher(
                 continuation: continuation,
                 pairedPollInterval: pairedPollInterval,
-                signalPollInterval: signalPollInterval
+                signalPollInterval: signalPollInterval,
+                blePollInterval: blePollInterval
             )
             continuation.onTermination = { _ in watcher.stop() }
             watcher.start()
@@ -39,6 +45,7 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     private let continuation: AsyncStream<BluetoothSourceEvent>.Continuation
     private let pairedPollInterval: Duration
     private let signalPollInterval: Duration
+    private let blePollInterval: Duration
 
     private var connectNotification: IOBluetoothUserNotification?
     private var radioOnToken: NSObjectProtocol?
@@ -93,11 +100,13 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     init(
         continuation: AsyncStream<BluetoothSourceEvent>.Continuation,
         pairedPollInterval: Duration,
-        signalPollInterval: Duration
+        signalPollInterval: Duration,
+        blePollInterval: Duration
     ) {
         self.continuation = continuation
         self.pairedPollInterval = pairedPollInterval
         self.signalPollInterval = signalPollInterval
+        self.blePollInterval = blePollInterval
     }
 
     func start() {
@@ -124,10 +133,10 @@ private final class Watcher: NSObject, CBCentralManagerDelegate, CBPeripheralDel
 
         // Slower than the rest: this asks CoreBluetooth for the accessories the system is
         // connected to, and a BLE accessory does not come and go the way a cable does.
-        blePollTask = Task { [weak self] in
+        blePollTask = Task { [weak self, blePollInterval] in
             while !Task.isCancelled {
                 await MainActor.run { self?.refreshBLEAccessories() }
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: blePollInterval)
             }
         }
 

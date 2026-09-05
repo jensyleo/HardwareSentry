@@ -52,10 +52,16 @@ public actor MonitorRegistry {
     private let usbIgnoresIdentifiedGenericDevices: Bool
     private let scannerStatusInterval: Duration
     private let networkSignalPolling: SystemNetworkSource.SignalPolling
+    private let networkRadioPollInterval: TimeInterval
     private let networkSignalCooldown: TimeInterval
     private let videoLinkPollInterval: Duration
     private let connectionNaming: ConnectionNaming
     private let volumeExclusions: VolumeExclusions
+    private let bluetoothPairedPollInterval: Duration
+    private let bluetoothSignalPollInterval: Duration
+    private let bluetoothBLEPollInterval: Duration
+    private let printerPollInterval: Duration
+    private let volumeFreeSpacePollInterval: Duration
     private var monitors: [any Monitor] = []
 
     /// Whether monitors announce what they find already there when they start.
@@ -81,10 +87,16 @@ public actor MonitorRegistry {
         usbIgnoresIdentifiedGenericDevices: Bool = false,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
+        networkRadioPollInterval: TimeInterval = 30,
         networkSignalCooldown: TimeInterval = 10,
         videoLinkPollInterval: Duration = .seconds(5),
         connectionNaming: ConnectionNaming = .mediumAndType,
-        volumeExclusions: VolumeExclusions = VolumeExclusions()
+        volumeExclusions: VolumeExclusions = VolumeExclusions(),
+        bluetoothPairedPollInterval: Duration = .seconds(15),
+        bluetoothSignalPollInterval: Duration = .seconds(10),
+        bluetoothBLEPollInterval: Duration = .seconds(30),
+        printerPollInterval: Duration = .seconds(8),
+        volumeFreeSpacePollInterval: Duration = .seconds(300)
     ) {
         self.dispatcher = dispatcher
         self.preferences = preferences
@@ -102,10 +114,16 @@ public actor MonitorRegistry {
         self.usbIgnoresIdentifiedGenericDevices = usbIgnoresIdentifiedGenericDevices
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
+        self.networkRadioPollInterval = networkRadioPollInterval
         self.networkSignalCooldown = networkSignalCooldown
         self.videoLinkPollInterval = videoLinkPollInterval
         self.connectionNaming = connectionNaming
         self.volumeExclusions = volumeExclusions
+        self.bluetoothPairedPollInterval = bluetoothPairedPollInterval
+        self.bluetoothSignalPollInterval = bluetoothSignalPollInterval
+        self.bluetoothBLEPollInterval = bluetoothBLEPollInterval
+        self.printerPollInterval = printerPollInterval
+        self.volumeFreeSpacePollInterval = volumeFreeSpacePollInterval
     }
 
     /// Passes changed tuning to the monitors that care about it, without rebuilding them.
@@ -237,11 +255,15 @@ public actor MonitorRegistry {
                 context: MonitorContext(dispatcher: dispatcher, category: DisplayMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             PrinterMonitor(
-                source: CUPSPrinterSource(),
+                source: CUPSPrinterSource(pollInterval: printerPollInterval),
                 context: MonitorContext(dispatcher: dispatcher, category: PrinterMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             BluetoothMonitor(
-                source: IOBluetoothSource(),
+                source: IOBluetoothSource(
+                    pairedPollInterval: bluetoothPairedPollInterval,
+                    signalPollInterval: bluetoothSignalPollInterval,
+                    blePollInterval: bluetoothBLEPollInterval
+                ),
                 context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
             ),
             AudioMonitor(
@@ -251,7 +273,7 @@ public actor MonitorRegistry {
                 notifiesVirtualDevices: audioNotifiesVirtualDevices
             ),
             VolumeMonitor(
-                source: NSWorkspaceVolumeSource(),
+                source: NSWorkspaceVolumeSource(freeSpacePollInterval: volumeFreeSpacePollInterval),
                 context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 exclusions: volumeExclusions,
                 lowSpaceThresholdPercent: volumeLowSpacePercent
@@ -265,7 +287,7 @@ public actor MonitorRegistry {
                 healthStore: powerHealthStore
             ),
             NetworkMonitor(
-                source: SystemNetworkSource(signalPolling: networkSignalPolling),
+                source: SystemNetworkSource(signalPolling: networkSignalPolling, radioPollInterval: networkRadioPollInterval),
                 context: MonitorContext(dispatcher: dispatcher, category: NetworkMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 signalCooldown: networkSignalCooldown
             ),

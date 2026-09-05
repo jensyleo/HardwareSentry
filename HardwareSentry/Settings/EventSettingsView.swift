@@ -310,6 +310,15 @@ private struct ModuleDetail: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                Section("Free-space polling") {
+                    slider(
+                        "Re-check every",
+                        value: $tuning.volumeFreeSpaceSeconds,
+                        range: 30...1800,
+                        caption: "There is no notification for free space changing, so every mounted volume is asked on a schedule (30 s – 30 min). The heaviest of this application's polling loops — a disk read per mounted volume — which is why it defaults to five minutes rather than something tighter. Takes effect the next time the application starts."
+                    )
+                }
             }
 
             if module.category.rawValue == "Scanner", title == titles.first {
@@ -403,6 +412,54 @@ private struct ModuleDetail: View {
                         value: $tuning.wifiSignalCooldownSeconds,
                         range: 0...60,
                         caption: "Prevents repeat notices if the signal hovers at a threshold (0–60 s, 0 = off)."
+                    )
+                    slider(
+                        "Radio-power backstop interval",
+                        value: $tuning.wifiRadioSeconds,
+                        range: 5...120,
+                        caption: "The radio's own power state is reported the moment it changes; this is only a periodic re-check in case that notice is ever missed (5–120 s). Cheap either way — a single flag read — but a real, periodic wake-up. Takes effect the next time the application starts."
+                    )
+                }
+            }
+
+            if module.category.rawValue == "Bluetooth", title == titles.first {
+                Section("Polling") {
+                    Text("Bluetooth offers no push notification for a paired device's presence, or for signal strength, or for which BLE accessories are connected — each has to be asked for on a schedule. Takes effect the next time the application starts.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    slider(
+                        "Paired-device list",
+                        value: $tuning.bluetoothPairedSeconds,
+                        range: 5...120,
+                        caption: "How often the paired-device list is re-read (5–120 s)."
+                    )
+                    slider(
+                        "Signal strength (RSSI)",
+                        value: $tuning.bluetoothSignalSeconds,
+                        range: 5...120,
+                        caption: "How often connected devices' signal strength is re-read (5–120 s)."
+                    )
+                    slider(
+                        "BLE accessories",
+                        value: $tuning.bluetoothBLESeconds,
+                        range: 10...300,
+                        caption: "How often CoreBluetooth-connected BLE accessories are re-read (10–300 s). Slower by design — a BLE accessory does not come and go the way a cable does."
+                    )
+                }
+            }
+
+            if module.category.rawValue == "Printer", title == titles.first {
+                Section("Polling") {
+                    Text("Neither libcups nor AppKit's printing API offers a push notification for a printer being added or a job's state changing, so this is asked for on a schedule. Takes effect the next time the application starts.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    slider(
+                        "Ask CUPS every",
+                        value: $tuning.printerSeconds,
+                        range: 2...60,
+                        caption: "How often the destination and job lists are re-read (2–60 s)."
                     )
                 }
             }

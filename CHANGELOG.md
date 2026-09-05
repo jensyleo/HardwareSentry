@@ -6,6 +6,21 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Every polling loop is now a setting, not a hardcoded number
+
+An audit of every place this application checks state on a timer rather than reacting to
+a native push notification (there is no OS callback for these — the whole reason each one
+polls at all) found six background loops with no user-facing control: Bluetooth's
+paired-device list (15s), its signal/RSSI read (10s), its BLE-accessory read (30s),
+Printer's CUPS destination/job read (8s), Volume's free-space read (300s), and Network's
+Wi-Fi-radio-power backstop (30s). Each now has a slider on its own module's Notifications
+tab, the same shape the existing Scanner/Display/Network-signal controls already had.
+Nothing changed by default — the numbers people already had keep working exactly as they
+did; what changed is that they can now be changed. See `TODO.md` for the one remaining
+polling loop in the app that could not simply grow a setting: USB Monitor's Mass Storage
+hint retry, which is a bounded per-connect-event wait rather than a persistent
+background timer, tracked separately.
+
 ### Fixed, reported live
 
 - **"All elements" now actually means all.** It only put each module back to its own

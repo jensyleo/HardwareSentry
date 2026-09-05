@@ -41,6 +41,12 @@ final class MonitorTuningModel {
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
             Self.wifiSignalCooldownKey: 10.0,
+            Self.wifiRadioSecondsKey: 30.0,
+            Self.bluetoothPairedSecondsKey: 15.0,
+            Self.bluetoothSignalSecondsKey: 10.0,
+            Self.bluetoothBLESecondsKey: 30.0,
+            Self.printerSecondsKey: 8.0,
+            Self.volumeFreeSpaceSecondsKey: 300.0,
             Self.connectionNamingKey: ConnectionNaming.mediumAndType.rawValue
         ])
 
@@ -64,6 +70,12 @@ final class MonitorTuningModel {
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
         wifiSignalCooldownSeconds = defaults.double(forKey: Self.wifiSignalCooldownKey)
+        wifiRadioSeconds = defaults.double(forKey: Self.wifiRadioSecondsKey)
+        bluetoothPairedSeconds = defaults.double(forKey: Self.bluetoothPairedSecondsKey)
+        bluetoothSignalSeconds = defaults.double(forKey: Self.bluetoothSignalSecondsKey)
+        bluetoothBLESeconds = defaults.double(forKey: Self.bluetoothBLESecondsKey)
+        printerSeconds = defaults.double(forKey: Self.printerSecondsKey)
+        volumeFreeSpaceSeconds = defaults.double(forKey: Self.volumeFreeSpaceSecondsKey)
         ignoredDrives = defaults.stringArray(forKey: Self.ignoredDrivesKey) ?? []
         connectionNaming = defaults.string(forKey: Self.connectionNamingKey)
             .flatMap(ConnectionNaming.init(rawValue:)) ?? .mediumAndType
@@ -203,6 +215,55 @@ final class MonitorTuningModel {
         didSet { defaults.set(wifiSignalCooldownSeconds, forKey: Self.wifiSignalCooldownKey) }
     }
 
+    /// How often the Wi-Fi radio's own power state and interface mode are re-checked, as
+    /// a backstop behind the push notification that usually reports a change immediately.
+    /// Cheap (a single flag read) but a real, periodic wake-up, so it is a setting rather
+    /// than an unconditional number.
+    var wifiRadioSeconds: Double {
+        didSet { defaults.set(wifiRadioSeconds, forKey: Self.wifiRadioSecondsKey) }
+    }
+
+    /// How often the paired-Bluetooth-device list is re-read. There is no push
+    /// notification for pairing-list membership changing, only for one specific device
+    /// connecting or disconnecting.
+    var bluetoothPairedSeconds: Double {
+        didSet { defaults.set(bluetoothPairedSeconds, forKey: Self.bluetoothPairedSecondsKey) }
+    }
+
+    /// How often connected Bluetooth devices' signal strength (RSSI) is re-read — the
+    /// same question Wi-Fi's own signal poll answers, for the same reason: no
+    /// notification exists for a signal moving.
+    var bluetoothSignalSeconds: Double {
+        didSet { defaults.set(bluetoothSignalSeconds, forKey: Self.bluetoothSignalSecondsKey) }
+    }
+
+    /// How often CoreBluetooth-connected BLE accessories are re-read. Slower than the
+    /// other two by design — a BLE accessory does not come and go the way a cable does.
+    var bluetoothBLESeconds: Double {
+        didSet { defaults.set(bluetoothBLESeconds, forKey: Self.bluetoothBLESecondsKey) }
+    }
+
+    /// How often CUPS's destination and job lists are re-read. Neither libcups nor
+    /// AppKit's printing API offers a push notification for "a printer was added" or "a
+    /// job's state changed" — confirmed in HG4MAC's own history.
+    var printerSeconds: Double {
+        didSet { defaults.set(printerSeconds, forKey: Self.printerSecondsKey) }
+    }
+
+    /// How often free space is re-read for every mounted volume. There is no notification
+    /// for free space changing, and this already defaults to five minutes precisely
+    /// because a disk read on every mounted volume is the heaviest of these six.
+    var volumeFreeSpaceSeconds: Double {
+        didSet { defaults.set(volumeFreeSpaceSeconds, forKey: Self.volumeFreeSpaceSecondsKey) }
+    }
+
+    var wifiRadioPollInterval: TimeInterval { max(5, wifiRadioSeconds) }
+    var bluetoothPairedPollInterval: Duration { .seconds(max(1, Int(bluetoothPairedSeconds))) }
+    var bluetoothSignalPollInterval: Duration { .seconds(max(1, Int(bluetoothSignalSeconds))) }
+    var bluetoothBLEPollInterval: Duration { .seconds(max(1, Int(bluetoothBLESeconds))) }
+    var printerPollInterval: Duration { .seconds(max(1, Int(printerSeconds))) }
+    var volumeFreeSpacePollInterval: Duration { .seconds(max(1, Int(volumeFreeSpaceSeconds))) }
+
     /// When the battery was last looked at, for the line under the "Check Now" button.
     /// Read fresh each time rather than observed: it changes once a week.
     var lastBatteryCheck: Date? {
@@ -245,6 +306,12 @@ final class MonitorTuningModel {
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"
     private static let wifiSignalCooldownKey = "Network.WifiSignalCooldownSeconds"
+    private static let wifiRadioSecondsKey = "Network.WifiRadioPollSeconds"
+    private static let bluetoothPairedSecondsKey = "Bluetooth.PairedPollSeconds"
+    private static let bluetoothSignalSecondsKey = "Bluetooth.SignalPollSeconds"
+    private static let bluetoothBLESecondsKey = "Bluetooth.BLEPollSeconds"
+    private static let printerSecondsKey = "Printer.PollSeconds"
+    private static let volumeFreeSpaceSecondsKey = "Volume.FreeSpacePollSeconds"
     private static let connectionNamingKey = "HardwareSentry.ConnectionNaming"
     private static let ignoredDrivesKey = "Volume.IgnoredDrives"
 }
