@@ -25,6 +25,23 @@ a small hand-maintained JSON file from this application's own GitHub repository 
 merging it into the built-in list — additive only, so a failed or empty check never
 loses what was already known.
 
+### USB Monitor tells a gamepad/joystick apart from a keyboard/mouse
+
+Both are the same USB-IF HID class (`0x03`) — the class byte cannot tell a joystick
+from a keyboard, only the HID Report Descriptor's own Usage Page/Usage can. Reported
+live: a real generic USB gamepad showed up as "Keyboard/Mouse Connected." Fixed by
+reading the Usage Page/Usage macOS's own HID family already works out (Generic Desktop,
+usage Joystick/Gamepad/Multi-axis Controller) and giving it its own "Gamepad/Joystick"
+row — keyboard and mouse stay merged under the original's own combined row, unchanged.
+
+Gamepad Monitor's own notice for the same physical device — richer, from Apple's
+GameController framework — always fired alongside USB Monitor's, undetected as a
+duplicate before this, since there was nowhere for USB Monitor to say "Gamepad" more
+specifically than "Keyboard/Mouse." Settings → Gamepad now has the same "Notify for USB
+devices independently of USB Monitor" switch Camera/Audio already have, to fold the
+plainer USB Monitor duplicate away in favor of Gamepad Monitor's own. On by default,
+matching the original pair's own defaults.
+
 ### USB Monitor tells a Bluetooth dongle apart from a plain wireless controller — and, as a best-effort guess, a WiFi one
 
 Both used to read as the same generic "Wireless Controller" row (`0xE0`). Bluetooth is

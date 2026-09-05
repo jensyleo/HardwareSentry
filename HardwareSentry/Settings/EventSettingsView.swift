@@ -452,6 +452,15 @@ private struct ModuleDetail: View {
                 }
             }
 
+            if module.category.rawValue == "Gamepad", title == titles.first {
+                Section {
+                    Toggle("Notify for USB devices independently of USB Monitor", isOn: $tuning.notifiesUSBGamepadDevices)
+                    Text("This module's own notice \u{2014} \u{201C}Game Controller Connected,\u{201D} with its type, player index and battery — always fires, from Apple's GameController framework, regardless of this switch. On by default: USB Monitor's own \u{201C}Gamepad/Joystick Connected\u{201D} for the same physical device fires too, a plainer duplicate. Switch off to fold that one away and keep only this module's own, richer notice.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if module.category.rawValue == "Audio", title == titles.first {
                 Section {
                     slider(

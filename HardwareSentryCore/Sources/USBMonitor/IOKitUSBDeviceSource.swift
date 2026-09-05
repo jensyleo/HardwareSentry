@@ -679,6 +679,7 @@ private final class RegistryWatcher: @unchecked Sendable {
         // class-conformance check, which is a fast C++ check with no registry IPC of its
         // own, rather than a registry property read.
         let isHub = IOObjectConformsTo(service, "IOUSBHostHubDevice") != 0
+        let hidUsage = isHub ? nil : Self.hidPrimaryUsage(service)
 
         return USBDeviceDetail(
             productName: string(service, "USB Product Name") ?? string(service, kUSBProductString),
@@ -706,8 +707,34 @@ private final class RegistryWatcher: @unchecked Sendable {
             // hub included, so this is read unconditionally rather than skipped for
             // hubs the way the storage-medium walk is.
             isPortRemovable: Self.portProperty(service, "removable"),
-            connectorType: Self.connectorType(service)
+            connectorType: Self.connectorType(service),
+            hidUsagePage: hidUsage?.page,
+            hidUsage: hidUsage?.usage
         )
+    }
+
+    /// The HID Usage Page/Usage macOS's own HID family already worked out for this
+    /// device — read straight off the `IOHIDDevice`-family object the HID driver
+    /// publishes a few levels under the interface, rather than parsing the raw Report
+    /// Descriptor bytes this module already has no other reason to touch. Nil for
+    /// anything that is not a HID interface, or whose HID object has not published these
+    /// yet. Shares `interfaceClasses`' own recursive walk and depth backstop, and the
+    /// same reasoning for skipping a hub's subtree that `storageMedium` rests on.
+    private static func hidPrimaryUsage(_ service: io_service_t) -> (page: Int, usage: Int)? {
+        var iterator: io_iterator_t = 0
+        guard IORegistryEntryCreateIterator(
+            service, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator
+        ) == KERN_SUCCESS else { return nil }
+        defer { IOObjectRelease(iterator) }
+
+        var depth = 0
+        while case let child = IOIteratorNext(iterator), child != 0, depth < 64 {
+            defer { IOObjectRelease(child); depth += 1 }
+            if let page = number(child, "PrimaryUsagePage"), let usage = number(child, "PrimaryUsage") {
+                return (page, usage)
+            }
+        }
+        return nil
     }
 
     private static func storageMedium(_ service: io_service_t) -> (medium: String?, bsdName: String?) {

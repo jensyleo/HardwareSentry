@@ -653,6 +653,36 @@ struct USBDeviceDetailTests {
         #expect(realtek.kind != .wifiAdapter, "switched off, WiFi Adapter must never be the answer")
     }
 
+    @Test("a HID device with Generic Desktop's Joystick/Gamepad/Multi-axis Controller usage resolves to Gamepad/Joystick, not Keyboard/Mouse")
+    func gamepadUsageResolvesToGamepad() {
+        // Read live via `ioreg -c IOHIDDevice -l`, 2026-09-06, from a real generic USB
+        // gamepad (idVendor 0x0810, idProduct 0x0001) reported live as showing up as
+        // "Keyboard/Mouse" — its interface is plain HID (class 3, subclass 0, protocol
+        // 0, indistinguishable from a keyboard by class byte alone), but macOS's own HID
+        // family already read its Report Descriptor as Generic Desktop (page 1) usage 4
+        // (Joystick) — confirmed by `GamepadHIDServiceSupport = Yes` in the same dump.
+        let gamepad = USBDevice(
+            name: "USB Gamepad", deviceClass: 0x00, interfaceClasses: [0x03],
+            detail: USBDeviceDetail(vendorID: 0x0810, productID: 0x0001, hidUsagePage: 0x01, hidUsage: 0x04)
+        )
+        #expect(gamepad.kind == .gamepad)
+
+        // Gamepad (0x05) and Multi-axis Controller (0x08) are the other two Generic
+        // Desktop usages a real controller commonly reports.
+        let alsoGamepad = USBDevice(name: "Thing", deviceClass: 0x03, detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x05))
+        #expect(alsoGamepad.kind == .gamepad)
+        let flightStick = USBDevice(name: "Thing", deviceClass: 0x03, detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x08))
+        #expect(flightStick.kind == .gamepad)
+
+        // A real keyboard (Generic Desktop usage 6) or a device with no HID usage read at
+        // all stays exactly `.hid` — this refinement narrows, it never widens, what HID
+        // can mean.
+        let keyboard = USBDevice(name: "Thing", deviceClass: 0x03, detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x06))
+        #expect(keyboard.kind == .hid)
+        let plainHID = USBDevice(name: "Thing", deviceClass: 0x03)
+        #expect(plainHID.kind == .hid)
+    }
+
     @Test("version words are read as the decimal halves they encode")
     func bcdVersionsAreDecoded() {
         // 0x0210 is version 2.10, not 528 — reading it as a plain number is meaningless.
@@ -713,8 +743,10 @@ struct USBDeviceKindRowTests {
         // Disk, Mass Storage's own sub-kinds told apart heuristically (see
         // `USBMassStorageHint`) — plus Serial/Debug Adapter, told apart by vendor ID
         // rather than class byte (see `USBSerialVendorDatabase`) — plus Bluetooth Adapter
-        // and WiFi Adapter, `0xE0`'s own two sub-kinds (see `USBWirelessDetectionSettings`).
-        #expect(USBDeviceKind.allCases.count == 19)
+        // and WiFi Adapter, `0xE0`'s own two sub-kinds (see `USBWirelessDetectionSettings`)
+        // — plus Gamepad/Joystick, HID's own sub-kind told apart by Usage Page/Usage
+        // rather than by class byte (see `USBDeviceDetail.hidUsagePage`/`hidUsage`).
+        #expect(USBDeviceKind.allCases.count == 20)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }

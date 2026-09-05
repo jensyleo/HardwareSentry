@@ -37,6 +37,7 @@ final class MonitorTuningModel {
             Self.virtualCameraDevicesKey: false,
             Self.usbAudioDevicesKey: true,
             Self.usbCameraDevicesKey: true,
+            Self.usbGamepadDevicesKey: true,
             Self.usbIgnoresIdentifiedGenericDevicesKey: false,
             Self.usbSerialVendorAutoUpdateKey: true,
             Self.usbSerialVendorUpdateDaysKey: 30.0,
@@ -75,6 +76,7 @@ final class MonitorTuningModel {
         notifiesVirtualCameraDevices = defaults.bool(forKey: Self.virtualCameraDevicesKey)
         notifiesUSBAudioDevices = defaults.bool(forKey: Self.usbAudioDevicesKey)
         notifiesUSBCameraDevices = defaults.bool(forKey: Self.usbCameraDevicesKey)
+        notifiesUSBGamepadDevices = defaults.bool(forKey: Self.usbGamepadDevicesKey)
         usbIgnoresIdentifiedGenericDevices = defaults.bool(forKey: Self.usbIgnoresIdentifiedGenericDevicesKey)
         usbSerialVendorAutoUpdate = defaults.bool(forKey: Self.usbSerialVendorAutoUpdateKey)
         usbSerialVendorUpdateDays = defaults.double(forKey: Self.usbSerialVendorUpdateDaysKey)
@@ -182,6 +184,13 @@ final class MonitorTuningModel {
     /// Same, for a camera arriving over USB.
     var notifiesUSBCameraDevices: Bool {
         didSet { defaults.set(notifiesUSBCameraDevices, forKey: Self.usbCameraDevicesKey); onChange?() }
+    }
+
+    /// Same, for a gamepad/joystick arriving over USB — Gamepad Monitor's own notice
+    /// always fires regardless (it comes from GameController framework, not this switch);
+    /// off only folds away USB Monitor's now-correctly-labelled "Gamepad/Joystick" row.
+    var notifiesUSBGamepadDevices: Bool {
+        didSet { defaults.set(notifiesUSBGamepadDevices, forKey: Self.usbGamepadDevicesKey); onChange?() }
     }
 
     /// Whether USB Monitor's generic row narrows to devices nothing at all is known
@@ -414,6 +423,7 @@ final class MonitorTuningModel {
     private static let virtualCameraDevicesKey = "Camera.NotifiesVirtualDevices"
     private static let usbAudioDevicesKey = "Audio.NotifiesUSBDevices"
     private static let usbCameraDevicesKey = "Camera.NotifiesUSBDevices"
+    private static let usbGamepadDevicesKey = "Gamepad.NotifiesUSBDevices"
     private static let usbIgnoresIdentifiedGenericDevicesKey = "USB.IgnoresIdentifiedGenericDevices"
     private static let usbSerialVendorAutoUpdateKey = "USB.SerialVendorAutoUpdate"
     private static let usbSerialVendorUpdateDaysKey = "USB.SerialVendorUpdateDays"

@@ -35,6 +35,10 @@ public enum USBEvent: String, NotificationEventKey, CaseIterable {
     // class exists for it) — see `USBWirelessDetectionSettings`.
     case connectedBluetoothAdapter = "USBConnectedBluetoothAdapter"
     case connectedWiFiAdapter = "USBConnectedWiFiAdapter"
+    // HID (`0x03`) refined by its own Report Descriptor Usage Page/Usage — Generic
+    // Desktop's Joystick/Gamepad/Multi-axis Controller, told apart from the same class's
+    // Keyboard/Mouse row. See `USBDeviceDetail.hidUsagePage`/`hidUsage`.
+    case connectedGamepad = "USBConnectedGamepad"
 
     public static let category: NotificationCategory = "USB"
 }

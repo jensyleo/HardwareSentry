@@ -89,6 +89,20 @@ public struct USBDevice: Sendable, Equatable {
             }
             if USBSerialVendorDatabase.shared.isKnownVendor(vendorID) { return .serialAdapter }
         }
+        // HID (`0x03`) is one class for a keyboard, a mouse, a gamepad, a joystick and
+        // more — the class byte cannot tell them apart, only the HID Report Descriptor's
+        // own Usage Page/Usage can, which is why `detail.hidUsagePage`/`hidUsage` exist at
+        // all. Generic Desktop (page `0x01`) usage Joystick (`0x04`), Gamepad (`0x05`) or
+        // Multi-axis Controller (`0x08`) is the one refinement made here — reported live,
+        // 2026-09-06, against a real generic USB gamepad that macOS's own GameController
+        // framework already recognised (`GamepadHIDServiceSupport`), while this module
+        // still filed it under the same "Keyboard/Mouse" row a real keyboard gets.
+        // Keyboard and mouse stay merged under `.hid`, unchanged: that combined row is the
+        // original's own, not something this refinement was asked to split apart.
+        if resolved == .hid, detail.hidUsagePage == 0x01, let usage = detail.hidUsage,
+           [0x04, 0x05, 0x08].contains(usage) {
+            return .gamepad
+        }
         // Mass Storage covers three different things somebody plugs in — a flash drive, an
         // SD card reader, a portable HDD/SSD enclosure — and the class byte alone cannot
         // tell them apart; it is one class for all of them. Refined only when a heuristic
@@ -119,7 +133,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case hub, massStorage, hid, webcam, scanner, printer, smartCard
     case audio, healthcare, audioVideo, typeCBridge, wireless, communications
     case usbDrive, sdCardReader, externalDisk, serialAdapter
-    case bluetoothAdapter, wifiAdapter
+    case bluetoothAdapter, wifiAdapter, gamepad
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
@@ -231,6 +245,9 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // glyph `.wireless` already uses, honest for what it is (a wireless controller of
         // some kind) even without saying specifically Bluetooth or WiFi in the picture.
         case .bluetoothAdapter, .wifiAdapter: return "USB-TypeWireless"
+        // No artwork of its own yet — borrows the same HID glyph `.hid` uses, honest for
+        // what it is (a HID device) even without a controller-specific picture.
+        case .gamepad: return "USB-TypeHID"
         }
     }
 
@@ -261,6 +278,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .serialAdapter: return "Serial/Debug Adapter"
         case .bluetoothAdapter: return "Bluetooth Adapter"
         case .wifiAdapter: return "WiFi Adapter"
+        case .gamepad: return "Gamepad/Joystick"
         }
     }
 
@@ -286,6 +304,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .serialAdapter: return .connectedSerialAdapter
         case .bluetoothAdapter: return .connectedBluetoothAdapter
         case .wifiAdapter: return .connectedWiFiAdapter
+        case .gamepad: return .connectedGamepad
         }
     }
 }
@@ -541,6 +560,13 @@ public struct USBDeviceDetail: Sendable, Equatable {
     public let isPortRemovable: Bool?
     /// The connector type code the port reports — 0 is Type-A, 3 is Type-C.
     public let connectorType: Int?
+    /// The HID Usage Page/Usage pair read off the device's own `IOHIDDevice` — the only
+    /// place a HID device says anything more specific than "HID" about what it is,
+    /// something no USB class or interface byte can. Nil for anything that is not a HID
+    /// interface, or one this could not be read for. See `USBDeviceKind`'s own Gamepad
+    /// refinement for the one distinction this is used to make.
+    public let hidUsagePage: Int?
+    public let hidUsage: Int?
 
     /// A copy with only the mass-storage hint changed — for the arrival-time retry that
     /// re-reads a Mass Storage device once its BSD name/disk description has had time to
@@ -552,7 +578,8 @@ public struct USBDeviceDetail: Sendable, Equatable {
             requestedMoreThanAvailable: requestedMoreThanAvailable, mediumType: mediumType,
             massStorageHint: hint, serialNumber: serialNumber, releaseVersion: releaseVersion,
             locationID: locationID, configurationCount: configurationCount, specVersion: specVersion,
-            isTunnelled: isTunnelled, isPortRemovable: isPortRemovable, connectorType: connectorType
+            isTunnelled: isTunnelled, isPortRemovable: isPortRemovable, connectorType: connectorType,
+            hidUsagePage: hidUsagePage, hidUsage: hidUsage
         )
     }
 
@@ -565,7 +592,8 @@ public struct USBDeviceDetail: Sendable, Equatable {
             requestedMoreThanAvailable: requestedMoreThanAvailable, mediumType: medium,
             massStorageHint: massStorageHint, serialNumber: serialNumber, releaseVersion: releaseVersion,
             locationID: locationID, configurationCount: configurationCount, specVersion: specVersion,
-            isTunnelled: isTunnelled, isPortRemovable: isPortRemovable, connectorType: connectorType
+            isTunnelled: isTunnelled, isPortRemovable: isPortRemovable, connectorType: connectorType,
+            hidUsagePage: hidUsagePage, hidUsage: hidUsage
         )
     }
 
@@ -586,7 +614,9 @@ public struct USBDeviceDetail: Sendable, Equatable {
         specVersion: UInt16? = nil,
         isTunnelled: Bool = false,
         isPortRemovable: Bool? = nil,
-        connectorType: Int? = nil
+        connectorType: Int? = nil,
+        hidUsagePage: Int? = nil,
+        hidUsage: Int? = nil
     ) {
         self.productName = productName
         self.vendorID = vendorID
@@ -605,6 +635,8 @@ public struct USBDeviceDetail: Sendable, Equatable {
         self.isTunnelled = isTunnelled
         self.isPortRemovable = isPortRemovable
         self.connectorType = connectorType
+        self.hidUsagePage = hidUsagePage
+        self.hidUsage = hidUsage
     }
 
     var vidPidNote: String? {

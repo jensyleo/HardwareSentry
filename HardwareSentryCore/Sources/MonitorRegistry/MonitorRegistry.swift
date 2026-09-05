@@ -47,6 +47,10 @@ public actor MonitorRegistry {
     /// `kindsCoveredElsewhere(cameraNotifiesUSBDevices:audioNotifiesUSBDevices:)`.
     private let audioNotifiesUSBDevices: Bool
     private let cameraNotifiesUSBDevices: Bool
+    /// USB Monitor's own "Gamepad/Joystick" notice, folded away once Gamepad Monitor's
+    /// own — always fired, from GameController framework, regardless of this — is judged
+    /// enough on its own. See `kindsCoveredElsewhere`.
+    private let gamepadNotifiesUSBDevices: Bool
     /// USB Monitor's own generic row, narrowed to devices nothing at all is known about —
     /// see `USBMonitor.ignoresIdentifiedGenericDevices`.
     private let usbIgnoresIdentifiedGenericDevices: Bool
@@ -91,6 +95,7 @@ public actor MonitorRegistry {
         cameraNotifiesVirtualDevices: Bool = false,
         audioNotifiesUSBDevices: Bool = true,
         cameraNotifiesUSBDevices: Bool = true,
+        gamepadNotifiesUSBDevices: Bool = true,
         usbIgnoresIdentifiedGenericDevices: Bool = false,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
@@ -121,6 +126,7 @@ public actor MonitorRegistry {
         self.cameraNotifiesVirtualDevices = cameraNotifiesVirtualDevices
         self.audioNotifiesUSBDevices = audioNotifiesUSBDevices
         self.cameraNotifiesUSBDevices = cameraNotifiesUSBDevices
+        self.gamepadNotifiesUSBDevices = gamepadNotifiesUSBDevices
         self.usbIgnoresIdentifiedGenericDevices = usbIgnoresIdentifiedGenericDevices
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
@@ -151,6 +157,7 @@ public actor MonitorRegistry {
         cameraNotifiesVirtualDevices: Bool,
         audioNotifiesUSBDevices: Bool,
         cameraNotifiesUSBDevices: Bool,
+        gamepadNotifiesUSBDevices: Bool,
         usbIgnoresIdentifiedGenericDevices: Bool
     ) async {
         for monitor in monitors {
@@ -167,7 +174,8 @@ public actor MonitorRegistry {
                 await usb.apply(
                     kindsCoveredElsewhere: Self.kindsCoveredElsewhere(
                         cameraNotifiesUSBDevices: cameraNotifiesUSBDevices,
-                        audioNotifiesUSBDevices: audioNotifiesUSBDevices
+                        audioNotifiesUSBDevices: audioNotifiesUSBDevices,
+                        gamepadNotifiesUSBDevices: gamepadNotifiesUSBDevices
                     ),
                     ignoresIdentifiedGenericDevices: usbIgnoresIdentifiedGenericDevices
                 )
@@ -211,11 +219,17 @@ public actor MonitorRegistry {
     /// an opinion on is never included, so it keeps its own notice regardless.
     private static func kindsCoveredElsewhere(
         cameraNotifiesUSBDevices: Bool,
-        audioNotifiesUSBDevices: Bool
+        audioNotifiesUSBDevices: Bool,
+        gamepadNotifiesUSBDevices: Bool
     ) -> Set<USBDeviceKind> {
         var kinds: Set<USBDeviceKind> = []
         if !cameraNotifiesUSBDevices { kinds.insert(.webcam) }
         if !audioNotifiesUSBDevices { kinds.insert(.audio) }
+        // Gamepad Monitor's own notice for the same physical device — via GameController
+        // framework, not this stream — always fires regardless of this switch; this only
+        // decides whether USB Monitor's own, now correctly-labelled "Gamepad/Joystick"
+        // notice folds away alongside it.
+        if !gamepadNotifiesUSBDevices { kinds.insert(.gamepad) }
         // A device that is genuinely both — a webcam with a real microphone, not an
         // incidental one — reads as `.audioVideo` (`USBDeviceKind`'s own interface
         // fallback), and neither switch prevails over the other for it: only when both
@@ -238,7 +252,8 @@ public actor MonitorRegistry {
                 context: MonitorContext(dispatcher: dispatcher, category: USBMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 kindsCoveredElsewhere: Self.kindsCoveredElsewhere(
                     cameraNotifiesUSBDevices: cameraNotifiesUSBDevices,
-                    audioNotifiesUSBDevices: audioNotifiesUSBDevices
+                    audioNotifiesUSBDevices: audioNotifiesUSBDevices,
+                    gamepadNotifiesUSBDevices: gamepadNotifiesUSBDevices
                 ),
                 ignoresIdentifiedGenericDevices: usbIgnoresIdentifiedGenericDevices
             ),
