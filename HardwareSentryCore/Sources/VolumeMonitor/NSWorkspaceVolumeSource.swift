@@ -197,10 +197,11 @@ private final class Watcher: @unchecked Sendable {
     private static func describeInterface(_ description: [String: Any]?) -> String? {
         guard let description else { return nil }
         let protocolName = description[kDADiskDescriptionDeviceProtocolKey as String] as? String
+        let mediaName = Self.mediaNameForGuessing(description)
 
         guard let kind = VolumeKind.infer(
             protocolName: protocolName,
-            mediaName: Self.mediaNameForGuessing(description),
+            mediaName: mediaName,
             mediaKind: description[kDADiskDescriptionMediaKindKey as String] as? String,
             sizeBytes: nil
         ), kind == .sdCard else {
@@ -210,7 +211,12 @@ private final class Watcher: @unchecked Sendable {
         // "Secure Digital" is the protocol a built-in slot speaks; a card in a USB reader
         // reports the reader's own protocol instead.
         let isIntegrated = protocolName?.caseInsensitiveCompare("Secure Digital") == .orderedSame
-        return isIntegrated ? "SD/CF card (integrated reader)" : "SD/CF card (external reader)"
+        // Opportunistic, not guaranteed: most readers name every slot identically (see
+        // `registryIdentityStrings(bsdName:)`), so this only ever fires for the reader
+        // that bothers to say "micro" somewhere in what it reports about this exact slot.
+        let isMicro = ["micro", "tf card", "transflash"].contains { mediaName.lowercased().contains($0) }
+        let cardWord = isMicro ? "MicroSD" : "SD/CF"
+        return isIntegrated ? "\(cardWord) card (integrated reader)" : "\(cardWord) card (external reader)"
     }
 
     /// The whole Disk Arbitration description for a mount path.
@@ -243,61 +249,81 @@ private final class Watcher: @unchecked Sendable {
         )
     }
 
-    /// Disk Arbitration's own media name and device model, always joined with the
-    /// underlying USB device's own product string rather than only falling back to it —
-    /// see the note below on why "only when Disk Arbitration says nothing" was not enough.
+    /// Disk Arbitration's own media name and device model, always joined with whatever the
+    /// registry walk below finds, rather than only falling back to it — see the note below
+    /// on why "only when Disk Arbitration says nothing" was not enough.
     ///
     /// Confirmed live, 2026-09-05, with a genuine USB microSD reader plugged into a hub:
     /// for the mounted *volume* (as opposed to the raw disk), Disk Arbitration answers
     /// `DeviceModel` "MassStorageClass" and `MediaName` "Untitled 1" — neither blank, so a
     /// first version of this fix that only consulted IOKit when Disk Arbitration's own
     /// strings were *empty* never ran at all here. Both strings are equally generic and
-    /// SD-shaped in neither. The USB device one level up in the registry, asked directly,
-    /// answers "USB3.0 Card Reader" — the same descriptor `USBMonitor` already reads as
-    /// `USB Product Name` — so it is joined in unconditionally, and left for
-    /// `VolumeKind.infer`'s own token matching to use whichever part of the combined
-    /// string actually says something.
+    /// SD-shaped in neither. The USB device itself, asked directly, answers "USB3.0 Card
+    /// Reader" — the same descriptor `USBMonitor` already reads as `USB Product Name` — so
+    /// it is joined in unconditionally, and left for `VolumeKind.infer`'s own token
+    /// matching to use whichever part of the combined string actually says something.
     private static func mediaNameForGuessing(_ description: [String: Any]) -> String {
         let bsdName = description[kDADiskDescriptionMediaBSDNameKey as String] as? String
-        return [
+        return ([
             description[kDADiskDescriptionMediaNameKey as String] as? String,
-            description[kDADiskDescriptionDeviceModelKey as String] as? String,
-            Self.usbProductName(bsdName: bsdName)
-        ].compactMap { $0 }.joined(separator: " ")
+            description[kDADiskDescriptionDeviceModelKey as String] as? String
+        ].compactMap { $0 } + Self.registryIdentityStrings(bsdName: bsdName)).joined(separator: " ")
     }
 
-    /// Walks up from a BSD disk device to the USB device that owns it, looking for its
-    /// product string — the one place a USB card reader's real identity survives when
-    /// Disk Arbitration's own media name is too generic to say anything (see
-    /// `mediaNameForGuessing(_:)`).
+    /// Walks up from a BSD disk device to whatever the registry says about it along the
+    /// way, collecting every SCSI product identity and USB product string it passes —
+    /// the one place a USB card reader's real identity survives when Disk Arbitration's
+    /// own media name is too generic to say anything (see `mediaNameForGuessing(_:)`).
+    ///
+    /// Both properties, not just the USB one: a multi-slot reader shares one USB device
+    /// between its slots, so "USB Product Name" alone can never tell one slot from
+    /// another — but the SCSI translation layer between the disk and that shared USB
+    /// device is per-slot (`IOSCSILogicalUnitNub`, one per LUN), and *its* own
+    /// "Product Identification"/"Vendor Identification" is the one place a reader that
+    /// bothers to name its slots differently (an "SD" string on one LUN, "Micro SD" on
+    /// another) could actually say so. Not confirmed on real hardware — the specific
+    /// reader this was written against reports the identical generic string
+    /// ("MassStorageClass") on every LUN — so this only ever helps a reader that reports
+    /// something more specific than this one does, never hurts one that does not.
     ///
     /// Bounded at 16, measured against a real reader rather than guessed at: `ioreg`
-    /// against the exact card reader this was written for shows nine steps from its
-    /// `IOMedia` up to the `IOUSBHostDevice` carrying "USB Product Name" — `IOBlockStorageDriver`,
+    /// against that same reader shows nine steps from its `IOMedia` up to the
+    /// `IOUSBHostDevice` carrying "USB Product Name" — `IOBlockStorageDriver`,
     /// `IOBlockStorageServices`, `IOSCSIPeripheralDeviceType00`, `IOSCSILogicalUnitNub`,
     /// `IOUSBMassStorageDriver`, `IOUSBMassStorageDriverNub`, `IOUSBMassStorageInterfaceNub`,
     /// `IOUSBHostInterface`, then the device itself — considerably deeper than the disk-side
     /// walks elsewhere in this codebase, because a SCSI translation layer sits between a
     /// Mass Storage disk and its own USB device where a plain USB device has no such layer
     /// to cross. 16 leaves room for a reader behind an extra hub or enclosure layer too.
-    private static func usbProductName(bsdName: String?) -> String? {
-        guard let bsdName, let matching = IOBSDNameMatching(kIOMainPortDefault, 0, bsdName) else { return nil }
+    private static func registryIdentityStrings(bsdName: String?) -> [String] {
+        guard let bsdName, let matching = IOBSDNameMatching(kIOMainPortDefault, 0, bsdName) else { return [] }
         let service = IOServiceGetMatchingService(kIOMainPortDefault, matching)
-        guard service != 0 else { return nil }
+        guard service != 0 else { return [] }
 
         var current = service
         defer { IOObjectRelease(current) }
+        var found: [String] = []
 
         for _ in 0..<16 {
+            if let vendor = Self.registryString(current, "Vendor Identification") {
+                found.append(vendor)
+            }
+            if let product = Self.registryString(current, "Product Identification") {
+                found.append(product)
+            }
             if let name = Self.registryString(current, "USB Product Name") {
-                return name
+                found.append(name)
+                // The USB device is shared by every slot on a multi-slot reader, so
+                // nothing further up it says is specific to this one — stop here rather
+                // than also collecting its parent hub's own name.
+                break
             }
             var parent: io_registry_entry_t = 0
-            guard IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent) == KERN_SUCCESS else { return nil }
+            guard IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent) == KERN_SUCCESS else { break }
             IOObjectRelease(current)
             current = parent
         }
-        return nil
+        return found
     }
 
     private static func registryString(_ service: io_service_t, _ key: String) -> String? {

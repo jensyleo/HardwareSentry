@@ -15,6 +15,16 @@ tagged release yet, so everything so far lives under **Unreleased**.
 - **Switching one notification or field by hand now falls into "Custom".** Only switching
   a whole module used to do this; the preset picker kept claiming "All elements" (or
   Minimal/Recommended) even after a single checkbox inside it no longer matched.
+- **Opportunistic MicroSD wording, for a reader that names its slots.** Confirmed on this
+  session's own reader: the USB device is shared by every slot, and both this reader's
+  slots (checked via their SCSI `IOSCSILogicalUnitNub`) report the identical generic
+  string — so nothing distinguishes SD from microSD on this specific hardware, and
+  nothing in software can make it. For a reader that *does* name its slots differently,
+  the "Card reader type" line now reads "MicroSD card" instead of "SD/CF card" when the
+  combined name says "micro", "TF card", or "TransFlash" anywhere; `VolumeKind.infer`
+  itself also now recognises a bare "microSD" or "TransFlash" name (microSDXC/microSDHC
+  already matched the plain "sdxc"/"sdhc" tokens). See `KNOWN-ISSUES.md` for what this
+  can and cannot promise.
 - **A USB microSD reader in a hub now has a chance to be recognised as an SD card,
   not just a plain external disk.** Disk Arbitration reported this reader's `MediaName`
   as the literal, generic `"MassStorageClass"` — nothing SD-shaped for the existing

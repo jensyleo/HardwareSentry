@@ -212,7 +212,10 @@ public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
 
         let text = (mediaName ?? "").lowercased()
         if ["secure digital", " sd/", "sd card", "sdxc", "sdhc", "mmc",
-            "compactflash", " cf ", "cardreader", "card reader"].contains(where: text.contains) { return .sdCard }
+            "compactflash", " cf ", "cardreader", "card reader",
+            // microSDXC/microSDHC already match "sdxc"/"sdhc" above; these two catch a
+            // bare "microSD" or the format's old "TransFlash" branding, which do not.
+            "microsd", "micro sd", "tf card", "transflash"].contains(where: text.contains) { return .sdCard }
         // An explicit name beats the size guess: checked first so a 1 TB drive that calls
         // itself a flash drive is not filed as an enclosure on size alone.
         // Enclosures before thumb drives, the order the original settled on: "external

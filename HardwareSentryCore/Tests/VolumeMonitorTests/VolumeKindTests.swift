@@ -34,6 +34,17 @@ struct VolumeKindTests {
         #expect(infer("Secure Digital") == .sdCard)
     }
 
+    @Test("microSD is recognised as an SD card too, by name, old branding included")
+    func microSDIsStillAnSDCard() {
+        // microSDXC/microSDHC already match the plain "sdxc"/"sdhc" tokens as substrings;
+        // these are the ones that would not: a bare "microSD" with no capacity suffix, and
+        // "TransFlash", the format's own original name before the SD Association renamed
+        // it — some readers and cards still print it.
+        #expect(infer("USB", "Generic MicroSD Card Reader") == .sdCard)
+        #expect(infer("USB", "Kingston Micro SD") == .sdCard)
+        #expect(infer("USB", "TransFlash Card") == .sdCard)
+    }
+
     @Test("an explicit name beats the size guess, so a large flash drive is not filed as an enclosure")
     func nameWinsOverSize() {
         // 1 TB flash drives are a real product. Deciding on size alone would misfile one.

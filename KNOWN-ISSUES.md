@@ -43,6 +43,18 @@ actually says something. No new token was needed: "USB3.0 Card Reader" already m
 existing "card reader" token; the fix was joining in the right property unconditionally,
 not widening the word list.
 
+**Asked next: can SD and microSD be told apart?** Checked one level deeper than the fix
+above, at the SCSI layer this reader's mass-storage stack exposes per slot
+(`IOSCSILogicalUnitNub`'s own "Vendor Identification"/"Product Identification", not the
+USB device's, since a multi-slot reader shares one USB device between every slot). For
+*this* reader, both slots answer the identical generic `"MassStorageClass"` — no signal
+at any level distinguishes them. That is a firmware limitation of this specific reader,
+not something more code can work around, so `registryIdentityStrings(bsdName:)` now
+collects the SCSI-level string opportunistically (for a reader that does bother to name
+its slots differently) alongside the USB one, and `describeInterface(_:)` reads "MicroSD
+card" instead of "SD/CF card" when the combined name says so — untestable against this
+session's own hardware, since it names both slots identically, but harmless for it too.
+
 **Confirmed this time, precisely how the first attempt should have been.** A standalone
 binary — compiled and ad-hoc signed the same way the application itself is, since the
 interpreted `swift run-file.swift` mode this session tried first is blocked from
