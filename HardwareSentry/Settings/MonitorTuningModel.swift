@@ -3,6 +3,7 @@ import MonitorRegistry
 import PowerMonitor
 import SentryContract
 import ScannerMonitor
+import USBMonitor
 import VolumeMonitor
 import Observation
 
@@ -39,6 +40,7 @@ final class MonitorTuningModel {
             Self.usbIgnoresIdentifiedGenericDevicesKey: false,
             Self.usbSerialVendorAutoUpdateKey: true,
             Self.usbSerialVendorUpdateDaysKey: 30.0,
+            Self.usbSerialVendorUpdateURLKey: USBSerialVendorDatabase.updateURL.absoluteString,
             Self.massStorageDetectionEnabledKey: true,
             Self.massStoragePollMillisecondsKey: 250.0,
             Self.massStorageTimeoutSecondsKey: 8.0,
@@ -74,6 +76,8 @@ final class MonitorTuningModel {
         usbIgnoresIdentifiedGenericDevices = defaults.bool(forKey: Self.usbIgnoresIdentifiedGenericDevicesKey)
         usbSerialVendorAutoUpdate = defaults.bool(forKey: Self.usbSerialVendorAutoUpdateKey)
         usbSerialVendorUpdateDays = defaults.double(forKey: Self.usbSerialVendorUpdateDaysKey)
+        usbSerialVendorUpdateURLString = defaults.string(forKey: Self.usbSerialVendorUpdateURLKey)
+            ?? USBSerialVendorDatabase.updateURL.absoluteString
         massStorageDetectionEnabled = defaults.bool(forKey: Self.massStorageDetectionEnabledKey)
         massStoragePollMilliseconds = defaults.double(forKey: Self.massStoragePollMillisecondsKey)
         massStorageTimeoutSeconds = defaults.double(forKey: Self.massStorageTimeoutSecondsKey)
@@ -193,6 +197,26 @@ final class MonitorTuningModel {
 
     var usbSerialVendorUpdateDays: Double {
         didSet { defaults.set(usbSerialVendorUpdateDays, forKey: Self.usbSerialVendorUpdateDaysKey); onChange?() }
+    }
+
+    /// Where the serial-vendor list is actually fetched from, as raw, user-editable text —
+    /// shown and changeable rather than hidden, since this is a Settings screen asking to
+    /// reach out to the network on a schedule, not something to take on faith. Restored to
+    /// `USBSerialVendorDatabase.updateURL` (this application's own GitHub copy) by
+    /// "Restore Defaults" on this section.
+    var usbSerialVendorUpdateURLString: String {
+        didSet { defaults.set(usbSerialVendorUpdateURLString, forKey: Self.usbSerialVendorUpdateURLKey); onChange?() }
+    }
+
+    /// The parsed form `checkSerialVendorUpdateNow`/the scheduled check actually use.
+    /// Falls back to the built-in URL for anything that fails to parse, rather than
+    /// refusing to check at all over a typo.
+    var usbSerialVendorUpdateURL: URL {
+        URL(string: usbSerialVendorUpdateURLString) ?? USBSerialVendorDatabase.updateURL
+    }
+
+    func restoreSerialVendorUpdateURLDefault() {
+        usbSerialVendorUpdateURLString = USBSerialVendorDatabase.updateURL.absoluteString
     }
 
     /// Off skips the retry outright — an ambiguous disk is announced immediately, as
@@ -368,6 +392,7 @@ final class MonitorTuningModel {
     private static let usbIgnoresIdentifiedGenericDevicesKey = "USB.IgnoresIdentifiedGenericDevices"
     private static let usbSerialVendorAutoUpdateKey = "USB.SerialVendorAutoUpdate"
     private static let usbSerialVendorUpdateDaysKey = "USB.SerialVendorUpdateDays"
+    private static let usbSerialVendorUpdateURLKey = "USB.SerialVendorUpdateURL"
     private static let massStorageDetectionEnabledKey = "USB.MassStorageDetectionEnabled"
     private static let massStoragePollMillisecondsKey = "USB.MassStoragePollMilliseconds"
     private static let massStorageTimeoutSecondsKey = "USB.MassStorageTimeoutSeconds"

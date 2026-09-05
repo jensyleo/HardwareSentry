@@ -371,9 +371,21 @@ private struct ModuleDetail: View {
                             step: 1
                         )
                     }
-                    Text("A device like an FTDI or Silicon Labs USB-serial bridge, or a SEGGER J-Link/ST-Link debug probe, uses a USB class byte that says nothing about what it is \u{2014} the only way to tell it apart from any other unclassifiable device is by who made it. Built into the app is a fixed list of the common ones; this downloads a small, hand-maintained update to that list from this app's own GitHub repository, adding to it, never replacing it.")
+                    Text("A device like an FTDI or Silicon Labs USB-serial bridge, or a SEGGER J-Link/ST-Link debug probe, uses a USB class byte that says nothing about what it is \u{2014} the only way to tell it apart from any other unclassifiable device is by who made it. Built into the app is a fixed list of the common ones; this downloads a small, hand-maintained update to that list from the URL below, adding to it, never replacing it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Update URL").font(.headline)
+                        HStack {
+                            TextField("URL", text: $tuning.usbSerialVendorUpdateURLString)
+                                .textFieldStyle(.roundedBorder)
+                            Button("Restore Default") { tuning.restoreSerialVendorUpdateURLDefault() }
+                        }
+                        Text("Where \u{201C}Check Now\u{201D} and the automatic schedule actually fetch from \u{2014} this application's own GitHub repository by default, editable in case that file ever moves.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     HStack {
                         Button("Check Now", action: checkSerialVendorUpdateNow)

@@ -67,8 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             $0.addingTimeInterval(tuning.usbSerialVendorUpdateDays * 86400)
         }
         guard dueSince == nil || dueSince! <= Date() else { return }
+        let url = tuning.usbSerialVendorUpdateURL
         Task {
-            await USBSerialVendorDatabase.shared.refresh()
+            await USBSerialVendorDatabase.shared.refresh(from: url)
             tuning.lastSerialVendorUpdate = Date()
         }
     }
@@ -76,8 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The "Check Now" button in Settings — runs regardless of the auto-update toggle or
     /// the schedule, since asking outright is always allowed.
     func checkSerialVendorUpdateNow() {
+        let url = tuning.usbSerialVendorUpdateURL
         Task {
-            await USBSerialVendorDatabase.shared.refresh()
+            await USBSerialVendorDatabase.shared.refresh(from: url)
             tuning.lastSerialVendorUpdate = Date()
         }
     }

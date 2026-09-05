@@ -25,6 +25,15 @@ a small hand-maintained JSON file from this application's own GitHub repository 
 merging it into the built-in list — additive only, so a failed or empty check never
 loses what was already known.
 
+### The serial-vendor update URL is now visible and editable
+
+Settings → USB → "Serial/debug adapter vendors" showed only a "Check Now" button, with
+no way to see or change where it actually pulled from. Added an "Update URL" field —
+this application's own GitHub repository by default, exactly what it already used —
+plus a "Restore Default" button next to it. Anyone can see exactly what host their Mac
+would reach out to, and point it elsewhere (or back) without editing preferences by
+hand.
+
 ### Wi-Fi signal polling and Mass Storage detection can now be switched off entirely
 
 Both were only sliders — how often, never whether. Settings → Network → Wi-Fi and
