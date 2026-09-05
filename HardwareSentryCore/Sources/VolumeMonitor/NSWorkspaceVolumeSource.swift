@@ -2,6 +2,7 @@ import AppKit
 import DiskArbitration
 import CNVMeSMART
 import Foundation
+import IOKit
 
 /// Watches `NSWorkspace` for volume mount/unmount, and polls local mounted volumes' free
 /// space every 5 minutes (matching HG4MAC's own interval).
@@ -135,7 +136,7 @@ private final class Watcher: @unchecked Sendable {
             fileSystemType: type,
             totalBytes: total > 0 ? total : nil,
             isReadOnly: info.f_flags & UInt32(MNT_RDONLY) != 0,
-            kind: kind(of: path, sizeBytes: total > 0 ? total : nil),
+            kind: kind(from: arbitration, sizeBytes: total > 0 ? total : nil),
             healthPercent: health?.percent,
             hasHealthWarning: health?.hasWarning ?? false,
             isEncrypted: values?.volumeIsEncrypted,
@@ -199,10 +200,7 @@ private final class Watcher: @unchecked Sendable {
 
         guard let kind = VolumeKind.infer(
             protocolName: protocolName,
-            mediaName: [
-                description[kDADiskDescriptionMediaNameKey as String] as? String,
-                description[kDADiskDescriptionDeviceModelKey as String] as? String
-            ].compactMap { $0 }.joined(separator: " "),
+            mediaName: Self.mediaNameForGuessing(description),
             mediaKind: description[kDADiskDescriptionMediaKindKey as String] as? String,
             sizeBytes: nil
         ), kind == .sdCard else {
@@ -223,14 +221,12 @@ private final class Watcher: @unchecked Sendable {
         return DADiskCopyDescription(disk) as? [String: Any]
     }
 
-    /// Asks Disk Arbitration what the volume sits on. Everything here is best-effort: an
-    /// unreadable description simply means no specific artwork, which is the honest
-    /// outcome rather than a guess.
-    private static func kind(of path: String, sizeBytes: UInt64?) -> VolumeKind? {
-        guard let session = DASessionCreate(kCFAllocatorDefault),
-              let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, URL(fileURLWithPath: path) as CFURL),
-              let description = DADiskCopyDescription(disk) as? [String: Any]
-        else { return nil }
+    /// Works out what kind of drive this is from a description already fetched by the
+    /// caller, rather than asking Disk Arbitration a second time for the same disk.
+    /// Everything here is best-effort: an unreadable description simply means no specific
+    /// artwork, which is the honest outcome rather than a guess.
+    private static func kind(from description: [String: Any]?, sizeBytes: UInt64?) -> VolumeKind? {
+        guard let description else { return nil }
 
         // Every APFS sibling in the boot container — Preboot, VM, Update, xarts,
         // iSCPreboot, Data/home, and "/" itself — reports the SAME large size as the
@@ -240,14 +236,74 @@ private final class Watcher: @unchecked Sendable {
         // fix HG4MAC shipped for the identical bug.
         return VolumeKind.infer(
             protocolName: description[kDADiskDescriptionDeviceProtocolKey as String] as? String,
-            mediaName: [
-                description[kDADiskDescriptionMediaNameKey as String] as? String,
-                description[kDADiskDescriptionDeviceModelKey as String] as? String
-            ].compactMap { $0 }.joined(separator: " "),
+            mediaName: Self.mediaNameForGuessing(description),
             mediaKind: description[kDADiskDescriptionMediaKindKey as String] as? String,
             sizeBytes: sizeBytes,
             isInternal: description[kDADiskDescriptionDeviceInternalKey as String] as? Bool ?? false
         )
+    }
+
+    /// Disk Arbitration's own media name and device model, plus — when they say nothing —
+    /// the underlying USB device's own product string.
+    ///
+    /// Confirmed live, 2026-09-05, with a genuine USB microSD reader plugged into a hub:
+    /// Disk Arbitration reported `MediaName` "MassStorageClass" and no `DeviceModel` at
+    /// all — a generic mass-storage class name with nothing SD-shaped in it, which is why
+    /// the card mounted as a plain external disk instead of an SD card. The USB device
+    /// one level up in the registry, asked directly, answers "USB3.0 Card Reader" — the
+    /// same descriptor `USBMonitor` already reads as `USB Product Name`. Disk Arbitration
+    /// simply does not surface that string; IOKit still has it.
+    private static func mediaNameForGuessing(_ description: [String: Any]) -> String {
+        let fromArbitration = [
+            description[kDADiskDescriptionMediaNameKey as String] as? String,
+            description[kDADiskDescriptionDeviceModelKey as String] as? String
+        ].compactMap { $0 }.joined(separator: " ")
+        if !fromArbitration.isEmpty { return fromArbitration }
+
+        let bsdName = description[kDADiskDescriptionMediaBSDNameKey as String] as? String
+        return Self.usbProductName(bsdName: bsdName) ?? ""
+    }
+
+    /// Walks up from a BSD disk device to the USB device that owns it, looking for its
+    /// product string — the one place a USB card reader's real identity survives when
+    /// Disk Arbitration's own media name is too generic to say anything (see
+    /// `mediaNameForGuessing(_:)`).
+    ///
+    /// Bounded at 16, measured against a real reader rather than guessed at: `ioreg`
+    /// against the exact card reader this was written for shows nine steps from its
+    /// `IOMedia` up to the `IOUSBHostDevice` carrying "USB Product Name" — `IOBlockStorageDriver`,
+    /// `IOBlockStorageServices`, `IOSCSIPeripheralDeviceType00`, `IOSCSILogicalUnitNub`,
+    /// `IOUSBMassStorageDriver`, `IOUSBMassStorageDriverNub`, `IOUSBMassStorageInterfaceNub`,
+    /// `IOUSBHostInterface`, then the device itself — considerably deeper than the disk-side
+    /// walks elsewhere in this codebase, because a SCSI translation layer sits between a
+    /// Mass Storage disk and its own USB device where a plain USB device has no such layer
+    /// to cross. 16 leaves room for a reader behind an extra hub or enclosure layer too.
+    private static func usbProductName(bsdName: String?) -> String? {
+        guard let bsdName, let matching = IOBSDNameMatching(kIOMainPortDefault, 0, bsdName) else { return nil }
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, matching)
+        guard service != 0 else { return nil }
+
+        var current = service
+        defer { IOObjectRelease(current) }
+
+        for _ in 0..<16 {
+            if let name = Self.registryString(current, "USB Product Name") {
+                return name
+            }
+            var parent: io_registry_entry_t = 0
+            guard IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent) == KERN_SUCCESS else { return nil }
+            IOObjectRelease(current)
+            current = parent
+        }
+        return nil
+    }
+
+    private static func registryString(_ service: io_service_t, _ key: String) -> String? {
+        guard let value = IORegistryEntryCreateCFProperty(
+            service, key as CFString, kCFAllocatorDefault, 0
+        )?.takeRetainedValue() as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Plain `getmntinfo()` — same POSIX call HG4MAC's own low-space poll uses, not

@@ -3,6 +3,46 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: a microSD reader in a USB hub mounted as a plain external disk, not "SD card"
+
+**Status:** fixed 2026-09-05, against real hardware — a genuine USB microSD reader inside a
+hub, with two card slots (`disk6`/`disk7` in this session's own `diskutil list`).
+
+**What was happening.** Volume Monitor's own SD-card heuristic (`VolumeKind.infer`) reads
+Disk Arbitration's `MediaName`/`DeviceModel`, string-matching for tokens like "sd card",
+"sdxc", "card reader". This particular reader's Disk Arbitration description said none of
+that: `MediaName` was the literal string `"MassStorageClass"`, `DeviceModel` was empty —
+confirmed with `diskutil info disk6`/`disk7` while the reader was connected. Nothing
+SD-shaped anywhere in what Disk Arbitration exposes for this device, so the heuristic had
+no text to match and the volume mounted as a plain external disk.
+
+**Root cause.** Disk Arbitration and IOKit disagree about what this device is called.
+`ioreg` against the same disk, at the same moment, shows the owning `IOUSBHostDevice`
+itself answering `"USB Product Name" = "USB3.0 Card Reader"` — the same descriptor
+`USBMonitor` already reads for its own device-class rows. Disk Arbitration simply does not
+surface that string for this device; IOKit still has it, nine registry levels up from the
+disk's own `IOMedia` node (`IOBlockStorageDriver` → `IOBlockStorageServices` →
+`IOSCSIPeripheralDeviceType00` → `IOSCSILogicalUnitNub` → `IOUSBMassStorageDriver` →
+`IOUSBMassStorageDriverNub` → `IOUSBMassStorageInterfaceNub` → `IOUSBHostInterface` → the
+device) — a SCSI translation stack sits between a Mass Storage disk and its own USB device
+where an ordinary USB peripheral has no such layer to cross.
+
+**The fix.** `NSWorkspaceVolumeSource.mediaNameForGuessing(_:)` now falls back to that USB
+product string — found via `usbProductName(bsdName:)`, a bounded (16-level) upward walk
+from the disk's BSD name — whenever Disk Arbitration's own `MediaName`/`DeviceModel` say
+nothing. No new token was needed: "USB3.0 Card Reader" already matches the existing "card
+reader" token in `VolumeKind.infer`; the fix was reading the right property, not widening
+the word list.
+
+**Not independently confirmed end-to-end.** Verified the data and the registry path by
+hand with `diskutil`/`ioreg` while the card was connected, and the code builds and passes
+its existing tests, but this session's own sandboxed shell could not run the exact IOKit
+call itself to prove the fix live (`IOServiceGetMatchingService` returned nothing for the
+same BSD name that `diskutil`/`ioreg` see fine — almost certainly a restriction of the
+tool's own shell sandbox, not of the built application, but not proven either way). The
+real confirmation is unplugging and replugging the reader with the installed build running
+and watching whether the notification now says "SD/CF card (external reader)".
+
 ## To revisit: "ignore identified devices without their own icon" works, but doesn't sit right
 
 **Status:** working as designed, confirmed live (04-sep-2026) — a hub's internal Billboard

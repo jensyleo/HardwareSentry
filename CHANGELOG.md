@@ -15,6 +15,13 @@ tagged release yet, so everything so far lives under **Unreleased**.
 - **Switching one notification or field by hand now falls into "Custom".** Only switching
   a whole module used to do this; the preset picker kept claiming "All elements" (or
   Minimal/Recommended) even after a single checkbox inside it no longer matched.
+- **A USB microSD reader in a hub now has a chance to be recognised as an SD card,
+  not just a plain external disk.** Disk Arbitration reported this reader's `MediaName`
+  as the literal, generic `"MassStorageClass"` — nothing SD-shaped for the existing
+  heuristic to match — while the same disk's owning USB device, one registry level (nine
+  hops) up, still answers `"USB Product Name" = "USB3.0 Card Reader"`. Volume Monitor's
+  media-name guess now falls back to that USB product string when Disk Arbitration's own
+  says nothing. See `KNOWN-ISSUES.md` for what is and is not confirmed end-to-end.
 - **Gamepad Monitor no longer has a keyboard/mouse row.** Turning it on was reported to
   announce an entirely ordinary keyboard and mouse — nothing gaming-specific — because
   macOS's GameController framework cannot tell "a dedicated gaming peripheral opted into
