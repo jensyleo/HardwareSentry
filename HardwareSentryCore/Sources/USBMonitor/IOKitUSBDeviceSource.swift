@@ -440,11 +440,12 @@ private final class RegistryWatcher: @unchecked Sendable {
         return (medium, bsdName)
     }
 
-    /// A flash drive or an SD card reader, told apart from a plain Mass Storage device by
-    /// asking Disk Arbitration what it knows about the disk — the same technique Volume
-    /// Monitor uses on a mounted volume's path, adapted here to a bare BSD device name
-    /// (`DADiskCreateFromBSDName` rather than `DADiskCreateFromVolumePath`), since a USB
-    /// disk need not have anything mounted for this to run.
+    /// A flash drive, an SD card reader, or an external disk enclosure, told apart from a
+    /// plain Mass Storage device by asking Disk Arbitration what it knows about the disk —
+    /// the same technique Volume Monitor uses on a mounted volume's path, adapted here to
+    /// a bare BSD device name (`DADiskCreateFromBSDName` rather than
+    /// `DADiskCreateFromVolumePath`), since a USB disk need not have anything mounted for
+    /// this to run.
     ///
     /// Independently reimplemented, not imported — see `USBMassStorageHint`'s own doc
     /// comment for why a monitor cannot reuse another monitor's types.
@@ -454,8 +455,12 @@ private final class RegistryWatcher: @unchecked Sendable {
         guard let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsdName) else { return nil }
         guard let description = DADiskCopyDescription(disk) as? [String: Any] else { return nil }
         let protocolName = description[kDADiskDescriptionDeviceProtocolKey as String] as? String
-        let mediaName = description[kDADiskDescriptionMediaNameKey as String] as? String
-        return USBMassStorageHint.infer(protocolName: protocolName, mediaName: mediaName)
+        let mediaName = [
+            description[kDADiskDescriptionMediaNameKey as String] as? String,
+            description[kDADiskDescriptionDeviceModelKey as String] as? String
+        ].compactMap { $0 }.joined(separator: " ")
+        let sizeBytes = (description[kDADiskDescriptionMediaSizeKey as String] as? NSNumber)?.uint64Value
+        return USBMassStorageHint.infer(protocolName: protocolName, mediaName: mediaName, sizeBytes: sizeBytes)
     }
 
     /// A property that lives on the *port* rather than on the device, so the walk goes up.

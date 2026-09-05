@@ -15,6 +15,17 @@ tagged release yet, so everything so far lives under **Unreleased**.
 - **Switching one notification or field by hand now falls into "Custom".** Only switching
   a whole module used to do this; the preset picker kept claiming "All elements" (or
   Minimal/Recommended) even after a single checkbox inside it no longer matched.
+- **USB Monitor now tells an external disk enclosure apart from a pendrive too, not just
+  an SD card.** Confirmed live, 2026-09-05, against a real pendrive and a real 1 TB
+  external HDD connected at once, both showing as plain "Mass Storage": the drive's Disk
+  Arbitration media name was a bare Seagate model number ("D ST1000LM02") with no
+  "hdd"/"external" word to match, but its 1 TB size clears the same enclosure-sized
+  threshold `VolumeKind` already uses — so `USBMassStorageHint` gained an `.externalDisk`
+  case and that same size fallback. The pendrive, by contrast, is genuinely
+  unidentifiable: its controller chip carries no product string at all and an
+  unregistered placeholder vendor ID (`0xABCD`) — confirmed by reading its own USB
+  descriptor directly — so it stays generic "Mass Storage", the same honest answer
+  `VolumeKind` gives an identically bare device.
 - **Opportunistic MicroSD wording, for a reader that names its slots.** Confirmed on this
   session's own reader: the USB device is shared by every slot, and both this reader's
   slots (checked via their SCSI `IOSCSILogicalUnitNub`) report the identical generic

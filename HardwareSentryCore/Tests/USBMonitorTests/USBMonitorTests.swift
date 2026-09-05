@@ -472,14 +472,32 @@ struct USBDeviceDetailTests {
         #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "USB Mass Storage Device") == .usbDrive)
     }
 
-    @Test("the mass-storage heuristic stays generic for a disk enclosure or an unnamed disk")
+    @Test("the mass-storage heuristic recognises a disk enclosure by name or, failing that, by size")
+    func massStorageHintRecognisesExternalDisk() {
+        #expect(USBMassStorageHint.infer(protocolName: "USB", mediaName: "Portable SSD") == .externalDisk)
+        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "External Hard Drive") == .externalDisk)
+        // Confirmed live, 2026-09-05: a real 1 TB external HDD whose Disk Arbitration
+        // media name is a bare Seagate model number ("D ST1000LM02") — no "hdd"/"external"
+        // word to match — is still recognised, on size alone, the same fallback
+        // `VolumeKind`'s own heuristic already relies on.
+        let oneTerabyte: UInt64 = 1_000_000_000_000
+        #expect(USBMassStorageHint.infer(protocolName: "USB", mediaName: "D ST1000LM02", sizeBytes: oneTerabyte) == .externalDisk)
+        // An explicit name beats the size guess: a 1 TB drive naming itself a flash drive
+        // is not filed as an enclosure on size alone.
+        #expect(USBMassStorageHint.infer(protocolName: "USB", mediaName: "SanDisk Extreme Flash Drive", sizeBytes: oneTerabyte) == .usbDrive)
+    }
+
+    @Test("the mass-storage heuristic stays generic for a small, unnamed disk")
     func massStorageHintStaysGenericOtherwise() {
-        #expect(USBMassStorageHint.infer(protocolName: "USB", mediaName: "Portable SSD") == nil)
-        #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: "External Hard Drive") == nil)
+        // Confirmed live, 2026-09-05: a real pendrive whose controller chip carries no
+        // product string and an unregistered placeholder vendor ID has nothing here to
+        // go on — too small for the enclosure-sized fallback, honestly unidentifiable
+        // rather than guessed at either way.
+        #expect(USBMassStorageHint.infer(protocolName: "USB", mediaName: nil, sizeBytes: 15_700_000_000) == nil)
         #expect(USBMassStorageHint.infer(protocolName: nil, mediaName: nil) == nil)
     }
 
-    @Test("a Mass Storage device is refined into USB Drive or SD Card Reader by the heuristic, never without it")
+    @Test("a Mass Storage device is refined into USB Drive, SD Card Reader or External Disk by the heuristic, never without it")
     func kindIsRefinedByMassStorageHint() {
         let plain = USBDevice(name: "Disk", deviceClass: 0x08)
         #expect(plain.kind == .massStorage)
@@ -493,6 +511,11 @@ struct USBDeviceDetailTests {
             name: "Disk", deviceClass: 0x08, detail: USBDeviceDetail(massStorageHint: .sdCard)
         )
         #expect(sdCard.kind == .sdCardReader)
+
+        let externalDisk = USBDevice(
+            name: "Disk", deviceClass: 0x08, detail: USBDeviceDetail(massStorageHint: .externalDisk)
+        )
+        #expect(externalDisk.kind == .externalDisk)
 
         // The hint only ever refines a device the class byte already called Mass Storage —
         // it has no say over anything else.
@@ -556,9 +579,10 @@ struct USBDeviceKindRowTests {
         // Communications (0x02, "Network Adapter"), added after this device class turned
         // out to matter: a hub's own internal LAN-over-USB chip enumerates under it, and
         // was going through the generic row with nothing to tell it apart from a
-        // genuinely unidentified device — plus USB Drive and SD Card Reader, Mass
-        // Storage's own two sub-kinds told apart heuristically (see `USBMassStorageHint`).
-        #expect(USBDeviceKind.allCases.count == 15)
+        // genuinely unidentified device — plus USB Drive, SD Card Reader and External
+        // Disk, Mass Storage's own sub-kinds told apart heuristically (see
+        // `USBMassStorageHint`).
+        #expect(USBDeviceKind.allCases.count == 16)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }

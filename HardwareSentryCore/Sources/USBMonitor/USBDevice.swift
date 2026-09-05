@@ -57,6 +57,7 @@ public struct USBDevice: Sendable, Equatable {
         switch hint {
         case .sdCard: return .sdCardReader
         case .usbDrive: return .usbDrive
+        case .externalDisk: return .externalDisk
         }
     }
 
@@ -74,7 +75,7 @@ public struct USBDevice: Sendable, Equatable {
 public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case hub, massStorage, hid, webcam, scanner, printer, smartCard
     case audio, healthcare, audioVideo, typeCBridge, wireless, communications
-    case usbDrive, sdCardReader
+    case usbDrive, sdCardReader, externalDisk
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
@@ -180,6 +181,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // already tells apart, reused as-is rather than redrawn for a second time.
         case .usbDrive: return "Device-USBDrive"
         case .sdCardReader: return "Device-SDCard"
+        case .externalDisk: return "Device-ExternalDisk"
         }
     }
 
@@ -206,6 +208,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .communications: return "Network Adapter"
         case .usbDrive: return "USB Drive"
         case .sdCardReader: return "SD Card Reader"
+        case .externalDisk: return "External Disk"
         }
     }
 
@@ -227,6 +230,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .wireless: return .connectedWireless
         case .usbDrive: return .connectedUSBDrive
         case .sdCardReader: return .connectedSDCard
+        case .externalDisk: return .connectedExternalDisk
         }
     }
 }
@@ -235,31 +239,42 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
 /// than the USB class byte — which cannot tell a flash drive from an SD card reader from a
 /// portable HDD/SSD enclosure, since all three share the one class, `0x08`.
 ///
-/// Deliberately narrow: only the two sub-kinds worth a row and an icon of their own. A
-/// portable disk enclosure, or a disk the heuristic below does not recognise, stays nil and
-/// therefore `.massStorage` — the honest generic answer, not a wrong specific guess.
+/// A disk the heuristic below does not recognise stays nil and therefore `.massStorage` —
+/// the honest generic answer, not a wrong specific guess.
 ///
 /// The heuristic itself is a scoped, independently reimplemented copy of Volume Monitor's
 /// own `VolumeKind.infer` (a monitor may not import another monitor's types — see the
-/// architecture's module-isolation rule). It is admittedly imperfect there already; see
-/// `KNOWN-ISSUES.md` for what is left to a future investigation.
+/// architecture's module-isolation rule), including its size-based fallback for an
+/// enclosure that names itself nothing useful. It is admittedly imperfect there already;
+/// see `KNOWN-ISSUES.md` for what is left to a future investigation — confirmed live,
+/// 2026-09-05, against a real pendrive whose controller chip carries no product string
+/// and no vendor registration at all (`idVendor` 0xABCD, the well-known unregistered
+/// placeholder), which this heuristic — like Volume Monitor's own — has no text or size
+/// signal to identify: too small for the enclosure-sized fallback below, and honestly
+/// unidentifiable rather than wrongly guessed at.
 public enum USBMassStorageHint: Sendable, Equatable {
-    case sdCard, usbDrive
+    case sdCard, usbDrive, externalDisk
 
-    public static func infer(protocolName: String?, mediaName: String?) -> USBMassStorageHint? {
+    /// Unnamed USB storage this size or larger is guessed to be an enclosure rather than a
+    /// flash drive — the same threshold and the same reasoning as `VolumeKind`'s own.
+    static let externalDiskThresholdBytes: UInt64 = 400 * 1024 * 1024 * 1024
+
+    public static func infer(protocolName: String?, mediaName: String?, sizeBytes: UInt64? = nil) -> USBMassStorageHint? {
         if protocolName?.caseInsensitiveCompare("Secure Digital") == .orderedSame { return .sdCard }
         let text = (mediaName ?? "").lowercased()
         if ["secure digital", " sd/", "sd card", "sdxc", "sdhc", "mmc",
             "compactflash", " cf ", "cardreader", "card reader"].contains(where: text.contains) {
             return .sdCard
         }
+        // An explicit name beats the size guess: checked first so a 1 TB drive that calls
+        // itself a flash drive is not filed as an enclosure on size alone.
         if ["hdd", "ssd", "hard disk", "hard drive", "external"].contains(where: text.contains) {
-            // A named disk enclosure, not a bare flash drive — stays generic `.massStorage`.
-            return nil
+            return .externalDisk
         }
         if ["flash", "thumb", "pen drive", "usb drive", "mass storage"].contains(where: text.contains) {
             return .usbDrive
         }
+        if let sizeBytes, sizeBytes >= externalDiskThresholdBytes { return .externalDisk }
         return nil
     }
 }
@@ -292,6 +307,7 @@ public extension USBDevice {
         switch base {
         case "Device-USBDrive": return "Device-USBDrive-Unmounted"
         case "Device-SDCard": return "Device-SDCard-Unmounted"
+        case "Device-ExternalDisk": return "Device-ExternalDisk-Unmounted"
         case "USB-On": return "USB-Off"
         default: return "\(base)-Disconnected"
         }

@@ -3,6 +3,32 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: USB Monitor showed a pendrive and an external HDD both as plain "Mass Storage"
+
+**Status:** fixed 2026-09-05, confirmed against real hardware — a genuine 1 TB external
+HDD and a genuine pendrive, connected at the same time, both reported generically.
+
+**What was checked.** `diskutil info` and the raw USB descriptor for each device:
+- The external HDD's Disk Arbitration media name is `"D ST1000LM02"` — a real Seagate
+  model number, but not a word `USBMassStorageHint`'s token list recognised ("hdd",
+  "external", …). Its enclosure bridge chip (`idVendor` 0x2109, VIA Labs) reports
+  entirely unconfigured placeholder strings, `"VLI Manufacture String"`/`"VLI Product
+  String"` — the enclosure's maker never customised them.
+- The pendrive's Disk Arbitration media name is the bare, generic `"General Media"`, and
+  its own USB descriptor carries no product string at all — only a vendor string of
+  `"General"` and `idVendor` `0xABCD` (43981 decimal), a well-known unregistered
+  placeholder identity used by unbranded chips, not a real vendor registration.
+
+**The fix, and its honest limit.** `USBMassStorageHint` gained an `.externalDisk` case —
+matched by name ("hdd"/"ssd"/"hard disk"/"hard drive"/"external") and, failing that, by
+the same size threshold (≥400 GB) `VolumeKind`'s own heuristic already relies on for
+exactly this situation. The 1 TB drive clears that threshold and is now correctly told
+apart. The pendrive is not, and cannot be: there is no name to match and it is nowhere
+near 400 GB, so it stays generic "Mass Storage" — the same honest answer Volume Monitor's
+own, longer-established heuristic already gives this identical device. Confirmed by
+reading the pendrive's actual USB descriptor rather than assumed: there is truly no text
+anywhere on this device for any heuristic to find.
+
 ## Fixed: a microSD reader in a USB hub mounted as a plain external disk, not "SD card"
 
 **Status:** fixed 2026-09-05, confirmed live — reported again after a first attempt at
