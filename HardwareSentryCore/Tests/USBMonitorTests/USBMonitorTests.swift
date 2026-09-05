@@ -576,6 +576,34 @@ struct USBDeviceDetailTests {
         #expect(webcam.kind == .webcam)
     }
 
+    @Test("a device with no informative class byte, but a known serial/debug vendor ID, resolves to Serial/Debug Adapter")
+    func knownVendorResolvesUnclassifiedDeviceToSerialAdapter() {
+        // FTDI's own VID — the same real FT232R adapter this suite's other test above,
+        // `vendorSpecificDeviceStillAnnouncesWhenSwitchedOn`, keeps announcing generically
+        // rather than silencing. Told apart here rather than there, since `kind` (not the
+        // switch) is what now recognises it specifically.
+        let ftdi = USBDevice(
+            name: "FT232R USB UART", deviceClass: 0x00, interfaceClasses: [0xFF],
+            detail: USBDeviceDetail(vendorID: 0x0403)
+        )
+        #expect(ftdi.kind == .serialAdapter)
+
+        // An unrecognised vendor with the same uninformative class byte stays nil, exactly
+        // as before this feature existed.
+        let unknown = USBDevice(
+            name: "Mystery UART", deviceClass: 0x00, interfaceClasses: [0xFF],
+            detail: USBDeviceDetail(vendorID: 0xFFFF)
+        )
+        #expect(unknown.kind == nil)
+
+        // A real, already-classified device is never second-guessed by its vendor ID, even
+        // if that vendor also happens to make serial chips.
+        let realClass = USBDevice(
+            name: "Something Else", deviceClass: 0x03, detail: USBDeviceDetail(vendorID: 0x0403)
+        )
+        #expect(realClass.kind == .hid)
+    }
+
     @Test("version words are read as the decimal halves they encode")
     func bcdVersionsAreDecoded() {
         // 0x0210 is version 2.10, not 528 — reading it as a plain number is meaningless.
@@ -634,8 +662,9 @@ struct USBDeviceKindRowTests {
         // was going through the generic row with nothing to tell it apart from a
         // genuinely unidentified device — plus USB Drive, SD Card Reader and External
         // Disk, Mass Storage's own sub-kinds told apart heuristically (see
-        // `USBMassStorageHint`).
-        #expect(USBDeviceKind.allCases.count == 16)
+        // `USBMassStorageHint`) — plus Serial/Debug Adapter, told apart by vendor ID
+        // rather than class byte (see `USBSerialVendorDatabase`).
+        #expect(USBDeviceKind.allCases.count == 17)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }
@@ -761,5 +790,28 @@ struct USBModuleIconTests {
         // fell into the same trap; this is the test that stops either happening again.
         #expect(USBMonitor.icon == .asset("USB-On", in: .module))
         #expect(USBMonitor.icon != USBMonitor.events.first?.icon)
+    }
+}
+
+@Suite("USBMonitor · serial/debug vendor database")
+struct USBSerialVendorDatabaseTests {
+    @Test("the built-in list recognises FTDI and rejects an unassigned vendor ID")
+    func builtInListLooksUpKnownAndUnknownVendors() {
+        let db = USBSerialVendorDatabase()
+        #expect(db.isKnownVendor(0x0403), "FTDI should be seeded in the built-in list")
+        #expect(db.isKnownVendor(0x10C4), "Silicon Labs should be seeded in the built-in list")
+        #expect(!db.isKnownVendor(0xFFFF), "an unassigned VID must never read as known")
+    }
+
+    @Test("refreshing from a source with nothing useful leaves the list exactly as it was")
+    func refreshFromBadSourceChangesNothing() async {
+        let db = USBSerialVendorDatabase()
+        let before = db.vendorCount
+        // Loopback address with nothing listening: the request itself fails, which is the
+        // point — a network hiccup must never wipe out what was already known.
+        let ok = await db.refresh(from: URL(string: "http://127.0.0.1:1/nonexistent.json")!)
+        #expect(!ok)
+        #expect(db.vendorCount == before)
+        #expect(db.isKnownVendor(0x0403))
     }
 }

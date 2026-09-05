@@ -16,6 +16,7 @@ struct SettingsView: View {
     let general: GeneralSettingsModel
     let tuning: MonitorTuningModel
     let checkBatteryHealthNow: () -> Void
+    let checkSerialVendorUpdateNow: () -> Void
     let simulateThermal: (ThermalState, ThermalState) -> Void
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
 
@@ -29,7 +30,7 @@ struct SettingsView: View {
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
 
             HistoryView(

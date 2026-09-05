@@ -3,6 +3,7 @@ import MonitorRegistry
 import SentryContract
 import ThermalMonitor
 import SignalCore
+import USBMonitor
 
 /// Puts the application together and runs it.
 ///
@@ -52,6 +53,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await eventSettings.load()
             await registry.start()
             await settleAfterStartupSweep()
+            checkSerialVendorUpdateIfDue()
+        }
+    }
+
+    /// Refreshes `USBSerialVendorDatabase` from its remote copy if auto-update is on and
+    /// enough days have passed since the last check — or since ever, if there is no last
+    /// check yet. Silent either way: a Mac that never gets asked still stays current, and
+    /// one with no network on a given day just tries again next launch.
+    func checkSerialVendorUpdateIfDue() {
+        guard tuning.usbSerialVendorAutoUpdate else { return }
+        let dueSince = tuning.lastSerialVendorUpdate.map {
+            $0.addingTimeInterval(tuning.usbSerialVendorUpdateDays * 86400)
+        }
+        guard dueSince == nil || dueSince! <= Date() else { return }
+        Task {
+            await USBSerialVendorDatabase.shared.refresh()
+            tuning.lastSerialVendorUpdate = Date()
+        }
+    }
+
+    /// The "Check Now" button in Settings — runs regardless of the auto-update toggle or
+    /// the schedule, since asking outright is always allowed.
+    func checkSerialVendorUpdateNow() {
+        Task {
+            await USBSerialVendorDatabase.shared.refresh()
+            tuning.lastSerialVendorUpdate = Date()
         }
     }
 

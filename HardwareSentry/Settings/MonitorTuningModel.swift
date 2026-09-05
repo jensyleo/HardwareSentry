@@ -37,6 +37,8 @@ final class MonitorTuningModel {
             Self.usbAudioDevicesKey: true,
             Self.usbCameraDevicesKey: true,
             Self.usbIgnoresIdentifiedGenericDevicesKey: false,
+            Self.usbSerialVendorAutoUpdateKey: true,
+            Self.usbSerialVendorUpdateDaysKey: 30.0,
             Self.videoLinkSecondsKey: 5.0,
             Self.scannerStatusSecondsKey: 10.0,
             Self.wifiSignalSecondsKey: 12.0,
@@ -66,6 +68,8 @@ final class MonitorTuningModel {
         notifiesUSBAudioDevices = defaults.bool(forKey: Self.usbAudioDevicesKey)
         notifiesUSBCameraDevices = defaults.bool(forKey: Self.usbCameraDevicesKey)
         usbIgnoresIdentifiedGenericDevices = defaults.bool(forKey: Self.usbIgnoresIdentifiedGenericDevicesKey)
+        usbSerialVendorAutoUpdate = defaults.bool(forKey: Self.usbSerialVendorAutoUpdateKey)
+        usbSerialVendorUpdateDays = defaults.double(forKey: Self.usbSerialVendorUpdateDaysKey)
         videoLinkSeconds = defaults.double(forKey: Self.videoLinkSecondsKey)
         scannerStatusSeconds = defaults.double(forKey: Self.scannerStatusSecondsKey)
         wifiSignalSeconds = defaults.double(forKey: Self.wifiSignalSecondsKey)
@@ -172,6 +176,17 @@ final class MonitorTuningModel {
         didSet { defaults.set(usbIgnoresIdentifiedGenericDevices, forKey: Self.usbIgnoresIdentifiedGenericDevicesKey); onChange?() }
     }
 
+    /// Whether the serial/debug-adapter vendor list (see `USBSerialVendorDatabase`) checks
+    /// itself against its own GitHub-hosted copy on a schedule, rather than only when
+    /// somebody presses "Check Now".
+    var usbSerialVendorAutoUpdate: Bool {
+        didSet { defaults.set(usbSerialVendorAutoUpdate, forKey: Self.usbSerialVendorAutoUpdateKey); onChange?() }
+    }
+
+    var usbSerialVendorUpdateDays: Double {
+        didSet { defaults.set(usbSerialVendorUpdateDays, forKey: Self.usbSerialVendorUpdateDaysKey); onChange?() }
+    }
+
     /// How often a network scanner is asked what it is doing.
     ///
     /// Read at launch only, unlike the rest: the interval is handed to each scanner's own
@@ -270,6 +285,13 @@ final class MonitorTuningModel {
         defaults.object(forKey: "Power.LastHealthCheck") as? Date
     }
 
+    /// When the serial-vendor list was last checked against its remote copy — by the
+    /// schedule or by "Check Now", either one. `nil` before the first check ever runs.
+    var lastSerialVendorUpdate: Date? {
+        get { defaults.object(forKey: "USB.LastSerialVendorUpdate") as? Date }
+        set { defaults.set(newValue, forKey: "USB.LastSerialVendorUpdate") }
+    }
+
     // MARK: - What the monitors are given
 
     var powerRefire: PowerRefireSettings {
@@ -302,6 +324,8 @@ final class MonitorTuningModel {
     private static let usbAudioDevicesKey = "Audio.NotifiesUSBDevices"
     private static let usbCameraDevicesKey = "Camera.NotifiesUSBDevices"
     private static let usbIgnoresIdentifiedGenericDevicesKey = "USB.IgnoresIdentifiedGenericDevices"
+    private static let usbSerialVendorAutoUpdateKey = "USB.SerialVendorAutoUpdate"
+    private static let usbSerialVendorUpdateDaysKey = "USB.SerialVendorUpdateDays"
     private static let videoLinkSecondsKey = "Display.VideoLinkPollSeconds"
     private static let scannerStatusSecondsKey = "Scanner.StatusIntervalSeconds"
     private static let wifiSignalSecondsKey = "Network.WifiSignalPollSeconds"

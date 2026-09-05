@@ -46,6 +46,15 @@ public struct USBDevice: Sendable, Equatable {
         // absent device class is treated the same way rather than skipping straight to
         // the interfaces without also giving `0x00` itself a chance to (harmlessly) fail.
         let resolved = USBDeviceKind(deviceClass: deviceClass ?? 0x00, interfaceClasses: interfaceClasses)
+        // A device the class byte alone says nothing about (`0xFF`/`0xEF`/`0x00` with no
+        // recognised interface either) is still often identifiable by who made it: FTDI,
+        // Silicon Labs, WCH and the other USB-serial/debug-probe vendors all use their own
+        // vendor-specific class, so nothing above ever resolves them. Checked only once the
+        // class byte itself has nothing to say, so an actually-classified device is never
+        // second-guessed by a vendor that happens to also sell serial chips.
+        if resolved == nil, let vendorID = detail.vendorID, USBSerialVendorDatabase.shared.isKnownVendor(vendorID) {
+            return .serialAdapter
+        }
         // Mass Storage covers three different things somebody plugs in — a flash drive, an
         // SD card reader, a portable HDD/SSD enclosure — and the class byte alone cannot
         // tell them apart; it is one class for all of them. Refined only when a heuristic
@@ -75,7 +84,7 @@ public struct USBDevice: Sendable, Equatable {
 public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case hub, massStorage, hid, webcam, scanner, printer, smartCard
     case audio, healthcare, audioVideo, typeCBridge, wireless, communications
-    case usbDrive, sdCardReader, externalDisk
+    case usbDrive, sdCardReader, externalDisk, serialAdapter
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
@@ -182,6 +191,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .usbDrive: return "Device-USBDrive"
         case .sdCardReader: return "Device-SDCard"
         case .externalDisk: return "Device-ExternalDisk"
+        case .serialAdapter: return "USB-TypeSerial"
         }
     }
 
@@ -209,6 +219,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .usbDrive: return "USB Drive"
         case .sdCardReader: return "SD Card Reader"
         case .externalDisk: return "External Disk"
+        case .serialAdapter: return "Serial/Debug Adapter"
         }
     }
 
@@ -231,6 +242,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .usbDrive: return .connectedUSBDrive
         case .sdCardReader: return .connectedSDCard
         case .externalDisk: return .connectedExternalDisk
+        case .serialAdapter: return .connectedSerialAdapter
         }
     }
 }

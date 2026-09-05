@@ -24,6 +24,8 @@ struct EventSettingsView: View {
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
     /// Reads the battery now, rather than waiting for the next scheduled check.
     let checkBatteryHealthNow: () -> Void
+    /// Checks the serial-adapter vendor list now, rather than waiting for the schedule.
+    let checkSerialVendorUpdateNow: () -> Void
 
     @State private var selection: String?
     /// Which of the selected module's tabs is showing, by name.
@@ -50,7 +52,7 @@ struct EventSettingsView: View {
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, pane: $pane)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, pane: $pane)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -186,6 +188,7 @@ private struct ModuleDetail: View {
     let simulateThermal: (ThermalState, ThermalState) -> Void
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
     let checkBatteryHealthNow: () -> Void
+    let checkSerialVendorUpdateNow: () -> Void
     @Binding var pane: String
 
     private var titles: [String] { ModulePane.titles(for: module) }
@@ -356,6 +359,31 @@ private struct ModuleDetail: View {
                     Text("A hub commonly enumerates its own internal interfaces alongside itself \u{2014} a Billboard or a Communications chip, most often \u{2014} which have a real, named class but no row of their own here, and so read as \u{201C}USB Device Connected\u{201D} the same way a device nothing at all is known about does. Off by default: the generic row has always meant every device with no row of its own. On, it narrows to devices nothing is known about at all \u{2014} a device whose \u{201C}Type\u{201D} would show something, however obscure, no longer counts as generic.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("Serial/debug adapter vendors") {
+                    Toggle("Check for new vendors automatically", isOn: $tuning.usbSerialVendorAutoUpdate)
+                    if tuning.usbSerialVendorAutoUpdate {
+                        Stepper(
+                            "Every \(Int(tuning.usbSerialVendorUpdateDays)) days",
+                            value: $tuning.usbSerialVendorUpdateDays,
+                            in: 1...365,
+                            step: 1
+                        )
+                    }
+                    Text("A device like an FTDI or Silicon Labs USB-serial bridge, or a SEGGER J-Link/ST-Link debug probe, uses a USB class byte that says nothing about what it is \u{2014} the only way to tell it apart from any other unclassifiable device is by who made it. Built into the app is a fixed list of the common ones; this downloads a small, hand-maintained update to that list from this app's own GitHub repository, adding to it, never replacing it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        Button("Check Now", action: checkSerialVendorUpdateNow)
+                        Spacer()
+                        if let last = tuning.lastSerialVendorUpdate {
+                            Text("Last checked \(last.formatted(.relative(presentation: .named)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 

@@ -26,6 +26,10 @@ public enum USBEvent: String, NotificationEventKey, CaseIterable {
     case connectedUSBDrive = "USBConnectedUSBDrive"
     case connectedSDCard = "USBConnectedSDCard"
     case connectedExternalDisk = "USBConnectedExternalDisk"
+    // A serial/debug adapter (FTDI, Silicon Labs, WCH, SEGGER J-Link, ST-Link…), told
+    // apart from a genuinely unclassifiable device by a known-vendor lookup — see
+    // `USBSerialVendorDatabase`.
+    case connectedSerialAdapter = "USBConnectedSerialAdapter"
 
     public static let category: NotificationCategory = "USB"
 }

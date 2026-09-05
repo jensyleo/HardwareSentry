@@ -6,6 +6,25 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### USB Monitor recognises serial/debug adapters by vendor, not just by class
+
+An FTDI, Silicon Labs, WCH, SEGGER, ST-Link or other USB-serial/debug-probe chip
+declares a USB-IF class byte (`0xFF`/`0xEF`/`0x00`) that says nothing about what the
+device actually is — the class byte is USB-IF's own "ask the vendor" escape hatch, used
+because no standard class fits. Such a device now gets its own row, icon and event
+("Serial/Debug Adapter") when nothing else identifies it and its vendor ID is one of a
+built-in list of common serial/debug vendors (FTDI, Silicon Labs, Prolific, WCH,
+Microchip, SEGGER, STMicroelectronics, Cypress, TI, NXP, Atmel/Microchip, Digilent, the
+OpenMoko/Black Magic Probe pool, Espressif, Renesas, Infineon). A device the class byte
+already identifies is never second-guessed by this lookup, even if its vendor also
+happens to make serial chips.
+
+The vendor list can also update itself: Settings → USB → "Serial/debug adapter vendors"
+has a "check automatically every N days" toggle plus a "Check Now" button, both pulling
+a small hand-maintained JSON file from this application's own GitHub repository and
+merging it into the built-in list — additive only, so a failed or empty check never
+loses what was already known.
+
 ### Every polling loop is now a setting, not a hardcoded number
 
 An audit of every place this application checks state on a timer rather than reacting to
