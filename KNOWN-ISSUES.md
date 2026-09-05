@@ -3,6 +3,37 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Not a bug: Gamepad Monitor never fires for most real controllers
+
+**Status:** confirmed 2026-09-06, not something this application can fix — a limitation
+of `GameController.framework` itself, on this macOS.
+
+**What was reported.** After USB Monitor's own Gamepad/Joystick classification shipped
+(and was confirmed correct, including a real HORI-licensed "HORIPAD S"), the question
+came up: why does Gamepad Monitor's own, richer notice never fire alongside it?
+
+**Confirmed directly, not assumed.** A small diagnostic calling `GCController.controllers()`
+returned **0** with the HORIPAD S connected and actively working as a HID gamepad
+(`PrimaryUsagePage`/`PrimaryUsage` correctly read as Generic Desktop/Gamepad). Apple's
+GameController framework only surfaces a `GCControllerDidConnect` notification for
+controllers it recognises from its own internal list — MFi-certified controllers and a
+handful of major-brand ones (Xbox, DualShock/DualSense, Switch Pro among them) — not
+every HID device that happens to expose a standard gamepad Usage Page. A HORI-licensed
+pad and a no-name generic USB gamepad are both outside that list; the OS itself never
+tells any app they exist as game controllers, this application included.
+
+**Why this is not a bug to fix here.** There is nothing to read, poll, or retry around:
+the framework simply never posts the notification this module listens for, regardless
+of how long anything waits. USB Monitor's own "Gamepad/Joystick Connected" — reliable,
+device-level, USB-IF/HID-standard classification — is, and will remain, the *only*
+notice such a controller ever gets from this application. This is exactly why "Notify
+for USB devices independently of USB Monitor" (Settings → Gamepad) defaults to **on**:
+turning it off would leave many real, connected controllers with no notice at all.
+
+**What would change this.** Only Apple adding a given controller to the OS's own
+internal list — nothing this application does, or could do, changes which devices
+`GameController.framework` recognises.
+
 ## Fixed: a USB gamepad connected as "Keyboard/Mouse", disconnected as "Gamepad/Joystick"
 
 **Status:** fixed 2026-09-06, reported live immediately after the Gamepad/Joystick
