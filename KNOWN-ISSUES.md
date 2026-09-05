@@ -27,11 +27,26 @@ since a disk's BSD name has a deeper stack to wait on than an interface descript
 A device that still answers nothing by the deadline is left exactly as generic as it
 always would have been.
 
-**Not yet confirmed live against the exact disk that reported this** — the fix follows
-directly from the same measured, already-proven root cause as the BRIO fix, but this
-specific retry path has not itself been watched end-to-end against real hardware. Worth
-reconnecting the same external HDD and checking that it now reads "External Disk
-Connected" on arrival too, not only on departure.
+**This first attempt did not work, and here is why.** Reported live, unchanged, right
+after installing it: the exact same external HDD, reconnected several times, still read
+generic on connect. Read straight off the live registry this time (`ioreg -p IOService`)
+rather than assumed: this enclosure's own `bDeviceClass` is `0x00` — Mass Storage is
+declared only on an *interface* underneath it (`bInterfaceClass 0x08`), the same
+composite shape a webcam or an audio device uses. `isUnresolvedMassStorage(_:)` compared
+the raw `deviceClass` byte to `0x08` directly, which this device's own byte never is, so
+the retry this whole mechanism exists for silently never ran — the fix built and shipped
+with a condition that could not fire for the device it was written for.
+
+**The actual fix.** `isUnresolvedMassStorage(_:)` now reads `device.kind` — the already-
+resolved class, which correctly falls back to the interfaces the same way `USBDeviceKind`
+itself does — rather than the raw byte. Confirmed this time by reading the live registry
+of the exact reporting enclosure, not merely reasoned about: its `bInterfaceClass` is
+present and is `0x08`, so `device.kind == .massStorage` correctly recognises it as needing
+the retry, where the raw-byte comparison never could.
+
+**Still not watched end-to-end against the real disk** — the registry data was read
+directly, and the condition was traced by hand against it, but the fixed retry path
+itself has not yet been watched producing the corrected connect notification live.
 
 ## Fixed: USB Monitor showed a pendrive and an external HDD both as plain "Mass Storage"
 

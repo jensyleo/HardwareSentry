@@ -329,11 +329,18 @@ private final class RegistryWatcher: @unchecked Sendable {
         return []
     }
 
-    /// A Mass Storage device (class `0x08`, not a hub) whose disk the heuristic could not
-    /// yet say anything about — worth a retry, since "nothing yet" and "never will" look
-    /// identical from a single read and only time tells them apart.
+    /// A Mass Storage device whose disk the heuristic could not yet say anything about —
+    /// worth a retry, since "nothing yet" and "never will" look identical from a single
+    /// read and only time tells them apart.
+    ///
+    /// Reads `device.kind` — the *resolved* class — rather than the raw `deviceClass`
+    /// byte. Reported live, 2026-09-06: a real external HDD enclosure declares `0x00` at
+    /// the device level and Mass Storage only on an interface underneath (`bInterfaceClass
+    /// 0x08`), the same composite shape a webcam or an audio device uses; comparing the
+    /// raw byte directly, as an earlier version of this check did, never matched it, and
+    /// the retry this whole function exists for silently never ran.
     private static func isUnresolvedMassStorage(_ device: USBDevice) -> Bool {
-        device.deviceClass == 0x08 && !device.isHub && device.detail.massStorageHint == nil
+        device.kind == .massStorage
     }
 
     /// Polls the very same registry entry for a Mass Storage device's disk description,
