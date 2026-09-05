@@ -69,6 +69,21 @@ private final class RegistryWatcher: @unchecked Sendable {
     private var resolvedInterfaceClassesOrder: [String] = []
     private static let maxResolvedInterfaceClasses = 256
 
+    /// What a Mass Storage device's disk turned out to be, remembered by identity for
+    /// departure to read back — the same reasoning `resolvedInterfaceClasses` rests on,
+    /// for a gap reported live, 2026-09-06: of two real external HDDs connected at once,
+    /// one disconnected correctly as "External Disk" and the other read as plain generic
+    /// "Mass Storage" on the way out. Departure reads the disk fresh, once, with no retry
+    /// — by the time `kIOTerminatedNotification` fires, the disk is already being torn
+    /// down, so whether its BSD name/description are still readable at that exact moment
+    /// is a race, not a guarantee, and apparently won one of the two disks and lost the
+    /// other. Filled in whenever arrival resolves a hint, by whichever path — immediately,
+    /// or after the retry — so departure has something to fall back on when its own live
+    /// read comes back empty, the same way a stale composite device's interfaces do.
+    private var resolvedMassStorageHints: [String: USBMassStorageHint] = [:]
+    private var resolvedMassStorageHintsOrder: [String] = []
+    private static let maxResolvedMassStorageHints = 256
+
     /// The still-polling ambiguous-device enrichment tasks, so `stop()` can cancel them
     /// instead of leaving them to keep hitting IOKit for up to 400ms after the watcher —
     /// and the stream it feeds — is already gone.
@@ -93,6 +108,24 @@ private final class RegistryWatcher: @unchecked Sendable {
     private func forgetInterfaceClasses(for key: String) -> [UInt8]? {
         resolvedInterfaceClassesOrder.removeAll { $0 == key }
         return resolvedInterfaceClasses.removeValue(forKey: key)
+    }
+
+    /// Remembers a device's mass-storage hint under its identity, evicting the oldest
+    /// entry once the cache is full — the same bound and the same reason
+    /// `rememberInterfaceClasses` has one.
+    private func rememberMassStorageHint(_ hint: USBMassStorageHint, for key: String) {
+        if resolvedMassStorageHints.updateValue(hint, forKey: key) == nil {
+            resolvedMassStorageHintsOrder.append(key)
+        }
+        while resolvedMassStorageHintsOrder.count > Self.maxResolvedMassStorageHints {
+            let oldest = resolvedMassStorageHintsOrder.removeFirst()
+            resolvedMassStorageHints.removeValue(forKey: oldest)
+        }
+    }
+
+    private func forgetMassStorageHint(for key: String) -> USBMassStorageHint? {
+        resolvedMassStorageHintsOrder.removeAll { $0 == key }
+        return resolvedMassStorageHints.removeValue(forKey: key)
     }
 
     /// A device's physical identity, stable across the registry-entry replacement a
@@ -195,25 +228,41 @@ private final class RegistryWatcher: @unchecked Sendable {
                 // ask, so a still-ambiguous read is enriched from that cache instead of
                 // being yielded as the no-kind-at-all device it would otherwise resolve
                 // to — and with it gone, silently and needlessly outliving the device.
-                if Self.isAmbiguous(device), let key, let cached = forgetInterfaceClasses(for: key), !cached.isEmpty {
-                    continuation.yield(.detached(USBDevice(
-                        name: device.name,
-                        vendorName: device.vendorName,
-                        isHub: device.isHub,
-                        deviceClass: device.deviceClass,
-                        interfaceClasses: cached,
-                        detail: device.detail
-                    )))
-                } else {
-                    if let key { _ = forgetInterfaceClasses(for: key) }
-                    continuation.yield(.detached(device))
-                }
+                //
+                // A Mass Storage device's own disk is the same story for a different
+                // reason: departure reads it fresh, once, with no retry, and by the time
+                // `kIOTerminatedNotification` fires the disk is already being torn down —
+                // whether its BSD name/description are still readable at that exact
+                // moment is a race, not a guarantee. Reported live, 2026-09-06: of two
+                // real external HDDs disconnected in the same session, one read correctly
+                // and the other read plain generic "Mass Storage" — the cache below is
+                // what arrival already worked out, the same fallback the interfaces get.
+                let cachedInterfaces = key.flatMap { forgetInterfaceClasses(for: $0) }
+                let cachedHint = key.flatMap { forgetMassStorageHint(for: $0) }
+                let interfaceClasses = (Self.isAmbiguous(device) && !(cachedInterfaces ?? []).isEmpty)
+                    ? cachedInterfaces!
+                    : device.interfaceClasses
+                let detail = device.detail.massStorageHint == nil
+                    ? device.detail.withMassStorageHint(cachedHint)
+                    : device.detail
+
+                continuation.yield(.detached(USBDevice(
+                    name: device.name,
+                    vendorName: device.vendorName,
+                    isHub: device.isHub,
+                    deviceClass: device.deviceClass,
+                    interfaceClasses: interfaceClasses,
+                    detail: detail
+                )))
                 continue
             }
 
             guard Self.isAmbiguous(device) else {
                 if let key, !device.interfaceClasses.isEmpty {
                     rememberInterfaceClasses(device.interfaceClasses, for: key)
+                }
+                if let key, let hint = device.detail.massStorageHint {
+                    rememberMassStorageHint(hint, for: key)
                 }
 
                 // Reported live, 2026-09-06: an external HDD enclosure that declares
@@ -249,6 +298,9 @@ private final class RegistryWatcher: @unchecked Sendable {
                             interfaceClasses: device.interfaceClasses,
                             detail: device.detail.withMassStorageHint(hint)
                         )
+                        if let key, let hint {
+                            queue.async { [weak self] in self?.rememberMassStorageHint(hint, for: key) }
+                        }
                         continuation.yield(.attached(enriched))
                         queue.async { [weak self] in self?.pendingEnrichments.removeValue(forKey: taskID) }
                     }
@@ -306,6 +358,9 @@ private final class RegistryWatcher: @unchecked Sendable {
                             interfaceClasses: enriched.interfaceClasses,
                             detail: enriched.detail.withMassStorageHint(hint)
                         )
+                        if let key {
+                            queue.async { [weak self] in self?.rememberMassStorageHint(hint, for: key) }
+                        }
                     }
                 }
                 continuation.yield(.attached(enriched))

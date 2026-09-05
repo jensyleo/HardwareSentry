@@ -3,6 +3,28 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: one of two external disks read generic "Mass Storage" only on disconnect
+
+**Status:** fixed 2026-09-06, reported live with two real external HDDs connected at
+once, after the connect-time fix directly below was confirmed working: one disk
+disconnected correctly as "External Disk", the other read plain generic "Mass Storage" on
+the way out.
+
+**Root cause.** Departure reads a Mass Storage device's disk fresh, once, with no
+retry — by the time `kIOTerminatedNotification` fires the disk is already being torn
+down, so whether its BSD name/description are still readable at that exact moment is a
+race, not a guarantee, and it can genuinely go either way between two otherwise-identical
+disks. `resolvedInterfaceClasses` already exists precisely to give a composite device's
+departure something to fall back on when its own live read comes back empty (the BRIO fix,
+2026-09-03) — but no equivalent cache existed for a Mass Storage device's own hint, so
+departure had nothing to fall back on when its one-shot read lost that race.
+
+**The fix.** A second cache, `resolvedMassStorageHints`, mirrors `resolvedInterfaceClasses`
+exactly: filled in on arrival the moment a hint resolves (immediately, or after the
+retry), read back on departure whenever the fresh read comes back nil, and forgotten
+either way once departure has asked. Confirmed by the same live report that found it —
+not yet re-tested against the exact two disks that disagreed.
+
 ## Fixed: USB Monitor's external-disk detection read generic on connect, correct on disconnect
 
 **Status:** fixed 2026-09-06, reported live immediately after the fix directly above —
