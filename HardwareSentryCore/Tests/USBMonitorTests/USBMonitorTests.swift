@@ -576,6 +576,34 @@ struct USBDeviceDetailTests {
         #expect(webcam.kind == .webcam)
     }
 
+    @Test("an empty card reader (no disk to read a hint from) is still told apart from a plain pendrive, by its own USB product name")
+    func emptyCardReaderIsRecognisedByItsOwnName() {
+        // Reported live, 2026-09-06: a genuine multi-card reader (VID 0x05E3, Genesys
+        // Logic), part of a USB-C dock, with no card in any slot — `massStorageHint`
+        // stays nil since an empty slot publishes no `IOMedia` for that heuristic to
+        // read, so this fell all the way to the plain `.massStorage` row and wore the
+        // same flash-drive icon a real pendrive gets, reading as "a pendrive is
+        // connected" when nothing was. Its own USB product string names it outright.
+        let emptyReader = USBDevice(
+            name: "USB3.0 Card Reader", deviceClass: 0x08,
+            detail: USBDeviceDetail(vendorID: 0x05E3, productID: 0x0749)
+        )
+        #expect(emptyReader.kind == .sdCardReader)
+
+        // The disk-level heuristic still wins when it has something to say — this is an
+        // additional, narrower fallback, not a replacement for it.
+        let readerWithCard = USBDevice(
+            name: "USB3.0 Card Reader", deviceClass: 0x08,
+            detail: USBDeviceDetail(massStorageHint: .externalDisk)
+        )
+        #expect(readerWithCard.kind == .externalDisk)
+
+        // A device whose name says nothing about being a card reader stays plain
+        // `.massStorage` — this narrows, it never widens, what counts as one.
+        let genericDisk = USBDevice(name: "External Storage Device", deviceClass: 0x08)
+        #expect(genericDisk.kind == .massStorage)
+    }
+
     @Test("a device with no informative class byte, but a known serial/debug vendor ID, resolves to Serial/Debug Adapter")
     func knownVendorResolvesUnclassifiedDeviceToSerialAdapter() {
         // FTDI's own VID — the same real FT232R adapter this suite's other test above,

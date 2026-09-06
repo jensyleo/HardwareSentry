@@ -120,12 +120,38 @@ public struct USBDevice: Sendable, Equatable {
         // reimplemented since a monitor may not import another monitor) recognised
         // something more specific. An enclosure or an unrecognised disk stays `.massStorage`,
         // which is the honest answer when the heuristic has nothing to say.
-        guard resolved == .massStorage, let hint = detail.massStorageHint else { return resolved }
-        switch hint {
-        case .sdCard: return .sdCardReader
-        case .usbDrive: return .usbDrive
-        case .externalDisk: return .externalDisk
+        guard resolved == .massStorage else { return resolved }
+        if let hint = detail.massStorageHint {
+            switch hint {
+            case .sdCard: return .sdCardReader
+            case .usbDrive: return .usbDrive
+            case .externalDisk: return .externalDisk
+            }
         }
+        // The heuristic above reads the disk's own description — its BSD protocol/media
+        // name — which does not exist at all without a card actually inserted: an empty
+        // card-reader slot publishes no `IOMedia` for it to read, so `massStorageHint`
+        // stays nil and this device would otherwise sit at the plain `.massStorage` row,
+        // wearing the same generic disk/flash-drive icon a real pendrive gets. Reported
+        // live, 2026-09-06: a genuine multi-card reader, empty, read exactly like a
+        // pendrive would have. Its own USB product string is available regardless of
+        // whether anything is inserted, and commonly names it outright — "USB3.0 Card
+        // Reader" in the reported case — so it is checked here as a second, narrower
+        // source of the same "recognise it, don't guess" reasoning `massStorageHint`
+        // itself rests on.
+        if Self.namesACardReader(name) { return .sdCardReader }
+        return .massStorage
+    }
+
+    /// Whether a device's own name says "card reader" — checked only once the disk-level
+    /// heuristic has nothing to read from, as the narrower, later-checked signal. Shares
+    /// `USBMassStorageHint.infer`'s own card-reader keywords, applied to the USB product
+    /// string instead of the disk's media name, since the product string is the one
+    /// naming available before any card is ever inserted.
+    private static func namesACardReader(_ text: String) -> Bool {
+        let text = text.lowercased()
+        return ["secure digital", " sd/", "sd card", "sdxc", "sdhc", "mmc",
+                "compactflash", " cf ", "cardreader", "card reader"].contains(where: text.contains)
     }
 
     /// The artwork for what this device says it is.

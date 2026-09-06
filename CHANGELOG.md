@@ -18,6 +18,17 @@ VIA Labs became a "known vendor" via `usb.ids`, it got claimed. Fixed by adding 
 already uses — a device that names anything real now never falls through to a
 vendor-ID guess, no matter how broad that vendor list grows.
 
+### Fixed: an empty card reader read as a plain pendrive
+
+Reported live: a genuine multi-card reader (part of a USB-C dock), with no card in any
+slot, showed up as generic "USB Mass Storage Connected" wearing the same flash-drive
+icon a real pendrive gets. The heuristic that tells a card reader apart from a pendrive
+reads the *disk's own* description — which does not exist at all without a card
+actually inserted, since an empty slot publishes no disk for it to read. Fixed by also
+checking the reader's own USB product name (available regardless of what is inserted),
+which commonly says "Card Reader" outright — narrower than, and additive to, the
+existing disk-based heuristic, never replacing it.
+
 ### Gamepad Monitor's icon now matches the controller's own brand
 
 Every controller — a Joy-Con, a Switch Pro Controller, an Xbox pad, a generic MFi one —
