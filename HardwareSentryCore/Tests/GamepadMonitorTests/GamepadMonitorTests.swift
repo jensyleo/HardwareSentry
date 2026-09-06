@@ -204,4 +204,30 @@ struct GamepadMonitorFieldTests {
         #expect(GamepadDetail(playerIndex: 0).playerNote == "0")
         #expect(GamepadDetail().playerNote == nil)
     }
+
+    @Test("a controller's icon matches its brand family, keyed off productCategory")
+    func iconMatchesProductCategory() {
+        // "Nintendo Switch Joy-Con (R)" is the exact string a real Joy-Con (R) reports
+        // live, 2026-09-06 — not the bare "Switch Joy-Con (R)" Apple's own constant name
+        // would suggest, which is why this matches by keyword rather than exact equality.
+        #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: "Nintendo Switch Joy-Con (R)") == "GamepadMonitor-Icon-JoyCon")
+        #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: "Xbox One") == "GamepadMonitor-Icon-Xbox")
+        #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: "DualSense") == "GamepadMonitor-Icon-PlayStation")
+        #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: "DualShock 4") == "GamepadMonitor-Icon-PlayStation")
+        #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: "Switch Pro Controller") == "GamepadMonitor-Icon-SwitchPro")
+
+        // Unrecognised (a generic MFi controller, most third-party pads) and a racing
+        // wheel (never told apart by brand, regardless of category) both keep the
+        // original plain glyph.
+        #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: "MFi") == "GamepadMonitor-Icon")
+        #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: nil) == "GamepadMonitor-Icon")
+        #expect(GamepadMonitor.iconAssetName(for: .racingWheel, productCategory: "Xbox One") == "GamepadMonitor-Icon")
+    }
+
+    @Test("every per-brand icon this module can pick actually ships")
+    func perBrandIconsExist() {
+        for name in ["GamepadMonitor-Icon", "GamepadMonitor-Icon-Xbox", "GamepadMonitor-Icon-PlayStation", "GamepadMonitor-Icon-JoyCon", "GamepadMonitor-Icon-SwitchPro"] {
+            #expect(Bundle.module.url(forResource: name, withExtension: "png") != nil, "missing artwork: \(name)")
+        }
+    }
 }

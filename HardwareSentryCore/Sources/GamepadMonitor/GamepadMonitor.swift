@@ -71,6 +71,7 @@ public actor GamepadMonitor: Monitor {
         let event = GamepadEvent.forChange(change)
         let (title, headline) = describe(change)
         let detail = change.detail
+        let icon = iconAssetName(for: change.kind, productCategory: detail?.productCategory)
         await context.notify(
             event.rawValue,
             subject: change.name ?? String(describing: change.kind),
@@ -90,8 +91,32 @@ public actor GamepadMonitor: Monitor {
                 .field(GamepadField.elitePaddles.rawValue, "Elite Paddles", detail?.elitePaddlesNote),
                 .field(GamepadField.lightColor.rawValue, "Lightbar Color", detail?.lightColor)
             ]),
-            icon: .asset("GamepadMonitor-Icon", in: .module)
+            icon: .asset(icon, in: .module)
         )
+    }
+
+    /// Which of this module's icons matches what actually connected, keyed off
+    /// `GCController.productCategory` — the same string this notification's own "Type"
+    /// field already shows in words. Matched by keyword rather than an exact constant:
+    /// confirmed live, a real Joy-Con (R) reports the category as "Nintendo Switch
+    /// Joy-Con (R)", not the bare "Switch Joy-Con (R)" Apple's own constant name would
+    /// suggest, so this looks for the word that identifies the family rather than the
+    /// exact sentence. Anything unrecognised — a generic MFi controller, most
+    /// third-party pads among them — keeps the original plain glyph, honest for a
+    /// controller this module knows nothing more specific about. Racing wheels get their
+    /// own generic icon regardless of `productCategory`: too rare a category, so far, to
+    /// be worth telling apart by brand the way controllers are.
+    static func iconAssetName(for kind: GamepadDeviceKind, productCategory: String?) -> String {
+        guard kind == .controller, let category = productCategory?.lowercased() else {
+            return "GamepadMonitor-Icon"
+        }
+        if category.contains("xbox") { return "GamepadMonitor-Icon-Xbox" }
+        if category.contains("dualsense") || category.contains("dualshock") || category.contains("playstation") {
+            return "GamepadMonitor-Icon-PlayStation"
+        }
+        if category.contains("joy-con") || category.contains("joycon") { return "GamepadMonitor-Icon-JoyCon" }
+        if category.contains("switch pro") { return "GamepadMonitor-Icon-SwitchPro" }
+        return "GamepadMonitor-Icon"
     }
 
     private static func describe(_ change: GamepadDeviceChange) -> (title: String, headline: String) {

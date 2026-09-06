@@ -6,6 +6,18 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Gamepad Monitor's icon now matches the controller's own brand
+
+Every controller — a Joy-Con, a Switch Pro Controller, an Xbox pad, a generic MFi one —
+drew with the same single glyph before, even though the module already knows exactly
+which is which (`GCController.productCategory`, the same text the notification's own
+"Type" field already shows). Four new icons — Xbox, PlayStation (DualShock 4 and
+DualSense both), Joy-Con, Switch Pro Controller — are picked by keyword match against
+that text; an unrecognised controller (most third-party MFi ones) and racing wheels
+both keep the original plain glyph. Matched by keyword rather than an exact constant on
+purpose: a real Joy-Con (R), confirmed live, reports its category as "Nintendo Switch
+Joy-Con (R)", not the bare name Apple's own constant suggests.
+
 ### USB Monitor recognises serial/debug adapters by vendor, not just by class
 
 An FTDI, Silicon Labs, WCH, SEGGER, ST-Link or other USB-serial/debug-probe chip
