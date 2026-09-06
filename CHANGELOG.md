@@ -6,6 +6,18 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Fixed: a hub's own Billboard chip misread as "Serial/Debug Adapter"
+
+Reported live minutes after the `usb.ids` widening shipped: a VIA Labs "USB 2.0
+BILLBOARD" chip — a hub's own internal companion device, always there, nothing plugged
+in — showed up at every launch as "USB Serial/Debug Adapter Connected". Device class
+`0x11` (Billboard) has a real name but no row of its own, so it looked exactly as
+"unclassified" to the vendor-ID guess as a genuinely unclassifiable device — and once
+VIA Labs became a "known vendor" via `usb.ids`, it got claimed. Fixed by adding the same
+"has a real, named class" check `USBMonitor`'s "ignore identified devices" switch
+already uses — a device that names anything real now never falls through to a
+vendor-ID guess, no matter how broad that vendor list grows.
+
 ### Gamepad Monitor's icon now matches the controller's own brand
 
 Every controller — a Joy-Con, a Switch Pro Controller, an Xbox pad, a generic MFi one —

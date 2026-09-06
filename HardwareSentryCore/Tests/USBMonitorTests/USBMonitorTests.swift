@@ -604,6 +604,22 @@ struct USBDeviceDetailTests {
         #expect(realClass.kind == .hid)
     }
 
+    @Test("a device with a real class name but no row of its own is never second-guessed as a vendor-ID adapter")
+    func namedClassWithNoRowIsNeverMistakenForAVendorAdapter() {
+        // Reported live, 2026-09-06, right after the usb.ids widening: a VIA Labs USB
+        // 2.0 BILLBOARD chip (device class 0x11, Billboard — real, named by `className`,
+        // but with no `USBDeviceKind` row of its own) was misread as "Serial/Debug
+        // Adapter" once VIA Labs' own VID became a "known vendor" via that update.
+        // `resolved == nil` is true for this device too (no Billboard row exists), which
+        // is exactly why the vendor-lookup guard needs `!isMeaningfullyIdentified`
+        // alongside it, not `resolved == nil` alone.
+        let billboard = USBDevice(
+            name: "USB 2.0 BILLBOARD", deviceClass: 0x11,
+            detail: USBDeviceDetail(vendorID: 0x2109, productID: 0x0102)
+        )
+        #expect(billboard.kind == nil, "a real, named class must never be reclassified by a vendor-ID guess")
+    }
+
     @Test("0xE0/subclass 1/protocol 1 resolves to Bluetooth Adapter, confirmed against two real dongles, and the switch can fall it back to plain Wireless")
     func bluetoothSignatureResolvesToBluetoothAdapter() {
         defer { USBWirelessDetectionSettings.shared.detectsBluetoothAdapters = true }

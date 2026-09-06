@@ -73,7 +73,17 @@ public struct USBDevice: Sendable, Equatable {
         // vendor-specific class, so nothing above ever resolves them. Checked only once the
         // class byte itself has nothing to say, so an actually-classified device is never
         // second-guessed by a vendor that happens to also sell serial chips.
-        if resolved == nil, let vendorID = detail.vendorID {
+        //
+        // `!isMeaningfullyIdentified` is the second half of that guard, not a redundant
+        // one: `resolved` only knows the classes `USBDeviceKind` has a row for, so a
+        // class `className` can already name — Billboard (`0x11`) chief among them, no
+        // row of its own since the Type-C Bridge fix — reads as `resolved == nil` too,
+        // even though the device is not remotely unclassified. Reported live, 2026-09-06,
+        // right after the `usb.ids` widening: a VIA Labs USB 2.0 BILLBOARD chip, VIA
+        // Labs now a "known vendor" via that update, was misread as "Serial/Debug
+        // Adapter" — a real, named class losing to a vendor-ID guess it was never meant
+        // to be second-guessed by, the exact failure mode this line exists to close.
+        if resolved == nil, !isMeaningfullyIdentified, let vendorID = detail.vendorID {
             // Checked before the serial-vendor lookup below, on purpose: once that lookup
             // has been widened by a `usb.ids` update (see `USBSerialVendorDatabase`'s own
             // doc comment), it recognises essentially every real vendor there is,

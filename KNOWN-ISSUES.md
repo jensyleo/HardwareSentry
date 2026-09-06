@@ -3,6 +3,27 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: a Billboard chip read as "Serial/Debug Adapter" after the usb.ids widening
+
+**Status:** fixed 2026-09-06, reported live minutes after the `usb.ids` widening
+shipped — every launch showed a VIA Labs "USB 2.0 BILLBOARD" chip (a hub's own internal
+companion device, always present, not something plugged in) as "USB Serial/Debug
+Adapter Connected".
+
+**Root cause.** `USBDevice.kind`'s vendor-lookup guard read `if resolved == nil`, but
+`resolved == nil` is not the same question as "genuinely unclassifiable": device class
+`0x11` (Billboard) has a real name (`className` already resolves it to "Billboard") but
+no `USBDeviceKind` row of its own, so it reads as `resolved == nil` too. Once
+`USBSerialVendorDatabase` was widened by a `usb.ids` update (see its own doc comment —
+a deliberate, accepted tradeoff) VIA Labs' VID became a "known vendor," and the guard,
+never designed to be second-guessed by a real class name, claimed it as a Serial/Debug
+Adapter.
+
+**The fix.** Added `!isMeaningfullyIdentified` to the same guard — the identical check
+already guarding "ignore identified devices without their own icon" for exactly this
+kind of gap. A device with a real, named class now never falls through to a vendor-ID
+guess, regardless of how broad that vendor list grows.
+
 ## Not a bug: Gamepad Monitor never fires for most real controllers
 
 **Status:** confirmed 2026-09-06, not something this application can fix — a limitation
