@@ -6,6 +6,24 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Fixed: a wired Ethernet adapter could be announced as "WiFi Adapter"
+
+Found while auditing, against hardware connected at the time: the Realtek USB Ethernet
+adapter in a USB-C dock reports device class `0x00` — "ask the interfaces" — and says it
+is Ethernet only through those interfaces (Communications/ECM plus CDC Data). Those are
+normally waited for, so it lands correctly on "Network Adapter". But the wait is
+bounded, and if it times out the device arrives with class `0x00` and no interfaces at
+all: nothing resolved, so the vendor-ID guess got its turn, and Realtek is on the
+WiFi-chip vendor list. A wired adapter would then be announced as "WiFi Adapter" — same
+shape as the Billboard misread above, a real device losing to a guess.
+
+The device's own product name says "LAN", which beats guessing from the vendor, so it is
+read first now. Wireless names ("WLAN", "Wi-Fi", "Wireless", "802.11") are read first of
+all and resolve to WiFi Adapter directly — which also makes that detection less
+dependent on the vendor list. Both matches are on whole words rather than substrings,
+because "WLAN" ends in "lan": read as a substring, a WiFi dongle would have been
+announced as a wired adapter, which is the same mistake in the opposite direction.
+
 ### Bluetooth peripherals are told apart past "keyboard or mouse"
 
 A classic Bluetooth device announces what it is in its Class of Device record, and for

@@ -697,6 +697,47 @@ struct USBDeviceDetailTests {
         #expect(realtek.kind != .wifiAdapter, "switched off, WiFi Adapter must never be the answer")
     }
 
+    @Test("a wired Ethernet adapter is never claimed by the WiFi vendor guess, even from the same vendor")
+    func wiredAdapterIsNotMistakenForWiFi() {
+        // Read live via `ioreg -p IOUSB -l`, 2026-09-07, from the Realtek USB Ethernet
+        // adapter in this machine's dock: device class 0x00 ("ask the interfaces"),
+        // vendor 0x0BDA — which is on the WiFi-chip vendor list. Its interfaces say
+        // Communications/ECM + CDC Data, but those are read on a bounded retry; this is
+        // the shape it arrives in when that retry times out.
+        let lan = USBDevice(
+            name: "USB 10_100_1000 LAN", deviceClass: 0x00,
+            detail: USBDeviceDetail(vendorID: 0x0BDA, productID: 0x8153)
+        )
+        #expect(lan.kind == .communications)
+
+        // Once the interfaces did arrive, the ordinary path answers the same thing.
+        let enriched = USBDevice(
+            name: "USB 10_100_1000 LAN", deviceClass: 0x00, interfaceClasses: [0x02, 0x0A],
+            detail: USBDeviceDetail(vendorID: 0x0BDA, productID: 0x8153)
+        )
+        #expect(enriched.kind == .communications)
+    }
+
+    @Test("\"WLAN\" is not read as \"LAN\" — a wireless dongle stays wireless")
+    func wirelessNameIsNotReadAsWired() {
+        defer { USBWirelessDetectionSettings.shared.detectsWiFiAdapters = true }
+        USBWirelessDetectionSettings.shared.detectsWiFiAdapters = true
+
+        // The trap this ordering exists for: the wired check would match "lan" inside
+        // "WLAN" and announce a WiFi dongle as a wired Ethernet adapter.
+        for name in ["802.11n WLAN Adapter", "Wireless-AC Dongle", "Wi-Fi 6 Adapter"] {
+            let dongle = USBDevice(
+                name: name, deviceClass: 0xFF,
+                detail: USBDeviceDetail(vendorID: 0x0BDA)
+            )
+            #expect(dongle.kind == .wifiAdapter, "\(name) must not be read as wired")
+        }
+
+        // A name that says neither is left to the vendor guess, as before.
+        let mystery = USBDevice(name: "USB Device", deviceClass: 0xFF)
+        #expect(mystery.kind != .communications)
+    }
+
     @Test("a HID device with Generic Desktop's Joystick/Gamepad/Multi-axis Controller usage resolves to Gamepad/Joystick, not Keyboard/Mouse")
     func gamepadUsageResolvesToGamepad() {
         // Read live via `ioreg -c IOHIDDevice -l`, 2026-09-06, from a real generic USB

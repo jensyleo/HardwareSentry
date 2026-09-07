@@ -83,6 +83,30 @@ public struct USBDevice: Sendable, Equatable {
         // Labs now a "known vendor" via that update, was misread as "Serial/Debug
         // Adapter" — a real, named class losing to a vendor-ID guess it was never meant
         // to be second-guessed by, the exact failure mode this line exists to close.
+        // Before any vendor-ID guess: what the device calls itself, when it says outright
+        // what sort of network adapter it is. This is the same shape as the card-reader
+        // name fallback further down — a narrow read of the product string, used only
+        // where nothing better is available — and it exists because of a real failure
+        // mode found while auditing, 2026-09-07, against hardware connected at the time.
+        //
+        // A Realtek "USB 10/100/1000 LAN" adapter reports device class `0x00` ("ask the
+        // interfaces") and identifies itself as Ethernet only through its interfaces —
+        // Communications/ECM plus CDC Data. Those are normally waited for, so it lands on
+        // `.communications` correctly. But that wait is bounded: if it times out, the
+        // device arrives with class `0x00` and no interfaces, `resolved` is nil, and the
+        // vendor-ID guess below claims it — Realtek being on the WiFi-chip list — and a
+        // wired Ethernet adapter gets announced as "WiFi Adapter". Its own name says LAN;
+        // that beats guessing from the vendor, so it is read first.
+        if resolved == nil, !isMeaningfullyIdentified {
+            // Order matters: "WLAN" contains "lan". Wireless is checked first so a WLAN
+            // dongle is never read as wired, and both are matched on whole words rather
+            // than substrings so neither can be found inside an unrelated one.
+            if Self.namesAWirelessAdapter(name) {
+                if USBWirelessDetectionSettings.shared.detectsWiFiAdapters { return .wifiAdapter }
+            } else if Self.namesAWiredNetworkAdapter(name) {
+                return .communications
+            }
+        }
         if resolved == nil, !isMeaningfullyIdentified, let vendorID = detail.vendorID {
             // Checked before the serial-vendor lookup below, on purpose: once that lookup
             // has been widened by a `usb.ids` update (see `USBSerialVendorDatabase`'s own
@@ -152,6 +176,34 @@ public struct USBDevice: Sendable, Equatable {
         let text = text.lowercased()
         return ["secure digital", " sd/", "sd card", "sdxc", "sdhc", "mmc",
                 "compactflash", " cf ", "cardreader", "card reader"].contains(where: text.contains)
+    }
+
+    /// The words in a product string, lowercased, split on everything that is not a
+    /// letter or a digit.
+    ///
+    /// Whole words rather than substrings, because the words that matter here contain
+    /// each other: "WLAN" ends in "lan", and reading a wireless dongle as wired is the
+    /// exact mistake these two checks exist to avoid. Underscores count as separators
+    /// too — IOKit reports this adapter's name as "USB 10_100_1000 LAN".
+    private static func words(in text: String) -> Set<String> {
+        Set(text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+    }
+
+    /// Whether the product string says outright that this is a wireless adapter.
+    private static func namesAWirelessAdapter(_ text: String) -> Bool {
+        let words = words(in: text)
+        if !words.isDisjoint(with: ["wlan", "wifi", "wireless", "802"]) { return true }
+        // "Wi-Fi" splits into two words on the hyphen.
+        return words.contains("wi") && words.contains("fi")
+    }
+
+    /// Whether the product string says outright that this is a wired network adapter.
+    ///
+    /// Deliberately narrow: only words that mean Ethernet and nothing else. "Network"
+    /// on its own is not one of them — a wireless dongle calls itself that just as
+    /// readily — and neither is "gigabit", which is equally at home on a disk enclosure.
+    private static func namesAWiredNetworkAdapter(_ text: String) -> Bool {
+        !words(in: text).isDisjoint(with: ["lan", "ethernet", "rj45", "gbe"])
     }
 
     /// The artwork for what this device says it is.

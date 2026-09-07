@@ -3,6 +3,24 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: a wired Ethernet adapter could be announced as "WiFi Adapter"
+
+**Status:** fixed 2026-09-07, found by audit rather than by a live report — the
+misclassification needed a bounded retry to time out first, so it would have surfaced
+only occasionally and looked random.
+
+The Realtek USB Ethernet adapter in a USB-C dock (vendor `0x0BDA`, product `0x8153`,
+device class `0x00`) names itself Ethernet only through its interfaces. Those are waited
+for, and normally arrive, so the device resolves to "Network Adapter". When that wait
+timed out, the device fell through to the vendor-ID guess — and Realtek is on the
+WiFi-chip vendor list, so a wired adapter was announced as WiFi. Same shape as the
+Billboard misread below: a real device losing to a last-resort guess.
+
+Fixed by reading the product name before any vendor guess. Note for anyone extending
+those keywords: they must be matched as whole words. "WLAN" ends in "lan", so a
+substring match reads a WiFi dongle as wired — the same bug in the other direction, and
+the reason wireless is checked first as well.
+
 ## Fixed: a Billboard chip read as "Serial/Debug Adapter" after the usb.ids widening
 
 **Status:** fixed 2026-09-06, reported live minutes after the `usb.ids` widening
