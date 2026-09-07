@@ -39,6 +39,8 @@ public enum USBEvent: String, NotificationEventKey, CaseIterable {
     // Desktop's Joystick/Gamepad/Multi-axis Controller, told apart from the same class's
     // Keyboard/Mouse row. See `USBDeviceDetail.hidUsagePage`/`hidUsage`.
     case connectedGamepad = "USBConnectedGamepad"
+    case connectedRemoteControl = "USBConnectedRemoteControl"
+    case connectedGraphicsTablet = "USBConnectedGraphicsTablet"
 
     public static let category: NotificationCategory = "USB"
 }

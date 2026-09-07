@@ -6,6 +6,23 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### USB remotes and graphics tablets are named instead of filed under Keyboard/Mouse
+
+HID is one USB class for a keyboard, a mouse, a gamepad, a media remote and a graphics
+tablet alike; only the HID Report Descriptor's own usage page tells them apart, which is
+how gamepads were split out already. Two more usage pages get the same treatment: a
+device leading with Consumer (`0x0C`) / Consumer Control — a media remote, a volume
+knob, a presentation clicker — is now "Remote Control", and one leading with Digitizers
+(`0x0D`) / Digitizer or Pen is "Graphics Tablet". Each has its own notification row.
+
+Both read `PrimaryUsagePage`, which is what a device *leads* with, so an ordinary
+keyboard is unaffected even though nearly all of them also carry a Consumer Control
+collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x04` and
+`0x05`) are deliberately left where they are: those really are pointing devices.
+
+Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
+already does.
+
 ### Fixed: a wired Ethernet adapter could be announced as "WiFi Adapter"
 
 Found while auditing, against hardware connected at the time: the Realtek USB Ethernet

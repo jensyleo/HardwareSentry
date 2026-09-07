@@ -738,6 +738,42 @@ struct USBDeviceDetailTests {
         #expect(mystery.kind != .communications)
     }
 
+    @Test("a HID device leading with Consumer or Digitizer usage is named, not filed under Keyboard/Mouse")
+    func consumerAndDigitizerUsagesAreNamed() {
+        // Consumer (0x0C) / Consumer Control (0x01) — a media remote or volume knob.
+        let remote = USBDevice(
+            name: "Media Remote", deviceClass: 0x03,
+            detail: USBDeviceDetail(hidUsagePage: 0x0C, hidUsage: 0x01)
+        )
+        #expect(remote.kind == .remoteControl)
+
+        // Digitizers (0x0D), usages Digitizer and Pen.
+        for usage in [0x01, 0x02] {
+            let tablet = USBDevice(
+                name: "Pen Tablet", deviceClass: 0x03,
+                detail: USBDeviceDetail(hidUsagePage: 0x0D, hidUsage: usage)
+            )
+            #expect(tablet.kind == .graphicsTablet, "digitizer usage \(usage)")
+        }
+
+        // A touch screen and a touch pad really are pointing devices; they stay put.
+        for usage in [0x04, 0x05] {
+            let touch = USBDevice(
+                name: "Touch Pad", deviceClass: 0x03,
+                detail: USBDeviceDetail(hidUsagePage: 0x0D, hidUsage: usage)
+            )
+            #expect(touch.kind == .hid, "touch usage \(usage) must stay HID")
+        }
+
+        // An ordinary keyboard leads with Generic Desktop/Keyboard and is untouched, even
+        // though nearly all of them also carry a Consumer Control collection.
+        let keyboard = USBDevice(
+            name: "USB Keyboard", deviceClass: 0x03,
+            detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x06)
+        )
+        #expect(keyboard.kind == .hid)
+    }
+
     @Test("a HID device with Generic Desktop's Joystick/Gamepad/Multi-axis Controller usage resolves to Gamepad/Joystick, not Keyboard/Mouse")
     func gamepadUsageResolvesToGamepad() {
         // Read live via `ioreg -c IOHIDDevice -l`, 2026-09-06, from a real generic USB
@@ -831,7 +867,7 @@ struct USBDeviceKindRowTests {
         // and WiFi Adapter, `0xE0`'s own two sub-kinds (see `USBWirelessDetectionSettings`)
         // — plus Gamepad/Joystick, HID's own sub-kind told apart by Usage Page/Usage
         // rather than by class byte (see `USBDeviceDetail.hidUsagePage`/`hidUsage`).
-        #expect(USBDeviceKind.allCases.count == 20)
+        #expect(USBDeviceKind.allCases.count == 22)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }

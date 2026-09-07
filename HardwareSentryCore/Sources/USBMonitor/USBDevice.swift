@@ -67,22 +67,6 @@ public struct USBDevice: Sendable, Equatable {
         // absent device class is treated the same way rather than skipping straight to
         // the interfaces without also giving `0x00` itself a chance to (harmlessly) fail.
         let resolved = USBDeviceKind(deviceClass: deviceClass ?? 0x00, interfaceClasses: interfaceClasses)
-        // A device the class byte alone says nothing about (`0xFF`/`0xEF`/`0x00` with no
-        // recognised interface either) is still often identifiable by who made it: FTDI,
-        // Silicon Labs, WCH and the other USB-serial/debug-probe vendors all use their own
-        // vendor-specific class, so nothing above ever resolves them. Checked only once the
-        // class byte itself has nothing to say, so an actually-classified device is never
-        // second-guessed by a vendor that happens to also sell serial chips.
-        //
-        // `!isMeaningfullyIdentified` is the second half of that guard, not a redundant
-        // one: `resolved` only knows the classes `USBDeviceKind` has a row for, so a
-        // class `className` can already name — Billboard (`0x11`) chief among them, no
-        // row of its own since the Type-C Bridge fix — reads as `resolved == nil` too,
-        // even though the device is not remotely unclassified. Reported live, 2026-09-06,
-        // right after the `usb.ids` widening: a VIA Labs USB 2.0 BILLBOARD chip, VIA
-        // Labs now a "known vendor" via that update, was misread as "Serial/Debug
-        // Adapter" — a real, named class losing to a vendor-ID guess it was never meant
-        // to be second-guessed by, the exact failure mode this line exists to close.
         // Before any vendor-ID guess: what the device calls itself, when it says outright
         // what sort of network adapter it is. This is the same shape as the card-reader
         // name fallback further down — a narrow read of the product string, used only
@@ -107,6 +91,22 @@ public struct USBDevice: Sendable, Equatable {
                 return .communications
             }
         }
+        // A device the class byte alone says nothing about (`0xFF`/`0xEF`/`0x00` with no
+        // recognised interface either) is still often identifiable by who made it: FTDI,
+        // Silicon Labs, WCH and the other USB-serial/debug-probe vendors all use their own
+        // vendor-specific class, so nothing above ever resolves them. Checked only once the
+        // class byte itself has nothing to say, so an actually-classified device is never
+        // second-guessed by a vendor that happens to also sell serial chips.
+        //
+        // `!isMeaningfullyIdentified` is the second half of that guard, not a redundant
+        // one: `resolved` only knows the classes `USBDeviceKind` has a row for, so a
+        // class `className` can already name — Billboard (`0x11`) chief among them, no
+        // row of its own since the Type-C Bridge fix — reads as `resolved == nil` too,
+        // even though the device is not remotely unclassified. Reported live, 2026-09-06,
+        // right after the `usb.ids` widening: a VIA Labs USB 2.0 BILLBOARD chip, VIA
+        // Labs now a "known vendor" via that update, was misread as "Serial/Debug
+        // Adapter" — a real, named class losing to a vendor-ID guess it was never meant
+        // to be second-guessed by, the exact failure mode this line exists to close.
         if resolved == nil, !isMeaningfullyIdentified, let vendorID = detail.vendorID {
             // Checked before the serial-vendor lookup below, on purpose: once that lookup
             // has been widened by a `usb.ids` update (see `USBSerialVendorDatabase`'s own
@@ -136,6 +136,26 @@ public struct USBDevice: Sendable, Equatable {
         if resolved == .hid, detail.hidUsagePage == 0x01, let usage = detail.hidUsage,
            [0x04, 0x05, 0x08].contains(usage) {
             return .gamepad
+        }
+        // The same refinement, for the two other usage pages a real USB device leads with
+        // that mean something quite unlike a keyboard or a mouse. A media remote, a volume
+        // knob or a presentation clicker leads with Consumer (`0x0C`); a graphics tablet or
+        // a pen leads with Digitizers (`0x0D`). Both used to answer "HID
+        // (Keyboard/Mouse)", which is the class byte's own answer and not a wrong one, but
+        // is as unspecific as this module ever gets about something it can actually name.
+        //
+        // Read from `PrimaryUsagePage`, which is what the device *leads* with, so a
+        // keyboard that also carries a Consumer Control collection for its media keys —
+        // most of them do — is unaffected: it still leads with Generic Desktop/Keyboard
+        // and still resolves above.
+        if resolved == .hid, let usage = detail.hidUsage {
+            // Consumer Control (`0x01`) only. The rest of that page is numeric keypads and
+            // microphone/telephony controls, which are not remotes.
+            if detail.hidUsagePage == 0x0C, usage == 0x01 { return .remoteControl }
+            // Digitizer (`0x01`) and Pen (`0x02`) only — deliberately not Touch Screen
+            // (`0x04`) or Touch Pad (`0x05`), which really are pointing devices and belong
+            // exactly where they already are.
+            if detail.hidUsagePage == 0x0D, [0x01, 0x02].contains(usage) { return .graphicsTablet }
         }
         // Mass Storage covers three different things somebody plugs in — a flash drive, an
         // SD card reader, a portable HDD/SSD enclosure — and the class byte alone cannot
@@ -221,7 +241,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case hub, massStorage, hid, webcam, scanner, printer, smartCard
     case audio, healthcare, audioVideo, typeCBridge, wireless, communications
     case usbDrive, sdCardReader, externalDisk, serialAdapter
-    case bluetoothAdapter, wifiAdapter, gamepad
+    case bluetoothAdapter, wifiAdapter, gamepad, remoteControl, graphicsTablet
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
@@ -336,6 +356,9 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // No artwork of its own yet — borrows the same HID glyph `.hid` uses, honest for
         // what it is (a HID device) even without a controller-specific picture.
         case .gamepad: return "USB-TypeHID"
+        // Same reasoning as `.gamepad` above: the HID glyph is honest for a HID device,
+        // and borrowing it beats inventing artwork that would not match the rest.
+        case .remoteControl, .graphicsTablet: return "USB-TypeHID"
         }
     }
 
@@ -367,6 +390,8 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .bluetoothAdapter: return "Bluetooth Adapter"
         case .wifiAdapter: return "WiFi Adapter"
         case .gamepad: return "Gamepad/Joystick"
+        case .remoteControl: return "Remote Control"
+        case .graphicsTablet: return "Graphics Tablet"
         }
     }
 
@@ -393,6 +418,8 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .bluetoothAdapter: return .connectedBluetoothAdapter
         case .wifiAdapter: return .connectedWiFiAdapter
         case .gamepad: return .connectedGamepad
+        case .remoteControl: return .connectedRemoteControl
+        case .graphicsTablet: return .connectedGraphicsTablet
         }
     }
 }
