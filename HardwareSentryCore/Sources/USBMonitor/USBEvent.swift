@@ -41,6 +41,8 @@ public enum USBEvent: String, NotificationEventKey, CaseIterable {
     case connectedGamepad = "USBConnectedGamepad"
     case connectedRemoteControl = "USBConnectedRemoteControl"
     case connectedGraphicsTablet = "USBConnectedGraphicsTablet"
+    case connectedKeyboard = "USBConnectedKeyboard"
+    case connectedMouse = "USBConnectedMouse"
 
     public static let category: NotificationCategory = "USB"
 }

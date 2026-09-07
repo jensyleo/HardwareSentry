@@ -3,6 +3,27 @@
 Small, understood defects that are not worth holding a release for, kept here so they are
 not rediscovered from scratch. Anything larger belongs in the code it affects.
 
+## Fixed: which HID usage a device was classified by depended on enumeration order
+
+**Status:** fixed 2026-09-07, the same day the defect was introduced — found while
+splitting the Keyboard/Mouse row, against the hardware that would have hit it.
+
+Nearly every USB keyboard publishes two HID interfaces: Generic Desktop/Keyboard, and
+Consumer Control for its media keys. `hidPrimaryUsage` returned the first usage the
+registry handed over, so which of the two was used for classification depended on
+enumeration order. Since Consumer Control had just started resolving to "Remote
+Control", a keyboard whose Consumer interface enumerated first would have been announced
+as a remote. The keyboard tested here enumerates its keyboard interface first, which is
+the only reason the bug did not show.
+
+Fixed by collecting every usage in the subtree and ranking them (`HIDUsagePriority`):
+Generic Desktop outranks Digitizers, which outranks Consumer Control. Anything
+unrecognised ranks equal, so it keeps its original position.
+
+**Lesson worth keeping.** A device is not one HID usage. Anything else read by walking a
+device's registry subtree and returning the first match — `interfaceClasses` aside,
+which deliberately collects all of them — is worth re-checking for the same assumption.
+
 ## Fixed: a wired Ethernet adapter could be announced as "WiFi Adapter"
 
 **Status:** fixed 2026-09-07, found by audit rather than by a live report — the

@@ -849,14 +849,23 @@ private final class RegistryWatcher: @unchecked Sendable {
         ) == KERN_SUCCESS else { return nil }
         defer { IOObjectRelease(iterator) }
 
+        var found: [(page: Int, usage: Int)] = []
         var depth = 0
         while case let child = IOIteratorNext(iterator), child != 0, depth < 64 {
             defer { IOObjectRelease(child); depth += 1 }
             if let page = number(child, "PrimaryUsagePage"), let usage = number(child, "PrimaryUsage") {
-                return (page, usage)
+                found.append((page, usage))
             }
         }
-        return nil
+        // Every usage in the subtree, then the most telling one — not simply the first.
+        //
+        // A device can publish several: a real USB keyboard, read live 2026-09-07, has
+        // two HID interfaces, one Generic Desktop/Keyboard and one Consumer Control for
+        // its media keys, and nearly every keyboard is built that way. Returning
+        // whichever the registry happened to hand over first made the answer depend on
+        // enumeration order — that keyboard would have been announced as a remote
+        // control had its Consumer interface come first.
+        return HIDUsagePriority.preferred(from: found)
     }
 
     private static func storageMedium(_ service: io_service_t) -> (medium: String?, bsdName: String?) {
@@ -1010,4 +1019,34 @@ private final class RegistryWatcher: @unchecked Sendable {
     /// Modern macOS enumerates USB devices under the host family; the older class name
     /// no longer matches on Apple silicon.
     private static let deviceClass = "IOUSBHostDevice"
+}
+
+/// Which of the HID usages a device published says the most about what it *is*.
+///
+/// A device can publish several. A real USB keyboard, read live 2026-09-07, has two HID
+/// interfaces — Generic Desktop/Keyboard and Consumer Control for its media keys — and
+/// nearly every keyboard is built that way. Taking whichever the registry happened to
+/// hand over first made the answer depend on enumeration order, and that keyboard would
+/// have been announced as a remote control had its Consumer interface come first.
+///
+/// Its own type rather than a method on the private watcher, so a test can pin the
+/// order, which is the whole point of it.
+enum HIDUsagePriority {
+    static func preferred(from found: [(page: Int, usage: Int)]) -> (page: Int, usage: Int)? {
+        found.min { rank($0) < rank($1) }
+    }
+
+    /// Lowest first. Generic Desktop is where a device declares its real identity;
+    /// Consumer Control is almost always a secondary collection bolted onto something
+    /// else, so it ranks last of the three that are understood. Anything unrecognised
+    /// ranks equal and so keeps its original position, leaving a device that publishes
+    /// only usages nothing here knows about behaving exactly as it did before.
+    private static func rank(_ entry: (page: Int, usage: Int)) -> Int {
+        switch entry.page {
+        case 0x01 where [0x02, 0x04, 0x05, 0x06, 0x08].contains(entry.usage): return 0
+        case 0x0D where [0x01, 0x02].contains(entry.usage): return 1
+        case 0x0C where entry.usage == 0x01: return 2
+        default: return 3
+        }
+    }
 }

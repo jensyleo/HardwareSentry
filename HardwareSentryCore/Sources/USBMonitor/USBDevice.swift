@@ -133,9 +133,18 @@ public struct USBDevice: Sendable, Equatable {
         // still filed it under the same "Keyboard/Mouse" row a real keyboard gets.
         // Keyboard and mouse stay merged under `.hid`, unchanged: that combined row is the
         // original's own, not something this refinement was asked to split apart.
-        if resolved == .hid, detail.hidUsagePage == 0x01, let usage = detail.hidUsage,
-           [0x04, 0x05, 0x08].contains(usage) {
-            return .gamepad
+        if resolved == .hid, detail.hidUsagePage == 0x01, let usage = detail.hidUsage {
+            switch usage {
+            case 0x04, 0x05, 0x08: return .gamepad
+            // Reported live, 2026-09-07, with both plugged in at once: a keyboard and a
+            // mouse produced two identical "USB Keyboard/Mouse Connected" notifications,
+            // each saying "HID (Keyboard/Mouse)", with nothing to say which was which.
+            // The class byte cannot tell them apart — but the usage they lead with can,
+            // and always could; this is the same read the gamepad split above uses.
+            case 0x06: return .keyboard
+            case 0x02: return .mouse
+            default: break
+            }
         }
         // The same refinement, for the two other usage pages a real USB device leads with
         // that mean something quite unlike a keyboard or a mouse. A media remote, a volume
@@ -242,6 +251,9 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
     case audio, healthcare, audioVideo, typeCBridge, wireless, communications
     case usbDrive, sdCardReader, externalDisk, serialAdapter
     case bluetoothAdapter, wifiAdapter, gamepad, remoteControl, graphicsTablet
+    // Split out of the combined `.hid` row, which stays for a HID that leads with
+    // neither — a combo receiver, or a usage nothing here recognises.
+    case keyboard, mouse
 
     /// The USB-IF base class code, as the device reports it.
     public init?(deviceClass: UInt8) {
@@ -359,6 +371,10 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // Same reasoning as `.gamepad` above: the HID glyph is honest for a HID device,
         // and borrowing it beats inventing artwork that would not match the rest.
         case .remoteControl, .graphicsTablet: return "USB-TypeHID"
+        // The ported HID artwork already is a keyboard, so the keyboard row wears it as
+        // its own; the mouse row has a picture of a mouse drawn to match it.
+        case .keyboard: return "USB-TypeKeyboard"
+        case .mouse: return "USB-TypeMouse"
         }
     }
 
@@ -392,6 +408,8 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .gamepad: return "Gamepad/Joystick"
         case .remoteControl: return "Remote Control"
         case .graphicsTablet: return "Graphics Tablet"
+        case .keyboard: return "Keyboard"
+        case .mouse: return "Mouse"
         }
     }
 
@@ -420,6 +438,8 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .gamepad: return .connectedGamepad
         case .remoteControl: return .connectedRemoteControl
         case .graphicsTablet: return .connectedGraphicsTablet
+        case .keyboard: return .connectedKeyboard
+        case .mouse: return .connectedMouse
         }
     }
 }

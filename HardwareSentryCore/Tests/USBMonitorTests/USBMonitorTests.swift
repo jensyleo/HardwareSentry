@@ -738,6 +738,62 @@ struct USBDeviceDetailTests {
         #expect(mystery.kind != .communications)
     }
 
+    @Test("a keyboard and a mouse are told apart, not both filed under Keyboard/Mouse")
+    func keyboardAndMouseAreToldApart() {
+        // Both read live via `ioreg -c IOHIDDevice -l`, 2026-09-07, plugged in together
+        // and both announced as an identical "USB Keyboard/Mouse Connected".
+        let keyboard = USBDevice(
+            name: "usb keyboard", vendorName: "USB", deviceClass: 0x03,
+            detail: USBDeviceDetail(vendorID: 0xC0F4, productID: 0x01E0,
+                                    hidUsagePage: 0x01, hidUsage: 0x06)
+        )
+        #expect(keyboard.kind == .keyboard)
+        #expect(keyboard.kind?.settingsTitle == "Keyboard")
+
+        let mouse = USBDevice(
+            name: "USB Optical Mouse", vendorName: "Genius", deviceClass: 0x03,
+            detail: USBDeviceDetail(vendorID: 0x0458, productID: 0x003A,
+                                    hidUsagePage: 0x01, hidUsage: 0x02)
+        )
+        #expect(mouse.kind == .mouse)
+        #expect(mouse.kind?.settingsTitle == "Mouse")
+
+        // The combined row stays for a HID leading with neither.
+        let combo = USBDevice(
+            name: "Wireless Receiver", deviceClass: 0x03,
+            detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x00)
+        )
+        #expect(combo.kind == .hid)
+        // And for one that says nothing about its usage at all.
+        #expect(USBDevice(name: "Some HID", deviceClass: 0x03).kind == .hid)
+    }
+
+    @Test("a device publishing several HID usages is read by the most telling one, not the first")
+    func multipleUsagesArePrioritised() {
+        // The real shape of the keyboard above: two HID interfaces, Generic
+        // Desktop/Keyboard and Consumer Control for its media keys. Whichever the
+        // registry hands over first, the keyboard must win — read the other way round it
+        // would have been announced as a remote control.
+        let keyboardFirst = HIDUsagePriority.preferred(from: [(0x01, 0x06), (0x0C, 0x01)])
+        #expect(keyboardFirst?.page == 0x01 && keyboardFirst?.usage == 0x06)
+        let consumerFirst = HIDUsagePriority.preferred(from: [(0x0C, 0x01), (0x01, 0x06)])
+        #expect(consumerFirst?.page == 0x01 && consumerFirst?.usage == 0x06)
+
+        // A tablet that also publishes Consumer Control stays a tablet.
+        let tablet = HIDUsagePriority.preferred(from: [(0x0C, 0x01), (0x0D, 0x02)])
+        #expect(tablet?.page == 0x0D && tablet?.usage == 0x02)
+
+        // A device publishing only Consumer Control really is one.
+        let remote = HIDUsagePriority.preferred(from: [(0x0C, 0x01)])
+        #expect(remote?.page == 0x0C)
+
+        // Nothing recognised: the first is kept, exactly as before this ordering existed.
+        let unknown = HIDUsagePriority.preferred(from: [(0xFF00, 0x01), (0x0B, 0x05)])
+        #expect(unknown?.page == 0xFF00)
+
+        #expect(HIDUsagePriority.preferred(from: []) == nil)
+    }
+
     @Test("a HID device leading with Consumer or Digitizer usage is named, not filed under Keyboard/Mouse")
     func consumerAndDigitizerUsagesAreNamed() {
         // Consumer (0x0C) / Consumer Control (0x01) — a media remote or volume knob.
@@ -765,13 +821,14 @@ struct USBDeviceDetailTests {
             #expect(touch.kind == .hid, "touch usage \(usage) must stay HID")
         }
 
-        // An ordinary keyboard leads with Generic Desktop/Keyboard and is untouched, even
-        // though nearly all of them also carry a Consumer Control collection.
+        // An ordinary keyboard leads with Generic Desktop/Keyboard, and is read as the
+        // keyboard it is rather than as a remote — even though nearly all of them also
+        // carry a Consumer Control collection for their media keys.
         let keyboard = USBDevice(
             name: "USB Keyboard", deviceClass: 0x03,
             detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x06)
         )
-        #expect(keyboard.kind == .hid)
+        #expect(keyboard.kind == .keyboard)
     }
 
     @Test("a HID device with Generic Desktop's Joystick/Gamepad/Multi-axis Controller usage resolves to Gamepad/Joystick, not Keyboard/Mouse")
@@ -795,11 +852,10 @@ struct USBDeviceDetailTests {
         let flightStick = USBDevice(name: "Thing", deviceClass: 0x03, detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x08))
         #expect(flightStick.kind == .gamepad)
 
-        // A real keyboard (Generic Desktop usage 6) or a device with no HID usage read at
-        // all stays exactly `.hid` — this refinement narrows, it never widens, what HID
-        // can mean.
+        // A real keyboard (Generic Desktop usage 6) is not a gamepad; it has its own row
+        // now. A device with no HID usage read at all still stays exactly `.hid`.
         let keyboard = USBDevice(name: "Thing", deviceClass: 0x03, detail: USBDeviceDetail(hidUsagePage: 0x01, hidUsage: 0x06))
-        #expect(keyboard.kind == .hid)
+        #expect(keyboard.kind == .keyboard)
         let plainHID = USBDevice(name: "Thing", deviceClass: 0x03)
         #expect(plainHID.kind == .hid)
     }
@@ -867,7 +923,7 @@ struct USBDeviceKindRowTests {
         // and WiFi Adapter, `0xE0`'s own two sub-kinds (see `USBWirelessDetectionSettings`)
         // — plus Gamepad/Joystick, HID's own sub-kind told apart by Usage Page/Usage
         // rather than by class byte (see `USBDeviceDetail.hidUsagePage`/`hidUsage`).
-        #expect(USBDeviceKind.allCases.count == 22)
+        #expect(USBDeviceKind.allCases.count == 24)
 
         for kind in USBDeviceKind.allCases {
             let declared = USBMonitor.events.first { $0.name == kind.connectedEvent.rawValue }

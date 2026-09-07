@@ -23,6 +23,35 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### A USB keyboard and a USB mouse are told apart
+
+Reported live, with both plugged in at once: a keyboard and a mouse produced two
+identical "USB Keyboard/Mouse Connected" notifications, each saying "HID
+(Keyboard/Mouse)", with nothing in either to say which was which. The class byte cannot
+tell them apart — HID is one class for both — but the usage each leads with can, and
+always could. Generic Desktop usage Keyboard (`0x06`) and Mouse (`0x02`) now resolve to
+a Keyboard row and a Mouse row, each with its own notification setting.
+
+The keyboard row wears the ported HID artwork, which already is a picture of a keyboard;
+the mouse row has one drawn to match it. The combined `.hid` row stays for a HID that
+leads with neither — a combo receiver, or a usage nothing here recognises.
+
+### Fixed: a keyboard could have been announced as a remote control
+
+Found while implementing the split above, against the same hardware. Nearly every
+keyboard publishes *two* HID interfaces: Generic Desktop/Keyboard, and Consumer Control
+for its media keys. The usage read for classification was whichever the registry handed
+over first, so which of the two won depended on enumeration order — and the Consumer
+Control reading is what the previous release began resolving to "Remote Control". The
+keyboard tested here happens to enumerate its keyboard interface first, which is the
+only reason it was ever announced correctly.
+
+Every usage in the device's subtree is collected now, and the most telling one is
+chosen: Generic Desktop, where a device declares what it actually is, outranks
+Digitizers, which outranks Consumer Control — almost always a secondary collection
+bolted onto something else. Usages nothing here recognises rank equal and so keep their
+original position, leaving such a device to behave exactly as it did before.
+
 ### Audio: Continuity and AVB are named instead of "Other"
 
 Two transports CoreAudio reports that nothing here had a case for, so both were labelled
