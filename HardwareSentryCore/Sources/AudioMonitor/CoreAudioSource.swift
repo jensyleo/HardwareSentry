@@ -167,7 +167,7 @@ private final class Watcher: @unchecked Sendable {
             sampleRateRange: sampleRateRange(id),
             uid: uid,
             modelUID: stringProperty(id, kAudioDevicePropertyModelUID),
-            manufacturer: stringProperty(id, kAudioObjectPropertyManufacturer),
+            manufacturer: AudioDeviceDetail.realAnswer(stringProperty(id, kAudioObjectPropertyManufacturer)),
             clockSource: clockSourceName(id),
             isMuted: muteState(id),
             bitDepth: bitDepth(id),

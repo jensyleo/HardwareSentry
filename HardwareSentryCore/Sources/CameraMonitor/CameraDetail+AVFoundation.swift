@@ -43,9 +43,18 @@ extension CameraDetail {
     /// camera's name.
     static func manufacturer(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.lowercased() != "unknown" else { return nil }
+        guard !trimmed.isEmpty, !placeholders.contains(trimmed.lowercased()) else { return nil }
         return trimmed
     }
+
+    /// Matched whole, never as a prefix: a real company called "Unknown Devices Ltd" must
+    /// still come through. `AudioMonitor` refuses the same phrases at its own read site —
+    /// CoreAudio says "Unknown Manufacturer" where AVFoundation says "Unknown", and the
+    /// same BRIO hits both. The list is repeated rather than shared because a monitor may
+    /// only depend on `SentryContract`.
+    private static let placeholders: Set<String> = [
+        "unknown", "unknown manufacturer", "unknown model", "unknown device"
+    ]
 
     /// The identifiers a USB camera hides in its model string.
     ///

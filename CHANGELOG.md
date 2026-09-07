@@ -23,6 +23,23 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Fixed: an audio device announcing itself as "Unknown Manufacturer"
+
+The same defect as the camera one below, in the other module the same device reaches.
+CoreAudio's placeholder is the phrase "Unknown Manufacturer" where AVFoundation's is just
+"Unknown", and only emptiness was checked, so a Logitech BRIO's audio side read
+`Model: Unknown Manufacturer · Logitech BRIO:046D:085E`. The maker is refused now and the
+line says the model alone.
+
+Both modules refuse the same set of phrases — "unknown", "unknown manufacturer", "unknown
+model", "unknown device" — matched whole rather than as a prefix, so a real company called
+"Unknown Devices Ltd" still comes through. The set is repeated in each module rather than
+shared, because a monitor may depend only on `SentryContract`.
+
+Checked at the same time and deliberately left alone: Bluetooth's maker comes from the
+GATT Device Information characteristic, a string the accessory writes about itself rather
+than a placeholder the system substitutes, so it is not the same defect.
+
 ### Fixed: a camera announcing itself as "Manufacturer: Unknown"
 
 Read live from a real Logitech BRIO: `AVCaptureDevice.manufacturer` answers the literal

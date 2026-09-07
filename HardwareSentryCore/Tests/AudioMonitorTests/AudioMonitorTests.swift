@@ -540,3 +540,33 @@ struct AudioTransportTests {
         #expect(AudioTransport.other.label == "Other")
     }
 }
+
+@Suite("Audio device identity")
+struct AudioIdentityTests {
+    @Test("CoreAudio's \"Unknown Manufacturer\" placeholder is not reported as a maker")
+    func placeholderManufacturerIsRefused() {
+        // Read live 2026-09-07 from a real Logitech BRIO: CoreAudio answers the phrase
+        // "Unknown Manufacturer", so the notification read
+        // "Model: Unknown Manufacturer · Logitech BRIO:046D:085E".
+        #expect(AudioDeviceDetail.realAnswer("Unknown Manufacturer") == nil)
+        #expect(AudioDeviceDetail.realAnswer("unknown manufacturer") == nil)
+        #expect(AudioDeviceDetail.realAnswer("  Unknown Manufacturer ") == nil)
+        #expect(AudioDeviceDetail.realAnswer("Unknown") == nil)
+        #expect(AudioDeviceDetail.realAnswer("") == nil)
+        #expect(AudioDeviceDetail.realAnswer(nil) == nil)
+        // Real makers, read live from the same machine, still come through.
+        #expect(AudioDeviceDetail.realAnswer("Apple Inc.") == "Apple Inc.")
+        #expect(AudioDeviceDetail.realAnswer("Microsoft Corp.") == "Microsoft Corp.")
+        // Matched whole: a company whose name merely starts that way is not a placeholder.
+        #expect(AudioDeviceDetail.realAnswer("Unknown Devices Ltd") == "Unknown Devices Ltd")
+    }
+
+    @Test("with the maker refused, the model line still says the model")
+    func modelSurvivesWithoutAMaker() {
+        // What the BRIO now produces: the placeholder gone, the model kept.
+        let detail = AudioDeviceDetail(modelUID: "Logitech BRIO:046D:085E", manufacturer: nil)
+        #expect(detail.modelManufacturerNote == "Logitech BRIO:046D:085E")
+        let both = AudioDeviceDetail(modelUID: "Digital Mic", manufacturer: "Apple Inc.")
+        #expect(both.modelManufacturerNote == "Apple Inc. · Digital Mic")
+    }
+}

@@ -150,6 +150,29 @@ public struct AudioDeviceDetail: Sendable, Equatable {
         return String(format: "%d frames (~%.1f ms)", latencyFrames, Double(latencyFrames) / sampleRate * 1000)
     }
 
+    /// What the system answers when it does not know who made the device.
+    ///
+    /// CoreAudio's placeholder is the phrase "Unknown Manufacturer", not an empty string,
+    /// so an emptiness check alone lets it straight through: a real Logitech BRIO, read
+    /// live 2026-09-07, reported `Model: Unknown Manufacturer · Logitech BRIO:046D:085E`.
+    /// Saying nothing is better — the maker is already in the device's own name.
+    ///
+    /// Matched whole, never as a prefix: a real company called "Unknown Devices Ltd" must
+    /// still come through. `CameraMonitor` refuses the same phrases at its own read site;
+    /// the list is repeated rather than shared because a monitor may only depend on
+    /// `SentryContract`.
+    static func realAnswer(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              !placeholders.contains(trimmed.lowercased())
+        else { return nil }
+        return trimmed
+    }
+
+    private static let placeholders: Set<String> = [
+        "unknown", "unknown manufacturer", "unknown model", "unknown device"
+    ]
+
     /// The two identifiers read as one line: separately they are two lines of opaque
     /// string, together they say who made it and which model.
     var modelManufacturerNote: String? {
