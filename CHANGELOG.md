@@ -23,6 +23,23 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### The application has an icon of its own
+
+Until now the bundle carried HG4MAC's icon as a placeholder — the last inherited asset
+in it. The icon it ships with now is its own: a radar sweep ringed by the devices this
+application watches for.
+
+The artwork comes full-bleed on a near-black ground, which is not the shape a macOS icon
+is: shipped as it came, it would sit in the Dock as a square, noticeably larger than
+every icon beside it. So the plate is cropped out of it, masked to the superellipse
+macOS actually uses — a squircle, not a plain rounded rectangle — and centred at 824 in
+a 1024 canvas, the proportions macOS draws app icons at. That is what makes it line up
+with its neighbours instead of towering over them.
+
+`Tools/make-app-icon.py` does all of that from `Icons/AppIcon-source.png`, so the icon
+can be rebuilt from the artwork rather than being a binary nobody can regenerate. It is
+run by hand, not by the build.
+
 ### Fixed: an audio device announcing itself as "Unknown Manufacturer"
 
 The same defect as the camera one below, in the other module the same device reaches.
