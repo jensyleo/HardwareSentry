@@ -139,7 +139,13 @@ public actor USBMonitor: Monitor {
                     .always(device.name),
                     // In the original's order: who made it, what identifies it, what it
                     // is, how fast, what it costs in power, and what is inside.
-                    .field(USBField.vendor.rawValue, "Manufacturer", Self.manufacturerDetail(device)),
+                    // Labelled for what it holds, which is both: the maker and the product
+                    // name, joined. Reported live, 2026-09-07 — a keyboard that
+                    // names its own manufacturer "USB" read as "Manufacturer: USB usb
+                    // keyboard", which looks like a bug in this app rather than the
+                    // two true strings it is. Settings has always called this row
+                    // "Manufacturer / product name"; the message now agrees with it.
+                    .field(USBField.vendor.rawValue, "Manufacturer/Product", Self.manufacturerDetail(device)),
                     .field(USBField.vidPid.rawValue, "VID:PID", device.detail.vidPidNote),
                     .field(USBField.deviceClass.rawValue, "Type", device.className),
                     .field(USBField.speed.rawValue, "Speed", device.detail.speedNote),

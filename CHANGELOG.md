@@ -23,6 +23,18 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### The USB manufacturer line is labelled for what it actually holds
+
+That line has always carried the maker *and* the product name joined together — Settings
+has called the row "Manufacturer / product name" all along — but the message itself
+labelled it just "Manufacturer". Reported live: a keyboard that names its own
+manufacturer "USB" read as "Manufacturer: USB usb keyboard", which looks like a bug here
+rather than the two true strings it is. The message now says "Manufacturer/Product" and
+agrees with its own setting.
+
+Camera Monitor's "Manufacturer" line is left alone: that one really is only the
+manufacturer.
+
 ### A USB keyboard and a USB mouse are told apart
 
 Reported live, with both plugged in at once: a keyboard and a mouse produced two

@@ -252,7 +252,7 @@ struct USBMonitorTests {
     func vendorIsMentioned() async {
         let events = await run([.attached(USBDevice(name: "Cruzer", vendorName: "SanDisk"))])
 
-        #expect(events.first?.body == "Cruzer\nManufacturer:\tSanDisk")
+        #expect(events.first?.body == "Cruzer\nManufacturer/Product:\tSanDisk")
     }
 
     @Test("a manufacturer line that only repeats the name is left out")
