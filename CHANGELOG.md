@@ -23,6 +23,23 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### The USB gamepad, remote and tablet rows get pictures of their own
+
+Splitting the Keyboard row out gave `.keyboard` the ported HID artwork — which is,
+literally, a picture of a keyboard. Everything else that had been borrowing that same
+glyph while it had none of its own was then being announced with a picture of a
+keyboard: a gamepad, a remote control and a graphics tablet all were. Borrowing it was
+honest while `.hid` meant "keyboard or mouse"; it stopped being honest the moment the
+keyboard had its own row.
+
+All three have their own artwork now, drawn to match the ported set — the same USB
+trident, the same orange body, black outline and white details, and a red cross over the
+device alone for the disconnected variant.
+
+Two shared glyphs are deliberately left shared, because neither one lies: Bluetooth and
+WiFi adapters both use the wireless picture, and both really are wireless adapters; plain
+Mass Storage and USB Drive both use the drive picture.
+
 ### The USB manufacturer line is labelled for what it actually holds
 
 That line has always carried the maker *and* the product name joined together — Settings

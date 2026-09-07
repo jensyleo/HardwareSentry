@@ -365,12 +365,14 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         // glyph `.wireless` already uses, honest for what it is (a wireless controller of
         // some kind) even without saying specifically Bluetooth or WiFi in the picture.
         case .bluetoothAdapter, .wifiAdapter: return "USB-TypeWireless"
-        // No artwork of its own yet — borrows the same HID glyph `.hid` uses, honest for
-        // what it is (a HID device) even without a controller-specific picture.
-        case .gamepad: return "USB-TypeHID"
-        // Same reasoning as `.gamepad` above: the HID glyph is honest for a HID device,
-        // and borrowing it beats inventing artwork that would not match the rest.
-        case .remoteControl, .graphicsTablet: return "USB-TypeHID"
+        // These three borrowed the HID glyph while they had none of their own. That
+        // stopped being honest the moment `.keyboard` was split out and took that same
+        // glyph as its own picture: the HID artwork *is* a keyboard, so a gamepad, a
+        // remote and a tablet were each being announced with a picture of a keyboard.
+        // Each has its own now, drawn to match the ported set.
+        case .gamepad: return "USB-TypeGamepad"
+        case .remoteControl: return "USB-TypeRemoteControl"
+        case .graphicsTablet: return "USB-TypeGraphicsTablet"
         // The ported HID artwork already is a keyboard, so the keyboard row wears it as
         // its own; the mouse row has a picture of a mouse drawn to match it.
         case .keyboard: return "USB-TypeKeyboard"

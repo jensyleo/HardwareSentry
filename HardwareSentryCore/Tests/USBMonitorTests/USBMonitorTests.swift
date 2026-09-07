@@ -738,6 +738,22 @@ struct USBDeviceDetailTests {
         #expect(mystery.kind != .communications)
     }
 
+    @Test("the HID sub-kinds have pictures of their own, not the keyboard's")
+    func hidSubKindsDoNotWearTheKeyboardsPicture() {
+        // The ported HID artwork is a picture of a keyboard, and `.keyboard` took it as
+        // its own when that row was split out. Anything else that borrowed it was then
+        // being announced with a picture of a keyboard — a gamepad, a remote and a
+        // graphics tablet all were.
+        let keyboardArt = USBDeviceKind.keyboard.iconBaseName
+        for kind in [USBDeviceKind.gamepad, .remoteControl, .graphicsTablet, .mouse] {
+            #expect(kind.iconBaseName != keyboardArt, "\(kind) still wears the keyboard's picture")
+        }
+        // And each is distinct from the others, not one shared "not a keyboard" glyph.
+        let art = [USBDeviceKind.gamepad, .remoteControl, .graphicsTablet, .mouse, .keyboard]
+            .map(\.iconBaseName)
+        #expect(Set(art).count == art.count)
+    }
+
     @Test("a keyboard and a mouse are told apart, not both filed under Keyboard/Mouse")
     func keyboardAndMouseAreToldApart() {
         // Both read live via `ioreg -c IOHIDDevice -l`, 2026-09-07, plugged in together
