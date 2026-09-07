@@ -20,6 +20,34 @@ struct BluetoothDeviceKindTests {
         #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x00) == nil)
     }
 
+    @Test("a peripheral's four-bit device type is read too, not just the keyboard/pointer bits")
+    func peripheralDeviceType() {
+        // None of these set the keyboard/pointing bits, so reading only those bits — as
+        // this used to — left every one of them generic.
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x01) == .gamepad)   // joystick
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x02) == .gamepad)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x03) == .remote)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x04) == .sensor)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x05) == .tablet)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x06) == .cardReader)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x07) == .tablet)    // digital pen
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x08) == .barcodeScanner)
+        // A handheld gestural device has no artwork that would be honest for it.
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x09) == nil)
+    }
+
+    @Test("the keyboard/pointer bits still win over the device type, except for a tablet")
+    func peripheralBitsTakePrecedence() {
+        // A real Magic Keyboard and Magic Mouse must keep answering as they always have,
+        // whatever the four bits underneath happen to say.
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x13) == .keyboard)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x32) == .combo)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x21) == .mouse)
+        // A digitizer tablet is a pointing device with somewhere more specific to go.
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x25) == .tablet)
+        #expect(BluetoothDeviceKind.from(major: 0x05, minor: 0x27) == .tablet)
+    }
+
     @Test("audio devices are told apart by their minor class")
     func audioMinorClass() {
         #expect(BluetoothDeviceKind.from(major: 0x04, minor: 0x01) == .headset)
@@ -39,5 +67,11 @@ struct BluetoothDeviceKindTests {
     @Test("every kind knows its artwork")
     func everyKindHasArtwork() {
         #expect(BluetoothDeviceKind.allCases.allSatisfy { $0.iconBaseName.hasPrefix("BT-Type") })
+        // Artwork on disk is checked by Tools/parity-audit.sh; what a unit test can hold
+        // is that no two kinds were wired to the same picture, or to the same event.
+        let icons = BluetoothDeviceKind.allCases.map(\.iconBaseName)
+        #expect(Set(icons).count == icons.count)
+        let events = BluetoothDeviceKind.allCases.map(\.connectedEvent)
+        #expect(Set(events).count == events.count)
     }
 }

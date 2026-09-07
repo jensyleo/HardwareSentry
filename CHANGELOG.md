@@ -6,6 +6,29 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Bluetooth peripherals are told apart past "keyboard or mouse"
+
+A classic Bluetooth device announces what it is in its Class of Device record, and for
+major class Peripheral that record carries two independent fields: two bits saying
+whether the thing is a keyboard, a pointing device or both, and a four-bit device type
+underneath them. Only the two bits were ever read. Everything the Bluetooth SIG defines
+in the four bits below — joysticks, gamepads, remote controls, digitizer tablets,
+digital pens, card readers, handheld scanners, sensing devices — set neither bit, so
+each one answered "not a keyboard, not a mouse" and was announced with the generic
+Bluetooth glyph.
+
+The four bits are read now, with six new kinds and artwork to match: Gamepad (joystick
+and gamepad both), Remote Control, Graphics Tablet (digitizer tablet and digital pen),
+Card Reader, Handheld Scanner and Sensor. Each gets its own notification row in
+Settings, so any of them can be switched off on its own.
+
+The two bits are still read first, so a real keyboard or mouse keeps answering exactly
+as it always did whatever the four bits underneath happen to say. The one exception is
+deliberate: a digitizer tablet sets the pointing-device bit and *also* names itself a
+tablet, and the tablet is the more specific of the two answers. Uncategorized
+peripherals and handheld gestural input devices are still left generic on purpose —
+there is no artwork that would be honest for either.
+
 ### Fixed: a hub's own Billboard chip misread as "Serial/Debug Adapter"
 
 Reported live minutes after the `usb.ids` widening shipped: a VIA Labs "USB 2.0

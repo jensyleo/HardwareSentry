@@ -27,6 +27,9 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
     case computer, phone, accessPoint, wearable, health
     case keyboard, mouse, combo
     case headset, microphone, speaker, headphones
+    // The rest of what the SIG defines under major class Peripheral, below the
+    // keyboard/pointing bits. A gamepad or a remote is not a kind of mouse.
+    case gamepad, remote, tablet, cardReader, barcodeScanner, sensor
 
     /// How the row is named in Settings, in the original's words.
     var settingsTitle: String {
@@ -43,6 +46,12 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .microphone: return "Microphone"
         case .speaker: return "Speaker"
         case .headphones: return "Headphones"
+        case .gamepad: return "Gamepad"
+        case .remote: return "Remote Control"
+        case .tablet: return "Graphics Tablet"
+        case .cardReader: return "Card Reader"
+        case .barcodeScanner: return "Handheld Scanner"
+        case .sensor: return "Sensor"
         }
     }
 
@@ -61,6 +70,12 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .microphone: return .connectedMicrophone
         case .speaker: return .connectedSpeaker
         case .headphones: return .connectedHeadphones
+        case .gamepad: return .connectedGamepad
+        case .remote: return .connectedRemote
+        case .tablet: return .connectedTablet
+        case .cardReader: return .connectedCardReader
+        case .barcodeScanner: return .connectedBarcodeScanner
+        case .sensor: return .connectedSensor
         }
     }
 
@@ -78,6 +93,12 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .microphone: return "BT-TypeMicrophone"
         case .speaker: return "BT-TypeSpeaker"
         case .headphones: return "BT-TypeHeadphones"
+        case .gamepad: return "BT-TypeGamepad"
+        case .remote: return "BT-TypeRemote"
+        case .tablet: return "BT-TypeTablet"
+        case .cardReader: return "BT-TypeCardReader"
+        case .barcodeScanner: return "BT-TypeBarcodeScanner"
+        case .sensor: return "BT-TypeSensor"
         }
     }
 
@@ -91,12 +112,22 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case 0x07: return .wearable
         case 0x09: return .health
         case 0x05:
-            // The peripheral minor class packs keyboard/pointing/both into two bits.
+            // The peripheral minor class is two independent fields: two bits saying
+            // whether the device is a keyboard, a pointing device or both, and a
+            // four-bit device type underneath them. Reading only the two bits — which
+            // is all this used to do — meant every Bluetooth gamepad, remote and
+            // tablet answered "not a keyboard, not a mouse" and got the generic glyph.
+            //
+            // The two bits are still read first: they are the device's primary
+            // character, and what real keyboards and mice actually set.
             switch minor & 0x30 {
             case 0x10: return .keyboard
-            case 0x20: return .mouse
             case 0x30: return .combo
-            default: return nil
+            case 0x20:
+                // A digitizer tablet is a pointing device with somewhere more specific
+                // to go. Anything else pointing stays a mouse.
+                return peripheralType(minor) == .tablet ? .tablet : .mouse
+            default: return peripheralType(minor)
             }
         case 0x04:
             switch minor {
@@ -106,6 +137,24 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
             case 0x06: return .headphones
             default: return nil
             }
+        default: return nil
+        }
+    }
+
+    /// The four-bit device type the SIG defines under major class Peripheral, for the
+    /// subtypes that sit below the keyboard/pointing bits.
+    ///
+    /// Uncategorized (0x0) and handheld gestural input (0x9) deliberately return nil:
+    /// there is no artwork that would be honest for either, and a generic glyph beats a
+    /// wrong specific one.
+    private static func peripheralType(_ minor: UInt32) -> BluetoothDeviceKind? {
+        switch minor & 0x0F {
+        case 0x01, 0x02: return .gamepad        // Joystick, Gamepad
+        case 0x03: return .remote               // Remote control
+        case 0x04: return .sensor               // Sensing device
+        case 0x05, 0x07: return .tablet         // Digitizer tablet, Digital pen
+        case 0x06: return .cardReader           // Card reader, e.g. a SIM reader
+        case 0x08: return .barcodeScanner       // Handheld scanner (barcode, RFID)
         default: return nil
         }
     }

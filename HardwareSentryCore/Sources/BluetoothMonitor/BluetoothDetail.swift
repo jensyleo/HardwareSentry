@@ -231,6 +231,12 @@ public extension BluetoothDeviceKind {
         case .microphone: return "Microphone"
         case .speaker: return "Speaker"
         case .headphones: return "Headphones"
+        case .gamepad: return "Gamepad"
+        case .remote: return "Remote control"
+        case .tablet: return "Graphics tablet"
+        case .cardReader: return "Card reader"
+        case .barcodeScanner: return "Handheld scanner"
+        case .sensor: return "Sensor"
         }
     }
 }

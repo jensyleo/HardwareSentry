@@ -35,6 +35,14 @@ public enum BluetoothEvent: String, NotificationEventKey, CaseIterable {
     case connectedMicrophone = "BluetoothConnectedMicrophone"
     case connectedSpeaker = "BluetoothConnectedSpeaker"
     case connectedHeadphones = "BluetoothConnectedHeadphones"
+    // The peripheral subtypes below the keyboard/pointing bits, which used to have
+    // nowhere of their own to be reported.
+    case connectedGamepad = "BluetoothConnectedGamepad"
+    case connectedRemote = "BluetoothConnectedRemote"
+    case connectedTablet = "BluetoothConnectedTablet"
+    case connectedCardReader = "BluetoothConnectedCardReader"
+    case connectedBarcodeScanner = "BluetoothConnectedBarcodeScanner"
+    case connectedSensor = "BluetoothConnectedSensor"
 
     public static let category: NotificationCategory = "Bluetooth"
 }
