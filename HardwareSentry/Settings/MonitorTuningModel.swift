@@ -76,6 +76,9 @@ final class MonitorTuningModel {
         notifiesVirtualCameraDevices = defaults.bool(forKey: Self.virtualCameraDevicesKey)
         notifiesUSBAudioDevices = defaults.bool(forKey: Self.usbAudioDevicesKey)
         notifiesUSBCameraDevices = defaults.bool(forKey: Self.usbCameraDevicesKey)
+        notifiesBluetoothAudioDevices = defaults.bool(forKey: Self.bluetoothAudioDevicesKey)
+        // On unless somebody has said otherwise, which is how it has always behaved.
+        notifiesBluetoothGamepadDevices = defaults.object(forKey: Self.bluetoothGamepadDevicesKey) as? Bool ?? true
         notifiesUSBGamepadDevices = defaults.bool(forKey: Self.usbGamepadDevicesKey)
         usbIgnoresIdentifiedGenericDevices = defaults.bool(forKey: Self.usbIgnoresIdentifiedGenericDevicesKey)
         usbSerialVendorAutoUpdate = defaults.bool(forKey: Self.usbSerialVendorAutoUpdateKey)
@@ -182,6 +185,18 @@ final class MonitorTuningModel {
     }
 
     /// Same, for a camera arriving over USB.
+    /// Whether Audio Monitor also announces a Bluetooth accessory that Bluetooth Monitor
+    /// already announced. Off by default, as it has always behaved.
+    var notifiesBluetoothAudioDevices: Bool {
+        didSet { defaults.set(notifiesBluetoothAudioDevices, forKey: Self.bluetoothAudioDevicesKey); onChange?() }
+    }
+
+    /// Whether Bluetooth Monitor announces a controller Gamepad Monitor also speaks for.
+    /// On by default, as it has always behaved.
+    var notifiesBluetoothGamepadDevices: Bool {
+        didSet { defaults.set(notifiesBluetoothGamepadDevices, forKey: Self.bluetoothGamepadDevicesKey); onChange?() }
+    }
+
     var notifiesUSBCameraDevices: Bool {
         didSet { defaults.set(notifiesUSBCameraDevices, forKey: Self.usbCameraDevicesKey); onChange?() }
     }
@@ -423,6 +438,8 @@ final class MonitorTuningModel {
     private static let virtualCameraDevicesKey = "Camera.NotifiesVirtualDevices"
     private static let usbAudioDevicesKey = "Audio.NotifiesUSBDevices"
     private static let usbCameraDevicesKey = "Camera.NotifiesUSBDevices"
+    private static let bluetoothAudioDevicesKey = "Audio.NotifiesBluetoothDevices"
+    private static let bluetoothGamepadDevicesKey = "Bluetooth.NotifiesGamepadDevices"
     private static let usbGamepadDevicesKey = "Gamepad.NotifiesUSBDevices"
     private static let usbIgnoresIdentifiedGenericDevicesKey = "USB.IgnoresIdentifiedGenericDevices"
     private static let usbSerialVendorAutoUpdateKey = "USB.SerialVendorAutoUpdate"

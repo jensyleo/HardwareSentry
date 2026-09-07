@@ -50,6 +50,9 @@ public actor AudioMonitor: Monitor {
     /// and most people who see "Audio Device Connected: Zoom Audio Device" once do not
     /// want to see it again every time that app runs.
     private var notifiesVirtualDevices: Bool
+    /// Whether a Bluetooth accessory is announced here as well as by Bluetooth
+    /// Monitor. Off as this has always behaved — see the guard in `reconcile`.
+    private var notifiesBluetoothDevices = false
     private var hasWarnedAboutVolume = false
     private var lastVolumePercent: Int?
 
@@ -74,19 +77,26 @@ public actor AudioMonitor: Monitor {
         context: MonitorContext,
         micStopDebounce: Double = 1.0,
         volumeCriticalThreshold: Int = 90,
-        notifiesVirtualDevices: Bool = false
+        notifiesVirtualDevices: Bool = false,
+        notifiesBluetoothDevices: Bool = false
     ) {
         self.source = source
         self.context = context
         self.micStopDebounceNanoseconds = UInt64(micStopDebounce * 1_000_000_000)
         self.volumeCriticalThreshold = volumeCriticalThreshold
         self.notifiesVirtualDevices = notifiesVirtualDevices
+        self.notifiesBluetoothDevices = notifiesBluetoothDevices
     }
 
     /// Called when a setting changes, so it applies without a relaunch.
-    public func apply(volumeCriticalThreshold: Int, notifiesVirtualDevices: Bool) {
+    public func apply(
+        volumeCriticalThreshold: Int,
+        notifiesVirtualDevices: Bool,
+        notifiesBluetoothDevices: Bool
+    ) {
         self.volumeCriticalThreshold = volumeCriticalThreshold
         self.notifiesVirtualDevices = notifiesVirtualDevices
+        self.notifiesBluetoothDevices = notifiesBluetoothDevices
     }
 
     public func start() async {
@@ -247,7 +257,12 @@ public actor AudioMonitor: Monitor {
 
         for id in currentIDs.subtracting(knownIDs) {
             let device = current[id]!
-            guard !device.transport.isCoveredByAnotherMonitor else { continue }
+            // Bluetooth Monitor announces a paired accessory arriving, and that is a
+            // pairing rather than a mere transport detail — which is why this monitor has
+            // always stayed quiet for it. On, this says the part Bluetooth Monitor cannot:
+            // the sample rate, the channel count, which device just became the default.
+            guard notifiesBluetoothDevices || !device.transport.isCoveredByAnotherMonitor
+            else { continue }
             guard notifiesVirtualDevices || !device.transport.isVirtualOrAggregate else { continue }
             reportedConnectedIDs.insert(id)
             await context.notify(

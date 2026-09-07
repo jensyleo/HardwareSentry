@@ -23,6 +23,40 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Bluetooth's overlap with Audio and Gamepad Monitor is yours to decide
+
+When two modules can see the same physical device, one of them says nothing. For USB
+that has always been a choice — three switches decide whether USB Monitor's redundant
+notice folds away. For Bluetooth it was not a choice at all: the rules were written into
+the code, and they run in the *opposite* direction. A USB webcam is announced by Camera
+Monitor while USB Monitor folds; a Bluetooth headset is announced by Bluetooth Monitor
+while Audio Monitor folds. Two policies for one problem, only one of them yours.
+
+The direction is kept — a pairing is news in its own right, which is why the Bluetooth
+notice is the one worth keeping — but it is a setting now rather than a rule:
+
+- **Audio ▸ "Notify for Bluetooth devices as well as Bluetooth Monitor"**, off by
+  default exactly as before. On, an accessory is announced here too, for the part
+  Bluetooth Monitor cannot say: sample rate, channel count, which device just became the
+  default.
+- **Bluetooth ▸ "Announce controllers Gamepad Monitor also reports"**, on by default
+  exactly as before. This pair had no rule at all and simply announced twice — which the
+  new Bluetooth gamepad row made obvious rather than caused. Off keeps only Gamepad
+  Monitor's richer notice; the setting says plainly what that costs, since
+  `GameController.framework` recognises only its own list of controllers and one it does
+  not know would then be announced by nothing.
+
+Switching the controller row off folds the departure away too, not just the arrival: a
+disconnect for something never announced as arriving is a notification about nothing.
+
+Thunderbolt was examined for the same treatment and deliberately left alone. Its
+overlaps are not the same shape: Thunderbolt Monitor announces a dock or a storage
+controller on the bus, while Volume or Audio Monitor announce the volume that mounted or
+the device behind it — different layers of one connection, each saying something the
+other cannot, rather than one device announced twice. There was also no Thunderbolt
+hardware to verify any of it against. If a true duplicate turns up, this is the pattern
+to follow.
+
 ### The application has an icon of its own
 
 Until now the bundle carried HG4MAC's icon as a placeholder — the last inherited asset

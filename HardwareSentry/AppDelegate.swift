@@ -180,6 +180,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             audioNotifiesUSBDevices: tuning.notifiesUSBAudioDevices,
             cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices,
             gamepadNotifiesUSBDevices: tuning.notifiesUSBGamepadDevices,
+            audioNotifiesBluetoothDevices: tuning.notifiesBluetoothAudioDevices,
+            bluetoothNotifiesGamepadDevices: tuning.notifiesBluetoothGamepadDevices,
             usbIgnoresIdentifiedGenericDevices: tuning.usbIgnoresIdentifiedGenericDevices,
             scannerStatusInterval: tuning.scannerStatusInterval,
             networkSignalPolling: .init(interval: tuning.wifiSignalSeconds, enabled: tuning.wifiSignalPollingEnabled),
@@ -220,6 +222,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     audioNotifiesUSBDevices: tuning.notifiesUSBAudioDevices,
                     cameraNotifiesUSBDevices: tuning.notifiesUSBCameraDevices,
                     gamepadNotifiesUSBDevices: tuning.notifiesUSBGamepadDevices,
+                    audioNotifiesBluetoothDevices: tuning.notifiesBluetoothAudioDevices,
+                    bluetoothNotifiesGamepadDevices: tuning.notifiesBluetoothGamepadDevices,
                     usbIgnoresIdentifiedGenericDevices: tuning.usbIgnoresIdentifiedGenericDevices
                 )
             }
@@ -293,6 +297,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettingsWindow?()
         }
         NSApplication.shared.activate()
+        // Deferred: when the window is being created rather than raised, it does not
+        // exist yet at this point, and neither does the toolbar being adjusted.
+        DispatchQueue.main.async { [weak self] in self?.tidySettingsToolbar() }
+    }
+
+    /// Takes the toolbar's own right-click menu out of the settings window.
+    ///
+    /// SwiftUI builds a real `NSToolbar` for a tabbed settings window, and every
+    /// `NSToolbar` offers "Icon and Text / Icon Only / Text Only" on right-click for
+    /// free. Here it is an offer with nothing behind it: these tabs are the settings
+    /// window's own navigation, not a toolbar somebody assembled, and "Icon Only" on tabs
+    /// that carry no icons just hides their names. The mode is pinned rather than merely
+    /// locked, so a stored "Icon Only" from before this cannot leave the tabs nameless.
+    private func tidySettingsToolbar() {
+        guard let window = NSApplication.shared.windows.first(where: {
+            $0.identifier?.rawValue == HardwareSentryApp.settingsWindowID
+        }), let toolbar = window.toolbar else { return }
+        toolbar.allowsUserCustomization = false
+        toolbar.allowsDisplayModeCustomization = false
+        toolbar.displayMode = .iconAndLabel
     }
 
     /// Handed in by the scene, which is the only thing that can open a SwiftUI `Window`.

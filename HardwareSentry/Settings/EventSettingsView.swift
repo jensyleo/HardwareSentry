@@ -480,6 +480,11 @@ private struct ModuleDetail: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Toggle("Notify for Bluetooth devices as well as Bluetooth Monitor", isOn: $tuning.notifiesBluetoothAudioDevices)
+                    Text("The mirror of the switch above, for the other transport \u{2014} and it starts from the opposite place. A paired accessory is announced by Bluetooth Monitor, and a pairing is news in its own right, so this module has always stayed quiet for one: off, exactly as before. On, it also says the part Bluetooth Monitor cannot \u{2014} the sample rate, the channel count, which device just became the default \u{2014} at the cost of two notices for one accessory.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Toggle("Notify for virtual/aggregate devices", isOn: $tuning.notifiesVirtualAudioDevices)
                     Text("A Multi-Output/Aggregate device built in Audio MIDI Setup, or a driver an app like Zoom or Teams installs to capture what is playing, is software rather than a device that arrived or left \u{2014} off by default so \u{201C}Connected\u{201D} keeps meaning hardware.")
                         .font(.caption)
@@ -517,6 +522,14 @@ private struct ModuleDetail: View {
             }
 
             if module.category.rawValue == "Bluetooth", title == titles.first {
+                Section("Game controllers") {
+                    Toggle("Announce controllers Gamepad Monitor also reports", isOn: $tuning.notifiesBluetoothGamepadDevices)
+                    Text("A controller paired over Bluetooth is announced here and by Gamepad Monitor, whose notice carries its category, player index and battery \u{2014} none of it readable from the Class of Device record this module reads. On by default, as it has always behaved. Switch off to keep only Gamepad Monitor's richer notice \u{2014} but note what that costs: GameController.framework recognises only its own list of controllers, so a controller it does not know would then be announced by nothing at all. See KNOWN-ISSUES.md.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Section("Polling") {
                     Text("Bluetooth offers no push notification for a paired device's presence, or for signal strength, or for which BLE accessories are connected — each has to be asked for on a schedule. Takes effect the next time the application starts.")
                         .font(.callout)

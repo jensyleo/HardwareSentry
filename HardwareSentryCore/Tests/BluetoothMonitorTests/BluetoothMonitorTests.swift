@@ -700,3 +700,50 @@ struct MultipartBatteryTests {
         #expect(BluetoothDetail().batteryNote == nil)
     }
 }
+
+@Suite("BluetoothMonitor · folding the gamepad row")
+struct BluetoothGamepadFoldTests {
+    private func run(_ script: [BluetoothSourceEvent], notifiesGamepadDevices: Bool) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let dispatcher = NotificationDispatcher(delivery: delivery)
+        let monitor = BluetoothMonitor(
+            source: ScriptedBluetoothSource(script: script),
+            context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category),
+            notifiesGamepadDevices: notifiesGamepadDevices
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("on, as it has always behaved, a controller is announced here too")
+    func gamepadAnnouncedWhenOn() async {
+        let events = await run([
+            .classicConnected(name: "Joy-Con (R)", kind: .gamepad),
+            .classicDisconnected(name: "Joy-Con (R)")
+        ], notifiesGamepadDevices: true)
+        #expect(events.map(\.name) == ["BluetoothConnectedGamepad", "BluetoothDisconnected"])
+    }
+
+    @Test("off, both halves fold away — never a departure for an arrival never announced")
+    func gamepadFoldedWhenOff() async {
+        let events = await run([
+            .classicConnected(name: "Joy-Con (R)", kind: .gamepad),
+            .classicDisconnected(name: "Joy-Con (R)")
+        ], notifiesGamepadDevices: false)
+        #expect(events.isEmpty)
+    }
+
+    @Test("the switch folds controllers only, never anything else paired")
+    func othersAreUnaffected() async {
+        let events = await run([
+            .classicConnected(name: "Magic Keyboard", kind: .keyboard),
+            .classicConnected(name: "AirPods", kind: .headphones),
+            .classicConnected(name: "Something", kind: nil)
+        ], notifiesGamepadDevices: false)
+        #expect(events.map(\.name) == [
+            "BluetoothConnectedKeyboard", "BluetoothConnectedHeadphones", "BluetoothConnected"
+        ])
+    }
+}

@@ -167,7 +167,7 @@ struct AudioMonitorTests {
                 announcesWhatIsAlreadyThere: false
             )
         )
-        await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true)
+        await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true, notifiesBluetoothDevices: false)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))
@@ -422,7 +422,7 @@ struct AudioVolumeCriticalTests {
             ),
             volumeCriticalThreshold: 90
         )
-        await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false)
+        await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false, notifiesBluetoothDevices: false)
         await monitor.start()
         for _ in 0..<200 where await delivery.events.isEmpty {
             try? await Task.sleep(for: .milliseconds(1))
@@ -568,5 +568,35 @@ struct AudioIdentityTests {
         #expect(detail.modelManufacturerNote == "Logitech BRIO:046D:085E")
         let both = AudioDeviceDetail(modelUID: "Digital Mic", manufacturer: "Apple Inc.")
         #expect(both.modelManufacturerNote == "Apple Inc. · Digital Mic")
+    }
+}
+
+@Suite("AudioMonitor · speaking for Bluetooth accessories")
+struct AudioBluetoothTests {
+    private func run(notifiesBluetoothDevices: Bool) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let dispatcher = NotificationDispatcher(delivery: delivery)
+        let monitor = AudioMonitor(
+            source: ScriptedAudioSource(script: [
+                .deviceSnapshot([device("bt", name: "AirPods Pro", transport: .bluetooth)])
+            ]),
+            context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category),
+            notifiesBluetoothDevices: notifiesBluetoothDevices
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    @Test("off, as it has always behaved: Bluetooth Monitor has the pairing, this says nothing")
+    func quietWhenOff() async {
+        #expect(await run(notifiesBluetoothDevices: false).isEmpty)
+    }
+
+    @Test("on, the accessory is announced here as well, for what only this module knows")
+    func announcedWhenOn() async {
+        let events = await run(notifiesBluetoothDevices: true)
+        #expect(events.map(\.name) == ["AudioDeviceConnected"])
     }
 }

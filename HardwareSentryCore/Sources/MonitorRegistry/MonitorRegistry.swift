@@ -51,6 +51,12 @@ public actor MonitorRegistry {
     /// own — always fired, from GameController framework, regardless of this — is judged
     /// enough on its own. See `kindsCoveredElsewhere`.
     private let gamepadNotifiesUSBDevices: Bool
+    /// The Bluetooth side of the same question — see `apply` and the two monitors' own
+    /// doc comments. The direction differs from USB's on purpose: for a Bluetooth
+    /// accessory it is the *function* module that folds away, because the pairing itself
+    /// is the news, not merely how the thing attached.
+    private let audioNotifiesBluetoothDevices: Bool
+    private let bluetoothNotifiesGamepadDevices: Bool
     /// USB Monitor's own generic row, narrowed to devices nothing at all is known about —
     /// see `USBMonitor.ignoresIdentifiedGenericDevices`.
     private let usbIgnoresIdentifiedGenericDevices: Bool
@@ -96,6 +102,8 @@ public actor MonitorRegistry {
         audioNotifiesUSBDevices: Bool = true,
         cameraNotifiesUSBDevices: Bool = true,
         gamepadNotifiesUSBDevices: Bool = true,
+        audioNotifiesBluetoothDevices: Bool = false,
+        bluetoothNotifiesGamepadDevices: Bool = true,
         usbIgnoresIdentifiedGenericDevices: Bool = false,
         scannerStatusInterval: Duration = .seconds(10),
         networkSignalPolling: SystemNetworkSource.SignalPolling = .init(),
@@ -127,6 +135,8 @@ public actor MonitorRegistry {
         self.audioNotifiesUSBDevices = audioNotifiesUSBDevices
         self.cameraNotifiesUSBDevices = cameraNotifiesUSBDevices
         self.gamepadNotifiesUSBDevices = gamepadNotifiesUSBDevices
+        self.audioNotifiesBluetoothDevices = audioNotifiesBluetoothDevices
+        self.bluetoothNotifiesGamepadDevices = bluetoothNotifiesGamepadDevices
         self.usbIgnoresIdentifiedGenericDevices = usbIgnoresIdentifiedGenericDevices
         self.scannerStatusInterval = scannerStatusInterval
         self.networkSignalPolling = networkSignalPolling
@@ -158,6 +168,8 @@ public actor MonitorRegistry {
         audioNotifiesUSBDevices: Bool,
         cameraNotifiesUSBDevices: Bool,
         gamepadNotifiesUSBDevices: Bool,
+        audioNotifiesBluetoothDevices: Bool,
+        bluetoothNotifiesGamepadDevices: Bool,
         usbIgnoresIdentifiedGenericDevices: Bool
     ) async {
         for monitor in monitors {
@@ -165,7 +177,14 @@ public actor MonitorRegistry {
                 await power.apply(refire: powerRefire, healthCheck: powerHealthCheck, healthNotify: powerHealthNotify)
             }
             if let audio = monitor as? AudioMonitor {
-                await audio.apply(volumeCriticalThreshold: audioVolumeCriticalPercent, notifiesVirtualDevices: audioNotifiesVirtualDevices)
+                await audio.apply(
+                    volumeCriticalThreshold: audioVolumeCriticalPercent,
+                    notifiesVirtualDevices: audioNotifiesVirtualDevices,
+                    notifiesBluetoothDevices: audioNotifiesBluetoothDevices
+                )
+            }
+            if let bluetooth = monitor as? BluetoothMonitor {
+                await bluetooth.apply(notifiesGamepadDevices: bluetoothNotifiesGamepadDevices)
             }
             if let camera = monitor as? CameraMonitor {
                 await camera.apply(notifiesVirtualDevices: cameraNotifiesVirtualDevices)
@@ -296,13 +315,15 @@ public actor MonitorRegistry {
                     signalPollInterval: bluetoothSignalPollInterval,
                     blePollInterval: bluetoothBLEPollInterval
                 ),
-                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming)
+                context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
+                notifiesGamepadDevices: bluetoothNotifiesGamepadDevices
             ),
             AudioMonitor(
                 source: CoreAudioSource(),
                 context: MonitorContext(dispatcher: dispatcher, category: AudioMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming),
                 volumeCriticalThreshold: audioVolumeCriticalPercent,
-                notifiesVirtualDevices: audioNotifiesVirtualDevices
+                notifiesVirtualDevices: audioNotifiesVirtualDevices,
+                notifiesBluetoothDevices: audioNotifiesBluetoothDevices
             ),
             VolumeMonitor(
                 source: NSWorkspaceVolumeSource(freeSpacePollInterval: volumeFreeSpacePollInterval),

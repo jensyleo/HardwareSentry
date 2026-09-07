@@ -67,16 +67,32 @@ public actor BluetoothMonitor: Monitor {
     private var lastKnownPaired: [String: String]?
     private var hasPairedBaseline = false
 
+    /// Whether this monitor announces a controller that Gamepad Monitor also speaks for.
+    ///
+    /// On, as it has always behaved: both announce, and this one's notice is the only
+    /// one a controller `GameController.framework` does not recognise ever gets — which
+    /// is most of them (see KNOWN-ISSUES.md). Off folds this notice away entirely, so
+    /// only Gamepad Monitor's richer one remains; that is the setting to choose when the
+    /// pair reads as one event said twice, and it is off *for that reason*, not because
+    /// this monitor was wrong.
+    private var notifiesGamepadDevices = true
+
     /// - Parameter signalCooldown: how long after reporting one device's signal level
     ///   before reporting it again. Fifteen seconds, the original's figure.
     public init(
         source: any BluetoothSource,
         context: MonitorContext,
-        signalCooldown: TimeInterval = 15
+        signalCooldown: TimeInterval = 15,
+        notifiesGamepadDevices: Bool = true
     ) {
         self.source = source
         self.context = context
         self.signalWatcher = BluetoothSignalWatcher(cooldown: signalCooldown)
+        self.notifiesGamepadDevices = notifiesGamepadDevices
+    }
+
+    public func apply(notifiesGamepadDevices: Bool) {
+        self.notifiesGamepadDevices = notifiesGamepadDevices
     }
 
     public func start() async {
@@ -99,6 +115,10 @@ public actor BluetoothMonitor: Monitor {
         switch event {
         case .classicConnected(let name, let kind, let detail):
             if let kind { lastKindByName[name] = kind }
+            // Folded away rather than reworded: Gamepad Monitor's own notice for the same
+            // controller carries its category, player index and battery, none of which is
+            // readable from the Class of Device record this monitor reads.
+            guard notifiesGamepadDevices || kind != .gamepad else { return }
             await context.notify(
                 // The row this device's own kind owns; the generic one only for a kind
                 // this application has no artwork for.
@@ -132,6 +152,10 @@ public actor BluetoothMonitor: Monitor {
 
         case .classicDisconnected(let name):
             let kind = lastKindByName.removeValue(forKey: name)
+            // A departure is only announced for a device whose arrival was: folding the
+            // connect away and then saying it left would be a notification about
+            // something this monitor never said had arrived.
+            guard notifiesGamepadDevices || kind != .gamepad else { return }
             await context.notify(
                 BluetoothEvent.disconnected.rawValue, subject: name,
                 title: context.connectionTitle(
