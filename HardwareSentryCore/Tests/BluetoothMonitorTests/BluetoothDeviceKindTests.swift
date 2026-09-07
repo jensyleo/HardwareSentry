@@ -58,6 +58,28 @@ struct BluetoothDeviceKindTests {
         #expect(BluetoothDeviceKind.from(major: 0x04, minor: 0x08) == nil)
     }
 
+    @Test("imaging devices are read from flags, most specific first")
+    func imagingMinorFlags() {
+        #expect(BluetoothDeviceKind.from(major: 0x06, minor: 0x20) == .printer)
+        #expect(BluetoothDeviceKind.from(major: 0x06, minor: 0x10) == .scanner)
+        #expect(BluetoothDeviceKind.from(major: 0x06, minor: 0x08) == .camera)
+        #expect(BluetoothDeviceKind.from(major: 0x06, minor: 0x04) == .display)
+        // Unlike every other major class, these are flags: a print/scan/copy machine
+        // claims both, and is named for the more specific of the two.
+        #expect(BluetoothDeviceKind.from(major: 0x06, minor: 0x30) == .printer)
+        #expect(BluetoothDeviceKind.from(major: 0x06, minor: 0x18) == .scanner)
+        // An imaging device claiming no flag at all has said nothing.
+        #expect(BluetoothDeviceKind.from(major: 0x06, minor: 0x00) == nil)
+    }
+
+    @Test("a toy controller is a gamepad; the rest of the toys are left generic")
+    func toyController() {
+        #expect(BluetoothDeviceKind.from(major: 0x08, minor: 0x04) == .gamepad)
+        for minor: UInt32 in [0x00, 0x01, 0x02, 0x03, 0x05] {
+            #expect(BluetoothDeviceKind.from(major: 0x08, minor: minor) == nil, "toy \(minor)")
+        }
+    }
+
     @Test("an unclassified device gets no specific artwork")
     func unknownStaysGeneric() {
         #expect(BluetoothDeviceKind.from(major: 0x00, minor: 0) == nil)

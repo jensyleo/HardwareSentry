@@ -30,6 +30,8 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
     // The rest of what the SIG defines under major class Peripheral, below the
     // keyboard/pointing bits. A gamepad or a remote is not a kind of mouse.
     case gamepad, remote, tablet, cardReader, barcodeScanner, sensor
+    // Major class Imaging, whose minor field is a set of flags rather than a value.
+    case printer, scanner, camera, display
 
     /// How the row is named in Settings, in the original's words.
     var settingsTitle: String {
@@ -52,6 +54,10 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .cardReader: return "Card Reader"
         case .barcodeScanner: return "Handheld Scanner"
         case .sensor: return "Sensor"
+        case .printer: return "Printer"
+        case .scanner: return "Scanner"
+        case .camera: return "Camera"
+        case .display: return "Display"
         }
     }
 
@@ -76,6 +82,10 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .cardReader: return .connectedCardReader
         case .barcodeScanner: return .connectedBarcodeScanner
         case .sensor: return .connectedSensor
+        case .printer: return .connectedPrinter
+        case .scanner: return .connectedScanner
+        case .camera: return .connectedCamera
+        case .display: return .connectedDisplay
         }
     }
 
@@ -99,6 +109,10 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .cardReader: return "BT-TypeCardReader"
         case .barcodeScanner: return "BT-TypeBarcodeScanner"
         case .sensor: return "BT-TypeSensor"
+        case .printer: return "BT-TypePrinter"
+        case .scanner: return "BT-TypeScanner"
+        case .camera: return "BT-TypeCamera"
+        case .display: return "BT-TypeDisplay"
         }
     }
 
@@ -137,6 +151,22 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
             case 0x06: return .headphones
             default: return nil
             }
+        case 0x06:
+            // Imaging is the one major class whose minor field is a set of flags rather
+            // than a value, so a single device can claim several at once — a
+            // print/scan/copy machine claims two. Checked most-specific-first, in the
+            // order somebody would name the thing on their desk: a multifunction printer
+            // is a printer.
+            if minor & 0x20 != 0 { return .printer }
+            if minor & 0x10 != 0 { return .scanner }
+            if minor & 0x08 != 0 { return .camera }
+            if minor & 0x04 != 0 { return .display }
+            return nil
+        case 0x08:
+            // Toy. Only Controller (`0x04`) is a real input device worth naming, and it is
+            // the same thing a gamepad is; robots, vehicles, dolls and "game" have no
+            // artwork that would be honest for them.
+            return minor & 0x0F == 0x04 ? .gamepad : nil
         default: return nil
         }
     }

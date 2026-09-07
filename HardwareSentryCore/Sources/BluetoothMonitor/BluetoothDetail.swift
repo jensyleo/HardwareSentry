@@ -237,6 +237,10 @@ public extension BluetoothDeviceKind {
         case .cardReader: return "Card reader"
         case .barcodeScanner: return "Handheld scanner"
         case .sensor: return "Sensor"
+        case .printer: return "Printer"
+        case .scanner: return "Scanner"
+        case .camera: return "Camera"
+        case .display: return "Display"
         }
     }
 }

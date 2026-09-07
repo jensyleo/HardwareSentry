@@ -23,6 +23,20 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Bluetooth imaging devices and toy controllers are named
+
+Two more Class of Device major classes get read. Imaging (`0x06`) is the one major class
+whose minor field is a set of *flags* rather than a value, so a single device can claim
+several at once — a print/scan/copy machine claims two. It is read most-specific-first,
+in the order somebody would name the thing on their desk: Printer, then Scanner, then
+Camera, then Display, each with its own row and artwork. And under Toy (`0x08`), a
+Controller is the same thing a gamepad is, so it resolves to the gamepad row rather than
+to nothing.
+
+Both classes previously fell through to the generic glyph in their entirety. The rest of
+the Toy class — robots, vehicles, dolls, "game" — is still left generic on purpose, as
+is an imaging device that claims no flag at all: none has artwork that would be honest.
+
 ### Fixed: a wired Ethernet adapter could be announced as "WiFi Adapter"
 
 Found while auditing, against hardware connected at the time: the Realtek USB Ethernet

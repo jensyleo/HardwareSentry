@@ -43,6 +43,11 @@ public enum BluetoothEvent: String, NotificationEventKey, CaseIterable {
     case connectedCardReader = "BluetoothConnectedCardReader"
     case connectedBarcodeScanner = "BluetoothConnectedBarcodeScanner"
     case connectedSensor = "BluetoothConnectedSensor"
+    // Major class Imaging, and the one Toy subtype that is a real input device.
+    case connectedPrinter = "BluetoothConnectedPrinter"
+    case connectedScanner = "BluetoothConnectedScanner"
+    case connectedCamera = "BluetoothConnectedCamera"
+    case connectedDisplay = "BluetoothConnectedDisplay"
 
     public static let category: NotificationCategory = "Bluetooth"
 }
