@@ -521,3 +521,22 @@ struct AudioDeviceStateTests {
         #expect(events[0].body.contains("spatial audio head tracking"))
     }
 }
+
+@Suite("AudioTransport")
+struct AudioTransportTests {
+    @Test("the transports that are real devices are named, not filed under Other")
+    func namedTransports() {
+        // Both added after an audit found them falling through: an iPhone standing in as
+        // a microphone over Continuity is common, and AVB is what pro interfaces use.
+        #expect(AudioTransport.continuity.label == "Continuity")
+        #expect(AudioTransport.avb.label == "AVB")
+        // Neither is wireless-in-the-Bluetooth sense, and neither is software, so neither
+        // may be swept up by the switches that silence those.
+        #expect(!AudioTransport.continuity.isCoveredByAnotherMonitor)
+        #expect(!AudioTransport.continuity.isVirtualOrAggregate)
+        #expect(!AudioTransport.avb.isCoveredByAnotherMonitor)
+        #expect(!AudioTransport.avb.isVirtualOrAggregate)
+        // The fallback still exists for a transport genuinely nobody has named.
+        #expect(AudioTransport.other.label == "Other")
+    }
+}

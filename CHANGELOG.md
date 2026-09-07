@@ -23,6 +23,15 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Audio: Continuity and AVB are named instead of "Other"
+
+Two transports CoreAudio reports that nothing here had a case for, so both were labelled
+"Other": Continuity Capture — an iPhone standing in as a microphone, which is common
+enough now to deserve its own name — and AVB, audio over Ethernet, which pro interfaces
+use. Both are spelled the way Camera Monitor already spells Continuity. Neither is
+wireless in the sense that hands a device over to Bluetooth Monitor, and neither is
+software, so neither is swept up by the switches that silence those.
+
 ### Bluetooth imaging devices and toy controllers are named
 
 Two more Class of Device major classes get read. Imaging (`0x06`) is the one major class

@@ -22,6 +22,13 @@ public enum AudioTransport: Sendable, Equatable {
     case pci
     case fireWire
     case virtual
+    /// An iPhone standing in as a microphone over Continuity. A real device that really
+    /// arrived, and common enough now to be worth naming rather than filing under
+    /// "Other" — the wired and wireless constants are one transport as far as anybody
+    /// reading the notification is concerned, and Camera Monitor spells it this way too.
+    case continuity
+    /// Audio Video Bridging — audio over Ethernet, which pro interfaces use.
+    case avb
     case other
 
     /// Bluetooth Monitor already announces a device pairing — wireless transports are
@@ -48,6 +55,8 @@ public enum AudioTransport: Sendable, Equatable {
         case .pci: return "PCI"
         case .fireWire: return "FireWire"
         case .virtual: return "Virtual"
+        case .continuity: return "Continuity"
+        case .avb: return "AVB"
         case .other: return "Other"
         }
     }

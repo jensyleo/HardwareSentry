@@ -322,6 +322,9 @@ private final class Watcher: @unchecked Sendable {
         case kAudioDeviceTransportTypePCI: return .pci
         case kAudioDeviceTransportTypeFireWire: return .fireWire
         case kAudioDeviceTransportTypeVirtual: return .virtual
+        case kAudioDeviceTransportTypeContinuityCaptureWired,
+             kAudioDeviceTransportTypeContinuityCaptureWireless: return .continuity
+        case kAudioDeviceTransportTypeAVB: return .avb
         default: return .other
         }
     }
