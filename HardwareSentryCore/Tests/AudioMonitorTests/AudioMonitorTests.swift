@@ -30,10 +30,19 @@ private func device(_ id: String, name: String = "Device", transport: AudioTrans
 
 @Suite("AudioMonitor")
 struct AudioMonitorTests {
+    /// Runs a script through the monitor and returns what it announced.
+    ///
+    /// `expecting` is the number of notifications the script should produce. Waiting for
+    /// the debounce in wall clock alone is not enough: the mic-stop notification is
+    /// raised by a task that wakes when the debounce elapses, and under a full-suite run
+    /// that task can still be waiting its turn when the sleep returns. The bounded poll
+    /// that follows waits for the announcement itself, the same way the volume suite
+    /// below already does.
     private func run(
         _ script: [AudioSourceEvent],
         settleFor debounce: Double = 0.05,
-        notifiesVirtualDevices: Bool = false
+        notifiesVirtualDevices: Bool = false,
+        expecting: Int
     ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
@@ -53,13 +62,16 @@ struct AudioMonitorTests {
 
         await monitor.start()
         try? await Task.sleep(nanoseconds: UInt64((debounce + 0.05) * 1_000_000_000))
+        for _ in 0..<200 where await delivery.events.count < expecting {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
         await monitor.stop()
         return await delivery.events
     }
 
     @Test("the first device snapshot is a silent baseline")
     func deviceBaselineIsSilent() async {
-        let events = await run([.deviceSnapshot([device("1", transport: .hdmi)])])
+        let events = await run([.deviceSnapshot([device("1", transport: .hdmi)])], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -68,7 +80,7 @@ struct AudioMonitorTests {
         let events = await run([
             .deviceSnapshot([]),
             .deviceSnapshot([device("1", transport: .bluetooth)])
-        ])
+        ], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -78,7 +90,7 @@ struct AudioMonitorTests {
             .deviceSnapshot([]),
             .deviceSnapshot([device("1", name: "Studio Display", transport: .displayPort)]),
             .deviceSnapshot([])
-        ])
+        ], expecting: 2)
 
         #expect(events.count == 2)
         #expect(events[0].name == "AudioDeviceConnected")
@@ -96,7 +108,7 @@ struct AudioMonitorTests {
             .deviceSnapshot([]),
             .deviceSnapshot([device("1", name: "USB Audio Interface", transport: .usb)]),
             .deviceSnapshot([])
-        ])
+        ], expecting: 2)
 
         #expect(events.count == 2)
         #expect(events[0].name == "AudioDeviceConnected")
@@ -108,7 +120,7 @@ struct AudioMonitorTests {
         let events = await run([
             .deviceSnapshot([device("1", transport: .bluetooth)]),
             .deviceSnapshot([])
-        ])
+        ], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -126,7 +138,7 @@ struct AudioMonitorTests {
             .deviceSnapshot([]),
             .deviceSnapshot([device("1", transport: .usb)]),
             .deviceSnapshot([])
-        ])
+        ], expecting: 2)
         #expect(events.map(\.name) == ["AudioDeviceConnected", "AudioDeviceDisconnected"])
     }
 
@@ -136,7 +148,7 @@ struct AudioMonitorTests {
             .deviceSnapshot([]),
             .deviceSnapshot([device("1", name: "ZoomAudioDevice", transport: .virtual)]),
             .deviceSnapshot([device("2", name: "Multi-Output Device", transport: .aggregate)])
-        ])
+        ], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -172,7 +184,7 @@ struct AudioMonitorTests {
         let events = await run([
             .deviceSnapshot([device("1", transport: .virtual)]),
             .deviceSnapshot([])
-        ])
+        ], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -181,7 +193,7 @@ struct AudioMonitorTests {
         let events = await run([
             .defaultOutputChanged(id: "1", name: "Built-in Speakers"),
             .defaultOutputChanged(id: "2", name: "AirPods")
-        ])
+        ], expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.name == "AudioDefaultOutputChanged")
@@ -194,7 +206,7 @@ struct AudioMonitorTests {
             .defaultOutputChanged(id: "1", name: "Speakers"),
             .defaultInputChanged(id: "2", name: "Mic"),
             .defaultOutputChanged(id: "3", name: "Headphones")
-        ])
+        ], expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.name == "AudioDefaultOutputChanged")
@@ -205,7 +217,7 @@ struct AudioMonitorTests {
         let events = await run([
             .micRunningSnapshot([:]),
             .micRunningSnapshot(["1": "Built-in Microphone"])
-        ])
+        ], expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.name == "AudioMicInUseChanged")
@@ -219,7 +231,7 @@ struct AudioMonitorTests {
         let events = await run([
             .micRunningSnapshot(["1": "Built-in Microphone"]),
             .micRunningSnapshot([:])
-        ], settleFor: 0.05)
+        ], settleFor: 0.05, expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.title == "Microphone Stopped Being Used")
@@ -231,7 +243,7 @@ struct AudioMonitorTests {
             .micRunningSnapshot(["1": "Built-in Microphone"]),
             .micRunningSnapshot([:]),
             .micRunningSnapshot(["1": "Built-in Microphone"])
-        ], settleFor: 0.05)
+        ], settleFor: 0.05, expecting: 0)
 
         #expect(events.isEmpty)
     }
@@ -255,7 +267,7 @@ struct AudioMonitorTests {
         let events = await run([
             .midiDeviceAdded(name: "Launchkey Mini"),
             .midiDeviceRemoved(name: "Launchkey Mini")
-        ])
+        ], expecting: 2)
 
         #expect(events.count == 2)
         #expect(events[0].name == "AudioMIDIDeviceAdded")

@@ -45,11 +45,22 @@ actor CollectingDelivery: NotificationDelivering {
 
 @Suite("CameraMonitor")
 struct CameraMonitorTests {
+    /// Runs a script through the monitor and returns what it announced.
+    ///
+    /// `expecting` is the number of notifications the script should produce: the wait
+    /// runs until that many have arrived rather than for a fixed number of yields, the
+    /// same way the other monitor suites here wait. A fixed drain is not enough — under
+    /// a full-suite run the monitor's task competes with every other suite's, and a
+    /// two-event script could be read back after only the first had been handled.
+    /// The short trailing drain is for the opposite case: a script expected to stay
+    /// silent, or to say less than it was given, still has to be given the chance to
+    /// speak before the assertion is believed.
     private func run(
         _ script: [CameraSourceEvent],
         stopDebounce: Double = 0.02,
         settleSeconds: Double = 0,
-        notifiesVirtualDevices: Bool = false
+        notifiesVirtualDevices: Bool = false,
+        expecting: Int
     ) async -> [NotificationEvent] {
         let delivery = CollectingDelivery()
         let dispatcher = NotificationDispatcher(delivery: delivery)
@@ -64,6 +75,9 @@ struct CameraMonitorTests {
         if settleSeconds > 0 {
             try? await Task.sleep(nanoseconds: UInt64(settleSeconds * 1_000_000_000))
         }
+        for _ in 0..<100_000 where await delivery.events.count < expecting {
+            await Task.yield()
+        }
         for _ in 0..<200 {
             await Task.yield()
         }
@@ -73,7 +87,7 @@ struct CameraMonitorTests {
 
     @Test("a connection is announced")
     func connectIsAnnounced() async {
-        let events = await run([.connected(uid: "cam-1", name: "Logitech Brio")])
+        let events = await run([.connected(uid: "cam-1", name: "Logitech Brio")], expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.name == "CameraConnected")
@@ -83,7 +97,7 @@ struct CameraMonitorTests {
 
     @Test("a disconnection is announced")
     func disconnectIsAnnounced() async {
-        let events = await run([.disconnected(uid: "cam-1", name: "Logitech Brio")])
+        let events = await run([.disconnected(uid: "cam-1", name: "Logitech Brio")], expecting: 1)
         #expect(events.first?.name == "CameraDisconnected")
     }
 
@@ -91,7 +105,7 @@ struct CameraMonitorTests {
     func virtualCameraIsSuppressedByDefault() async {
         let events = await run([
             .connected(uid: "cam-1", name: "OBS Virtual Camera", detail: CameraDetail(transport: "Virtual"))
-        ])
+        ], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -121,7 +135,7 @@ struct CameraMonitorTests {
         let events = await run([
             .connected(uid: "cam-1", name: "OBS Virtual Camera", detail: CameraDetail(transport: "Virtual")),
             .disconnected(uid: "cam-1", name: "OBS Virtual Camera")
-        ])
+        ], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -129,7 +143,7 @@ struct CameraMonitorTests {
     func continuityCameraIsUnaffected() async {
         let events = await run([
             .connected(uid: "cam-1", name: "Jensy's iPhone", detail: CameraDetail(transport: "Continuity"))
-        ])
+        ], expecting: 1)
         #expect(events.count == 1)
         #expect(events.first?.name == "CameraConnected")
     }
@@ -138,7 +152,7 @@ struct CameraMonitorTests {
     func usbCameraIsAnnouncedByDefault() async {
         let events = await run([
             .connected(uid: "cam-1", name: "Composite Webcam", detail: CameraDetail(transport: "USB"))
-        ])
+        ], expecting: 1)
         #expect(events.count == 1)
         // Its own event, not the built-in camera's: switching one off must not silence
         // the other, the same reasoning USB Monitor's own per-class rows rest on.
@@ -154,14 +168,14 @@ struct CameraMonitorTests {
         let builtIn = await run([
             .connected(uid: "cam-1", name: "FaceTime HD Camera", detail: CameraDetail(transport: "Built-in")),
             .disconnected(uid: "cam-1", name: "FaceTime HD Camera")
-        ])
+        ], expecting: 2)
         #expect(builtIn.map(\.title) == ["Camera Connected", "Camera Disconnected"])
         #expect(builtIn.map(\.name) == ["CameraConnected", "CameraDisconnected"])
 
         let webcam = await run([
             .connected(uid: "cam-2", name: "Logitech BRIO", detail: CameraDetail(transport: "USB")),
             .disconnected(uid: "cam-2", name: "Logitech BRIO")
-        ])
+        ], expecting: 2)
         #expect(webcam.map(\.title) == ["Webcam Connected", "Webcam Disconnected"])
         #expect(webcam.map(\.name) == ["CameraWebcamConnected", "CameraWebcamDisconnected"])
     }
@@ -174,7 +188,7 @@ struct CameraMonitorTests {
         let events = await run([
             .connected(uid: "cam-1", name: "Jensy's iPhone", detail: CameraDetail(transport: "USB", isContinuityCamera: true)),
             .disconnected(uid: "cam-1", name: "Jensy's iPhone")
-        ])
+        ], expecting: 2)
         #expect(events.map(\.title) == ["Continuity Camera Connected", "Continuity Camera Disconnected"])
         #expect(events.map(\.name) == ["CameraContinuityConnected", "CameraContinuityDisconnected"])
     }
@@ -187,7 +201,7 @@ struct CameraMonitorTests {
                 detail: CameraDetail(transport: "USB", isContinuityCamera: true, isDeskViewCamera: true)
             ),
             .disconnected(uid: "cam-1", name: "Jensy's iPhone")
-        ])
+        ], expecting: 2)
         #expect(events.map(\.title) == ["Desk View Connected", "Desk View Disconnected"])
         #expect(events.map(\.name) == ["CameraDeskViewConnected", "CameraDeskViewDisconnected"])
     }
@@ -203,7 +217,7 @@ struct CameraMonitorTests {
             let events = await run([
                 .connected(uid: "cam-1", name: "Composite Webcam", detail: CameraDetail(transport: spelling)),
                 .disconnected(uid: "cam-1", name: "Composite Webcam")
-            ])
+            ], expecting: 2)
             #expect(events.map(\.name) == ["CameraWebcamConnected", "CameraWebcamDisconnected"], "\(spelling) should read as a webcam")
         }
     }
@@ -224,14 +238,14 @@ struct CameraMonitorTests {
         await monitor.start()
 
         source.send(.connected(uid: "cam-1", name: "Logitech BRIO", detail: CameraDetail(transport: "USB")))
-        for _ in 0..<200 { await Task.yield() }
+        for _ in 0..<100_000 where await delivery.events.count < 1 { await Task.yield() }
         #expect(await delivery.events.map(\.title) == ["Webcam Connected"])
 
         // An unrelated setting changing mid-connection must not affect this camera.
         await monitor.apply(notifiesVirtualDevices: true)
 
         source.send(.disconnected(uid: "cam-1", name: "Logitech BRIO"))
-        for _ in 0..<200 { await Task.yield() }
+        for _ in 0..<100_000 where await delivery.events.count < 2 { await Task.yield() }
         source.finish()
         await monitor.stop()
 
@@ -240,7 +254,7 @@ struct CameraMonitorTests {
 
     @Test("the first running snapshot is a silent baseline")
     func firstRunningSnapshotIsSilent() async {
-        let events = await run([.runningStateChanged(running: ["cam-1": "FaceTime HD Camera"])])
+        let events = await run([.runningStateChanged(running: ["cam-1": "FaceTime HD Camera"])], expecting: 0)
         #expect(events.isEmpty)
     }
 
@@ -249,7 +263,7 @@ struct CameraMonitorTests {
         let events = await run([
             .runningStateChanged(running: [:]),
             .runningStateChanged(running: ["cam-1": "FaceTime HD Camera"])
-        ])
+        ], expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.name == "CameraInUseChanged")
@@ -262,7 +276,7 @@ struct CameraMonitorTests {
         let events = await run([
             .runningStateChanged(running: ["cam-1": "FaceTime HD Camera"]),
             .runningStateChanged(running: [:])
-        ], stopDebounce: 0.02, settleSeconds: 0.06)
+        ], stopDebounce: 0.02, settleSeconds: 0.06, expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.name == "CameraInUseChanged")
@@ -276,14 +290,14 @@ struct CameraMonitorTests {
             .runningStateChanged(running: ["cam-1": "FaceTime HD Camera"]),
             .runningStateChanged(running: [:]),
             .runningStateChanged(running: ["cam-1": "FaceTime HD Camera"])
-        ], stopDebounce: 0.05, settleSeconds: 0.09)
+        ], stopDebounce: 0.05, settleSeconds: 0.09, expecting: 0)
 
         #expect(events.isEmpty)
     }
 
     @Test("a video effect change is announced with its own on/off title")
     func videoEffectIsAnnounced() async {
-        let events = await run([.videoEffectChanged(.studioLight, enabled: true)])
+        let events = await run([.videoEffectChanged(.studioLight, enabled: true)], expecting: 1)
 
         #expect(events.count == 1)
         #expect(events.first?.name == "CameraStudioLightChanged")
@@ -372,7 +386,7 @@ struct CameraMonitorFieldTests {
             )
         )
         await monitor.start()
-        for _ in 0..<100 where await delivery.events.isEmpty { await Task.yield() }
+        for _ in 0..<100_000 where await delivery.events.isEmpty { await Task.yield() }
         await monitor.stop()
         return await delivery.events.first?.body
     }
@@ -445,7 +459,7 @@ struct CameraMonitorFieldTests {
             )
         )
         await monitor.start()
-        for _ in 0..<100 where await delivery.events.isEmpty { await Task.yield() }
+        for _ in 0..<100_000 where await delivery.events.isEmpty { await Task.yield() }
         await monitor.stop()
 
         #expect(await delivery.events.first?.body == "iPhone Camera")
