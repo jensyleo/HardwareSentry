@@ -90,6 +90,26 @@ enum HelpLibrary {
         HelpTopic(id: "history", title: "History", symbol: "clock.arrow.circlepath", sections: [
             HelpSection(paragraphs: ["The History tab lists what was actually shown, newest first — not everything the modules raised. A notification you switched off, or one suppressed as a duplicate, is not there, because the point of the list is to answer \"what did I miss\".", "It is kept for the current run and cleared when HardwareSentry quits."]),
         ]),
+        HelpTopic(id: "several", title: "Why one device said several things", symbol: "square.stack.3d.up", sections: [
+            HelpSection(paragraphs: [
+                "One thing plugged in can be several things at once. A webcam with a microphone is a camera, an audio device and a USB device; a game controller is a controller and a Bluetooth accessory. Each module that can see it has something of its own to say — the camera's resolution, the audio device's sample rate, the USB device's port and firmware — so more than one notification for a single connection is usually the application working, not repeating itself.",
+                "Where two modules would say the same thing, one of them stays quiet. Which one, and whether it does, is a setting:"
+            ]),
+            HelpSection(heading: "USB", rows: [
+                .init(term: "Camera, Audio and Gamepad each have \"Notify for USB devices independently of USB Monitor\"", detail: "The module always speaks for its own device. This decides whether USB Monitor's more general notice for the same device arrives as well.", note: "On by default"),
+                .init(term: "A device that is both a camera and a microphone", detail: "Folds USB Monitor's notice away only when Camera's and Audio's switches both say so, so turning one off alone never silences the other's say.")
+            ]),
+            HelpSection(heading: "Bluetooth", paragraphs: [
+                "The Bluetooth side starts from the opposite place, on purpose: a pairing is worth hearing about in its own right, so Bluetooth Monitor's notice is the one kept and the other module is the one that stays quiet."
+            ], rows: [
+                .init(term: "Audio ▸ \"Notify for Bluetooth devices as well as Bluetooth Monitor\"", detail: "On, an accessory is announced by Audio too, for the part Bluetooth Monitor cannot say — sample rate, channel count, which device just became the default.", note: "Off by default"),
+                .init(term: "Bluetooth ▸ \"Announce controllers Gamepad Monitor also reports\"", detail: "Off keeps only Gamepad Monitor's richer notice. Worth knowing before switching it off: macOS recognises only its own list of controllers, so one it does not know would then be announced by nothing at all.", note: "On by default")
+            ]),
+            HelpSection(heading: "Not the same thing", rows: [
+                .init(term: "A dock and what is behind it", detail: "A hub, dock or adapter is its own device, and so is everything plugged into it. Several notifications there are several devices, not one device repeated."),
+                .init(term: "A disk arriving and a volume mounting", detail: "The device attaching and its filesystem becoming available are two events, reported by two modules, and either can happen without the other.")
+            ])
+        ]),
         HelpTopic(id: "quiet", title: "Why something did not appear", symbol: "questionmark.circle", sections: [
             HelpSection(paragraphs: ["If you expected a notification and did not get one, the reasons in order of likelihood:"]),
             HelpSection(rows: [.init(term: "It is switched off", detail: "Check the Notifications tab. Some are off by default, and a module's section-header switch being off silences everything under it."), .init(term: "It repeated too quickly", detail: "The same thing happening twice within a few seconds is announced once. A device connecting and disconnecting repeatedly is reported as unstable rather than as a stream of separate notifications."), .init(term: "It needs a permission", detail: "Bluetooth reports nothing without Bluetooth access; a Wi-Fi network cannot be named without Location access."), .init(term: "The first reading is not a change", detail: "Some things are only reported when they change from a state HardwareSentry already saw. A Mac that was already hot when it launched has not got hotter."), .init(term: "It is not something HardwareSentry watches", detail: "The Modules reference lists everything each module can report.")]),

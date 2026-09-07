@@ -23,6 +23,27 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### An About panel that says what the application is, and a help topic on double notices
+
+The Help window and its ⌘? menu entry already existed. What did not was an About panel
+of its own: macOS's auto-generated one shows the name, version and copyright it can read
+out of `Info.plist` and nothing else. This one adds what the application actually is,
+alongside the new icon.
+
+Building it turned up something the panel was the first thing to display: the bundle had
+`CFBundleShortVersionString` hardcoded to **1.0**, while the project, the README and the
+CHANGELOG all say 0.1.0, pre-release. The plist reads the project's own
+`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` now, so there is one source of truth
+and it cannot drift again.
+
+The Help window also gains a topic it was missing: **"Why one device said several
+things"**. It has always explained why a notification did not arrive; the opposite
+question — why one connection produced three — had no answer anywhere, and the rules
+behind it are not guessable. It lists every switch that decides which module stays
+quiet, why the USB and Bluetooth sides start from opposite defaults, and which cases are
+not duplicates at all (a dock and what is plugged into it; a disk attaching and its
+volume mounting).
+
 ### Bluetooth's overlap with Audio and Gamepad Monitor is yours to decide
 
 When two modules can see the same physical device, one of them says nothing. For USB

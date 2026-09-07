@@ -4,6 +4,7 @@ import SwiftUI
 struct HardwareSentryApp: App {
     static let settingsWindowID = "settings"
     static let helpWindowID = "help"
+    static let aboutWindowID = "about"
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
@@ -62,7 +63,15 @@ struct HardwareSentryApp: App {
         .defaultSize(width: 860, height: 620)
         .commands {
             HelpMenuCommands()
+            AboutMenuCommands()
         }
+
+        // A single, unique window: choosing About again while one is already showing
+        // brings that one forward rather than opening a second copy.
+        Window("About HardwareSentry", id: Self.aboutWindowID) {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
     }
 }
 
@@ -86,6 +95,21 @@ struct HelpMenuCommands: Commands {
                 NSApplication.shared.activate()
             }
             .keyboardShortcut("?", modifiers: .command)
+        }
+    }
+}
+
+/// Replaces macOS's own auto-generated About panel with one that says what the
+/// application is, not just its version number.
+struct AboutMenuCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About HardwareSentry") {
+                openWindow(id: HardwareSentryApp.aboutWindowID)
+                NSApplication.shared.activate()
+            }
         }
     }
 }
