@@ -11,6 +11,11 @@ public struct CameraDetail: Sendable, Equatable {
     /// How the camera attaches — "Built-in", "USB", "Continuity", and so on.
     public let transport: String?
     public let manufacturer: String?
+    /// Vendor and product identifiers, as `046D:085E`. Not a property AVFoundation
+    /// exposes on its own — it is parsed out of `modelID`, which for a USB camera reads
+    /// "UVC Camera VendorID_1133 ProductID_2142". Nil for a camera whose model string
+    /// does not carry them, which is every built-in one.
+    public let vidPid: String?
     /// "Front" or "Back" for a camera that faces a definite way; nil for one that doesn't.
     public let position: String?
     /// The largest the camera can shoot, across every format it offers — not the format
@@ -28,6 +33,7 @@ public struct CameraDetail: Sendable, Equatable {
 
     public init(
         transport: String? = nil,
+        vidPid: String? = nil,
         manufacturer: String? = nil,
         position: String? = nil,
         maxResolution: String? = nil,
@@ -39,6 +45,7 @@ public struct CameraDetail: Sendable, Equatable {
         linkedDevices: String? = nil
     ) {
         self.transport = transport
+        self.vidPid = vidPid
         self.manufacturer = manufacturer
         self.position = position
         self.maxResolution = maxResolution
@@ -62,6 +69,7 @@ public struct CameraDetail: Sendable, Equatable {
 public enum CameraField: String, CaseIterable {
     case transport = "Transport"
     case manufacturer = "Manufacturer"
+    case vidPid = "VidPid"
     case position = "Position"
     case maxResolution = "MaxResolution"
     case maxFrameRate = "MaxFrameRate"
@@ -88,6 +96,7 @@ extension CameraField {
         switch self {
         case .transport: return "How it attaches"
         case .manufacturer: return "Manufacturer"
+        case .vidPid: return "Vendor/product ID (VID:PID)"
         case .position: return "Which way it faces"
         case .maxResolution: return "Highest resolution"
         case .maxFrameRate: return "Highest frame rate"

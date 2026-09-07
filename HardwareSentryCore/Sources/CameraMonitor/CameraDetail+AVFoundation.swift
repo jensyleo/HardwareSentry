@@ -22,7 +22,8 @@ extension CameraDetail {
 
         self.init(
             transport: Self.describe(transport: device.transportType),
-            manufacturer: device.manufacturer.isEmpty ? nil : device.manufacturer,
+            vidPid: Self.vidPid(fromModelID: device.modelID),
+            manufacturer: Self.manufacturer(device.manufacturer),
             position: Self.describe(position: device.position),
             maxResolution: widest.map { "\($0.width)x\($0.height)" },
             maxFrameRate: fastest.map { String(format: "%.0f fps", $0) },
@@ -32,6 +33,36 @@ extension CameraDetail {
             isSystemPreferred: AVCaptureDevice.systemPreferredCamera?.uniqueID == device.uniqueID,
             linkedDevices: Self.describe(linked: device.linkedDevices)
         )
+    }
+
+    /// AVFoundation's own placeholder for "no answer" is the word `Unknown`, not an empty
+    /// string, so the emptiness check alone let it straight through: a real Logitech BRIO,
+    /// read live 2026-09-07, announced itself as "Manufacturer: Unknown". That is the same
+    /// "not really an answer" shape USB Monitor already refuses from USB-IF's own escape
+    /// hatches, and it is worse than saying nothing — the maker is right there in the
+    /// camera's name.
+    static func manufacturer(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.lowercased() != "unknown" else { return nil }
+        return trimmed
+    }
+
+    /// The identifiers a USB camera hides in its model string.
+    ///
+    /// AVFoundation exposes no vendor/product property, but for a UVC camera `modelID`
+    /// reads "UVC Camera VendorID_1133 ProductID_2142" — in decimal. Rendered here the way
+    /// every specification sheet, and USB Monitor's own line, writes it: `046D:085E`.
+    /// Nil unless both are present, which is every built-in camera.
+    static func vidPid(fromModelID modelID: String) -> String? {
+        func value(_ label: String) -> Int? {
+            guard let range = modelID.range(of: "\(label)_") else { return nil }
+            let digits = modelID[range.upperBound...].prefix { $0.isNumber }
+            return digits.isEmpty ? nil : Int(digits)
+        }
+        guard let vendor = value("VendorID"), let product = value("ProductID"),
+              vendor <= 0xFFFF, product <= 0xFFFF
+        else { return nil }
+        return String(format: "%04X:%04X", vendor, product)
     }
 
     private static func describe(position: AVCaptureDevice.Position) -> String? {

@@ -520,3 +520,34 @@ struct AVFoundationCameraSourceTransportTests {
         #expect(AVFoundationCameraSource.isAlreadyCoveredByAnotherMonitor(Int32(bitPattern: kAudioDeviceTransportTypeBuiltIn)) == false)
     }
 }
+
+@Suite("Camera identity read from AVFoundation")
+struct CameraIdentityTests {
+    @Test("AVFoundation's \"Unknown\" placeholder is not reported as a manufacturer")
+    func unknownManufacturerIsRefused() {
+        // Read live 2026-09-07 from a real Logitech BRIO: AVFoundation answers the literal
+        // word "Unknown", not an empty string, so the emptiness check alone let it through
+        // and the notification said "Manufacturer: Unknown".
+        #expect(CameraDetail.manufacturer("Unknown") == nil)
+        #expect(CameraDetail.manufacturer("unknown") == nil)
+        #expect(CameraDetail.manufacturer("  Unknown  ") == nil)
+        #expect(CameraDetail.manufacturer("") == nil)
+        #expect(CameraDetail.manufacturer("   ") == nil)
+        // A real answer still comes through, including one that merely contains the word.
+        #expect(CameraDetail.manufacturer("Apple Inc.") == "Apple Inc.")
+        #expect(CameraDetail.manufacturer("Unknown Devices Ltd") == "Unknown Devices Ltd")
+    }
+
+    @Test("a USB camera's identifiers are read out of the model string it hides them in")
+    func vidPidIsParsedFromModelID() {
+        // Both read live 2026-09-07. The BRIO's decimal 1133/2142 is 046D:085E — Logitech.
+        #expect(CameraDetail.vidPid(fromModelID: "UVC Camera VendorID_1133 ProductID_2142") == "046D:085E")
+        // The built-in camera carries no identifiers at all.
+        #expect(CameraDetail.vidPid(fromModelID: "MacBook Air Camera") == nil)
+        // Half an answer is no answer.
+        #expect(CameraDetail.vidPid(fromModelID: "UVC Camera VendorID_1133") == nil)
+        #expect(CameraDetail.vidPid(fromModelID: "") == nil)
+        // Anything that could not be a 16-bit identifier is refused rather than truncated.
+        #expect(CameraDetail.vidPid(fromModelID: "VendorID_99999 ProductID_1") == nil)
+    }
+}

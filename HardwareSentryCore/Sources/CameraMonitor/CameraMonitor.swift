@@ -180,6 +180,7 @@ public actor CameraMonitor: Monitor {
                     .always(name),
                     .field(CameraField.transport.rawValue, "Transport", detail?.transport),
                     .field(CameraField.manufacturer.rawValue, "Manufacturer", detail?.manufacturer),
+                    .field(CameraField.vidPid.rawValue, "VID:PID", detail?.vidPid),
                     .field(CameraField.position.rawValue, "Position", detail?.position),
                     .field(CameraField.maxResolution.rawValue, "Max resolution", detail?.maxResolution),
                     .field(CameraField.maxFrameRate.rawValue, "Max frame rate", detail?.maxFrameRate),

@@ -23,6 +23,28 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Fixed: a camera announcing itself as "Manufacturer: Unknown"
+
+Read live from a real Logitech BRIO: `AVCaptureDevice.manufacturer` answers the literal
+word "Unknown" for it, not an empty string — and only emptiness was being checked, so the
+placeholder went straight into the message. That is the same "not really an answer" shape
+USB Monitor already refuses from USB-IF's own escape hatches, and it is worse than saying
+nothing at all, since the maker is right there in the camera's own name.
+
+### Cameras report the VID:PID they were hiding in their model string
+
+AVFoundation exposes no vendor or product property, which is why the maker went missing
+above. But a UVC camera's `modelID` carries both — the BRIO's reads "UVC Camera
+VendorID_1133 ProductID_2142" — so they are parsed out and reported as `046D:085E`, the
+way every specification sheet and USB Monitor's own line writes them. Off by default,
+like the rest of the specification lines; nil for a built-in camera, whose model string
+carries no identifiers at all.
+
+This closes the audit item that asked for a USB vendor cross-reference here. It turned
+out not to need one: the identifiers themselves are available without leaving this
+module, and the vendor's *name* was never the missing piece — "Logitech BRIO" already
+says it.
+
 ### The USB gamepad, remote and tablet rows get pictures of their own
 
 Splitting the Keyboard row out gave `.keyboard` the ported HID artwork — which is,
