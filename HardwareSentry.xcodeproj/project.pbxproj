@@ -13,6 +13,7 @@
 		1945E63340C5FA7F3A28C418 /* EventIconPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */; };
 		206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */; };
 		33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */ = {isa = PBXBuildFile; productRef = 142F87B528848BC07D8EF1FE /* SentryContract */; };
+		3670D0248C02FFA2FE274D09 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AE904B07C635814F100CB5 /* AboutView.swift */; };
 		48247C77EEC05F77535966EE /* MonitorTuningModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */; };
 		51CE2F48BEBB2DA79EE06525 /* HelpTopic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA18C113A3EA310D4D5067A2 /* HelpTopic.swift */; };
 		6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3BB57E267D9097497B67D5 /* SettingsView.swift */; };
@@ -47,6 +48,7 @@
 		C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsModel.swift; sourceTree = "<group>"; };
 		CA18C113A3EA310D4D5067A2 /* HelpTopic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpTopic.swift; sourceTree = "<group>"; };
 		CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHistoryStore.swift; sourceTree = "<group>"; };
+		E8AE904B07C635814F100CB5 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +114,7 @@
 		968319D5CBD5928CDE60F0E3 /* Help */ = {
 			isa = PBXGroup;
 			children = (
+				E8AE904B07C635814F100CB5 /* AboutView.swift */,
 				CA18C113A3EA310D4D5067A2 /* HelpTopic.swift */,
 				806C9A334783CD70AB34DA02 /* HelpView.swift */,
 			);
@@ -212,6 +215,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3670D0248C02FFA2FE274D09 /* AboutView.swift in Sources */,
 				C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */,
 				1945E63340C5FA7F3A28C418 /* EventIconPicker.swift in Sources */,
 				8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */,
