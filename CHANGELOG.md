@@ -23,6 +23,12 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### A banner's close control moves to the top-left
+
+Where macOS itself puts it. Notification Center's close button sits over the top-left
+corner of the notification's icon and appears once the pointer is on it; this one was in
+the top-right, which is the one corner macOS never uses for it.
+
 ### Fixed: Bluetooth notices that sometimes never arrived, or arrived far too late
 
 Reported live while testing a Joy-Con. The cause was in `SignalCore`'s flap detection,
