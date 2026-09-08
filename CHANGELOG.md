@@ -23,6 +23,27 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Fixed: Bluetooth notices that sometimes never arrived, or arrived far too late
+
+Reported live while testing a Joy-Con. The cause was in `SignalCore`'s flap detection,
+which collapses a storm of notifications about one unstable device into a single report
+and then drops further notices about it for a cooldown. It counted occurrences by the
+device's *name* alone — and two modules can speak for one physical device. Bluetooth
+Monitor and Gamepad Monitor both name that controller "Joy-Con (R)", so their two
+notices shared one counter: each connect contributed two, and two connect/disconnect
+cycles reached a threshold meant for four. Everything about the device was then dropped
+for the next twenty seconds.
+
+Two modules agreeing about one device is not that device flapping. The counter is keyed
+on the module as well as the name now — which is how the duplicate-suppression stage
+beside it has always keyed; this was the odd one out. The instability report still names
+the device rather than the internal key.
+
+The banner queue was examined at the same time and left alone: it allows twelve on screen
+at once, reveals them 0.4s apart, and holds up to sixty-four while the application is
+still announcing what was already plugged in, against sixteen once it has settled. The
+startup burst has the larger limit for exactly that reason, and behaves.
+
 ### Fixed: every Bluetooth departure was titled generically
 
 Reported live with a Joy-Con: it arrived as "Bluetooth Gamepad Connected" and left as
