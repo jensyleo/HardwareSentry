@@ -33,7 +33,8 @@ struct BannerBackground: NSViewRepresentable {
 /// One banner.
 ///
 /// The close control stays out of the way until the pointer arrives, so that a banner
-/// reads as a notification rather than as a window with furniture.
+/// reads as a notification rather than as a window with furniture. It sits in the
+/// top-left corner, where macOS itself puts it, rather than the top-right.
 struct BannerView: View {
     /// The sizes the banner's two pieces of text are drawn at before the person's chosen
     /// scale is applied — matching what `.headline` and `.subheadline` resolve to on
@@ -81,7 +82,9 @@ struct BannerView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(alignment: .topTrailing) { closeButton }
+        // Top-left, where macOS puts it in Notification Center — over the icon's own
+        // corner, which is why it only appears once the pointer is on the banner.
+        .overlay(alignment: .topLeading) { closeButton }
         .contentShape(Rectangle())
         .onTapGesture(perform: onActivate)
         .onHover { isHovering = $0 }
