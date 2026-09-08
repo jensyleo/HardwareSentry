@@ -123,3 +123,43 @@ struct FlapDetectionMiddlewareTests {
         #expect(await middleware.trackedSubjectCount == 1)
     }
 }
+
+@Suite("FlapDetectionMiddleware · two modules, one device")
+struct FlapDetectionAcrossCategoriesTests {
+    @Test("one device spoken for by two modules does not count double")
+    func categoriesAreCountedSeparately() async {
+        // Reported live, 2026-09-07: a Joy-Con is announced by Bluetooth Monitor and by
+        // Gamepad Monitor, both naming it "Joy-Con (R)". Keyed on the name alone, those
+        // two notices shared one counter — so two connect/disconnect cycles reached a
+        // threshold meant for four, and everything about the device was dropped for the
+        // cooldown. Two modules agreeing is not the device flapping.
+        let middleware = FlapDetectionMiddleware(window: 20, threshold: 4)
+
+        for second in 0..<3 {
+            for category: NotificationCategory in ["Bluetooth", "Gamepad"] {
+                let decision = await middleware.process(
+                    makeEvent(subject: "Joy-Con (R)", category: category),
+                    context: makeContext(at: Double(second))
+                )
+                #expect(decision.deliveredEvent?.name == "TestEvent",
+                        "\(category.rawValue) at \(second)s should still pass through")
+            }
+        }
+    }
+
+    @Test("a device really flapping in one module is still caught")
+    func oneCategoryStillFlaps() async {
+        let middleware = FlapDetectionMiddleware(window: 20, threshold: 4)
+
+        var decision: MiddlewareDecision?
+        for second in 0..<4 {
+            decision = await middleware.process(
+                makeEvent(subject: "Joy-Con (R)", category: "Bluetooth"),
+                context: makeContext(at: Double(second))
+            )
+        }
+        #expect(decision?.deliveredEvent?.name != "TestEvent", "the fourth should be the report")
+        // And the report still names the device, not the internal bucket key.
+        #expect(decision?.deliveredEvent?.subject == "Joy-Con (R)")
+    }
+}

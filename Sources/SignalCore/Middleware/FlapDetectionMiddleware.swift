@@ -61,7 +61,8 @@ public actor FlapDetectionMiddleware: NotificationMiddleware {
     }
 
     public func process(_ event: NotificationEvent, context: DispatchContext) async -> MiddlewareDecision {
-        let key = flapKey(for: event.subject)
+        let key = flapKey(for: event)
+        let reportedSubject = strippedSubject(event.subject)
         let now = context.firedAt
 
         if lastReported.count >= pruneThreshold || recentEvents.count >= pruneThreshold {
@@ -80,12 +81,12 @@ public actor FlapDetectionMiddleware: NotificationMiddleware {
         }
 
         if let reported = lastReported[key], now.timeIntervalSince(reported) < reportCooldown {
-            return .suppress(reason: "\(key) is flapping; already reported")
+            return .suppress(reason: "\(reportedSubject) is flapping; already reported")
         }
 
         lastReported[key] = now
         let report = FlapReport(
-            subject: key,
+            subject: reportedSubject,
             category: event.category,
             occurrences: timestamps.count,
             window: window,
@@ -94,10 +95,28 @@ public actor FlapDetectionMiddleware: NotificationMiddleware {
         return .deliver(buildReport(report))
     }
 
+    /// The bucket a subject's occurrences are counted in: its category and its name.
+    ///
+    /// The category is part of the key because two *modules* can speak for one physical
+    /// device, and that is not the device flapping — it is one event seen twice. Keyed on
+    /// the name alone, a controller paired over Bluetooth counted double, since Bluetooth
+    /// Monitor and Gamepad Monitor both name it "Joy-Con (R)": two connect/disconnect
+    /// cycles reached a threshold meant for four, and everything about that device was
+    /// then dropped for the cooldown. Reported live, 2026-09-07, as Bluetooth notices
+    /// that sometimes did not arrive or arrived far too late.
+    ///
+    /// `DuplicateSuppressionMiddleware` has always keyed on the category for the same
+    /// reason; this was the odd one out.
+    private func flapKey(for event: NotificationEvent) -> String {
+        // A unit separator: no category or subject can contain one, so the two halves
+        // cannot run together into a key that means something else.
+        "\(event.category.rawValue)\u{1F}\(strippedSubject(event.subject))"
+    }
+
     /// Strips a paired-transition suffix so that "something started" and "something
     /// stopped" count as the same subject flipping back and forth, rather than as two
     /// unrelated subjects each seen half as often.
-    private func flapKey(for subject: String) -> String {
+    private func strippedSubject(_ subject: String) -> String {
         for suffix in pairedTransitionSuffixes where subject.hasSuffix(suffix) {
             return String(subject.dropLast(suffix.count))
         }
