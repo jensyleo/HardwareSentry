@@ -114,3 +114,37 @@ struct ConnectionNamingTests {
         ).connectionNaming == .mediumAndType)
     }
 }
+
+@Suite("Naming the module that spoke")
+struct ReportingModuleLineTests {
+    private func context(names: Bool) -> MonitorContext {
+        MonitorContext(
+            dispatcher: NotificationDispatcher(delivery: DiscardingDelivery()),
+            category: "Bluetooth",
+            namesReportingModule: names
+        )
+    }
+
+    @Test("off by default, nothing is added")
+    func offAddsNothing() async {
+        let body = await context(names: false).body([.always("Joy-Con (R)")])
+        #expect(body == "Joy-Con (R)")
+    }
+
+    @Test("on, the module is named last, after everything the device said")
+    func onNamesTheModuleLast() async {
+        // The case this exists for: a controller connecting raises one notification from
+        // Gamepad Monitor and another from Bluetooth Monitor, both about a controller and
+        // both wearing a picture of one.
+        let body = await context(names: true).body([
+            .always("Joy-Con (R)"),
+            .field("Type", "Type", "Gamepad")
+        ])
+        #expect(body == "Joy-Con (R)\nType:\tGamepad\nModule:\tBluetooth")
+    }
+
+    @Test("a message with nothing else to say still names its module")
+    func namesTheModuleAlone() async {
+        #expect(await context(names: true).body([]) == "Module:\tBluetooth")
+    }
+}

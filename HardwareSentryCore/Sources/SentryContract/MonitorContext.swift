@@ -24,18 +24,30 @@ public struct MonitorContext: Sendable {
     /// How connection notifications name what arrived. See `ConnectionNaming`.
     public let connectionNaming: ConnectionNaming
 
+    /// Whether every message ends with the name of the module that raised it.
+    ///
+    /// Off by default, because most of the time the artwork already says it. Asked for
+    /// after a real case where it did not: a Joy-Con connecting raises one notification
+    /// from Gamepad Monitor and another from Bluetooth Monitor, both titled about a
+    /// controller and both wearing a picture of one, with nothing on either saying which
+    /// module it came from — and so nothing to act on, since the switch that silences one
+    /// of them lives under whichever module it was.
+    public let namesReportingModule: Bool
+
     public init(
         dispatcher: NotificationDispatcher,
         category: NotificationCategory,
         preferences: any NotificationPreferences = AlwaysWanted(),
         announcesWhatIsAlreadyThere: Bool = true,
-        connectionNaming: ConnectionNaming = .mediumAndType
+        connectionNaming: ConnectionNaming = .mediumAndType,
+        namesReportingModule: Bool = false
     ) {
         self.dispatcher = dispatcher
         self.category = category
         self.preferences = preferences
         self.announcesWhatIsAlreadyThere = announcesWhatIsAlreadyThere
         self.connectionNaming = connectionNaming
+        self.namesReportingModule = namesReportingModule
     }
 
     /// Builds a body from lines, leaving out the optional ones nobody asked for.
@@ -51,6 +63,11 @@ public struct MonitorContext: Sendable {
             }
             if let text = line.text(), !text.isEmpty { kept.append(text) }
         }
+        // Last, and not an optional field like the rest: it is not something the device
+        // said about itself, it is this application saying which of its own modules is
+        // speaking — so it belongs to no module's field list and is switched once,
+        // globally, rather than per module.
+        if namesReportingModule { kept.append("Module:\t\(category.rawValue)") }
         return kept.joined(separator: "\n")
     }
 

@@ -23,6 +23,29 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Fixed: every Bluetooth departure was titled generically
+
+Reported live with a Joy-Con: it arrived as "Bluetooth Gamepad Connected" and left as
+plain "Bluetooth Disconnected", while the icon beside that message correctly showed a
+gamepad. The kind was taken *out* of the remembered-kinds dictionary a line earlier, and
+the title then looked it up in that dictionary again — so it found nothing, every time,
+for every kind. The icon read the value that had been taken out, which is why only the
+title was wrong and the mismatch was visible in one message.
+
+### Optionally, every message can name the module that raised it
+
+Off by default, because the artwork usually says it already. Asked for after a case
+where it did not: a controller connecting raises one notification from Gamepad Monitor
+and another from Bluetooth Monitor, both titled about a controller, both wearing a
+picture of one — and nothing on either saying which module it came from. That is not
+idle curiosity: the switch that silences one of them lives under whichever module it was.
+
+General ▸ "Say which module raised it" adds a last line — "Module: Bluetooth" — to every
+message from every module. It is added once, centrally, where every module's body is
+already assembled, rather than as a field each module has to declare: it is not something
+the device said about itself, it is this application saying which of its own modules is
+speaking, so it belongs to no module's field list and is switched once, globally.
+
 ### An About panel that says what the application is, and a help topic on double notices
 
 The Help window and its ⌘? menu entry already existed. What did not was an About panel

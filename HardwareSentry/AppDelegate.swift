@@ -189,6 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             networkSignalCooldown: tuning.wifiSignalCooldownSeconds,
             videoLinkPollInterval: tuning.videoLinkPollInterval,
             connectionNaming: tuning.connectionNaming,
+            namesReportingModule: tuning.namesReportingModule,
             volumeExclusions: tuning.volumeExclusions,
             bluetoothPairedPollInterval: tuning.bluetoothPairedPollInterval,
             bluetoothSignalPollInterval: tuning.bluetoothSignalPollInterval,

@@ -102,6 +102,7 @@ final class MonitorTuningModel {
         printerSeconds = defaults.double(forKey: Self.printerSecondsKey)
         volumeFreeSpaceSeconds = defaults.double(forKey: Self.volumeFreeSpaceSecondsKey)
         ignoredDrives = defaults.stringArray(forKey: Self.ignoredDrivesKey) ?? []
+        namesReportingModule = defaults.bool(forKey: Self.namesReportingModuleKey)
         connectionNaming = defaults.string(forKey: Self.connectionNamingKey)
             .flatMap(ConnectionNaming.init(rawValue:)) ?? .mediumAndType
     }
@@ -316,6 +317,12 @@ final class MonitorTuningModel {
 
     var volumeExclusions: VolumeExclusions { VolumeExclusions(patterns: ignoredDrives) }
 
+    /// Whether every message ends with the module that raised it. Off by default — see
+    /// `MonitorContext.namesReportingModule`.
+    var namesReportingModule: Bool {
+        didSet { defaults.set(namesReportingModule, forKey: Self.namesReportingModuleKey); onChange?() }
+    }
+
     var connectionNaming: ConnectionNaming {
         didSet { defaults.set(connectionNaming.rawValue, forKey: Self.connectionNamingKey) }
     }
@@ -462,5 +469,6 @@ final class MonitorTuningModel {
     private static let printerSecondsKey = "Printer.PollSeconds"
     private static let volumeFreeSpaceSecondsKey = "Volume.FreeSpacePollSeconds"
     private static let connectionNamingKey = "HardwareSentry.ConnectionNaming"
+    private static let namesReportingModuleKey = "HardwareSentry.NamesReportingModule"
     private static let ignoredDrivesKey = "Volume.IgnoredDrives"
 }

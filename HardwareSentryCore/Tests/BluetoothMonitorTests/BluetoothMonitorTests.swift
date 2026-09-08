@@ -747,3 +747,42 @@ struct BluetoothGamepadFoldTests {
         ])
     }
 }
+
+@Suite("BluetoothMonitor · what a departure is called")
+struct BluetoothDisconnectTitleTests {
+    @Test("a departure is titled with the kind that left, not generically")
+    func departureKeepsItsKind() async {
+        // Reported live, 2026-09-07: a Joy-Con left as "Bluetooth Disconnected" while the
+        // icon beside it correctly showed a gamepad. The kind had been taken out of the
+        // dictionary a line earlier, and the title then read the dictionary again.
+        let delivery = CollectingDelivery()
+        let dispatcher = NotificationDispatcher(delivery: delivery)
+        let monitor = BluetoothMonitor(
+            source: ScriptedBluetoothSource(script: [
+                .classicConnected(name: "Joy-Con (R)", kind: .gamepad),
+                .classicDisconnected(name: "Joy-Con (R)")
+            ]),
+            context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category)
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+
+        let events = await delivery.events
+        #expect(events.map(\.title) == ["Bluetooth Gamepad Connected", "Bluetooth Gamepad Disconnected"])
+    }
+
+    @Test("a device that never said what it is still leaves generically")
+    func unknownKindStillGeneric() async {
+        let delivery = CollectingDelivery()
+        let dispatcher = NotificationDispatcher(delivery: delivery)
+        let monitor = BluetoothMonitor(
+            source: ScriptedBluetoothSource(script: [.classicDisconnected(name: "Something")]),
+            context: MonitorContext(dispatcher: dispatcher, category: BluetoothMonitor.category)
+        )
+        await monitor.start()
+        for _ in 0..<200 { await Task.yield() }
+        await monitor.stop()
+        #expect(await delivery.events.map(\.title) == ["Bluetooth Device Disconnected"])
+    }
+}

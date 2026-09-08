@@ -43,6 +43,14 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Every notification") {
+                Toggle("Say which module raised it", isOn: $tuning.namesReportingModule)
+                Text("Adds a last line naming the module — \u{201C}Module: Bluetooth\u{201D}. Off by default, since the artwork usually says it already. Worth switching on when two modules speak for one device and both look alike: a controller connecting raises one notification from Gamepad Monitor and another from Bluetooth Monitor, and the switch that silences either one lives under whichever module it came from. Takes effect the next time the application starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("Connection notifications") {
                 Picker("Title reads", selection: $tuning.connectionNaming) {
                     ForEach(ConnectionNaming.allCases) { naming in

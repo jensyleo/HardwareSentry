@@ -160,7 +160,12 @@ public actor BluetoothMonitor: Monitor {
                 BluetoothEvent.disconnected.rawValue, subject: name,
                 title: context.connectionTitle(
                     medium: "Bluetooth",
-                    type: lastKindByName[name]?.label,
+                    // `kind`, not another lookup: the line above took the value *out* of
+                    // the dictionary, so reading it again here only ever found nil and
+                    // every departure was titled generically — reported live, 2026-09-07,
+                    // as a Joy-Con leaving as "Bluetooth Disconnected" while the icon
+                    // beside it, which did read `kind`, correctly showed a gamepad.
+                    type: kind?.label,
                     action: "Disconnected"
                 ),
                 body: name,
