@@ -23,6 +23,28 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Fixed: tests that began failing at random under Xcode 27 / Swift 6.4
+
+Nothing in the application itself broke on the new toolchain — it builds without a single
+warning, and every one of these failures reproduced with the day's own work stashed. The
+tests were the problem, and had been fragile all along.
+
+Each one waited for a monitor's scripted source by spinning a *fixed number of turns* —
+`for _ in 0..<100 where events.count < expecting { await Task.yield() }`. How many turns
+that actually takes depends on how the runtime schedules and how busy the machine is, so
+the number was a guess that happened to hold. Swift 6.4 schedules differently and between
+16 and 24 tests began failing, a different set on every run.
+
+Raising the count was tried and rejected: at 100,000 the suite still passed but took 200
+seconds, and at 5,000 it was fast again but still flaked once in four runs. There is no
+count that is both correct and quick, because the quantity being guessed is not a count.
+
+All 35 of them wait on the clock now, through one small `waitUntil` helper: it returns the
+moment the condition holds, and gives up after two seconds. Sleeping rather than spinning
+also lets the monitor's own task run instead of competing with it for the same thread. Six
+consecutive runs, no failures, about five and a half seconds — against half a second
+before, most of the difference being the cases that *must* wait to prove nothing arrives.
+
 ### Fixed: a network share was recognised by a field that is empty for network shares
 
 NAS detection read Disk Arbitration's `DADeviceProtocol` and looked for "SMB", "AFP" or

@@ -283,9 +283,7 @@ struct NetworkMonitorFieldTests {
         // Polled with a real wait rather than bare `Task.yield()`: building a body awaits
         // the preferences for every field, so the notification can take more hops than a
         // yield loop reliably gives it.
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events.map(\.body)
     }
@@ -466,7 +464,7 @@ struct NetworkMonitorDHCPHostnameTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.isEmpty { try? await Task.sleep(for: .milliseconds(1)) }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
         return await delivery.events
     }
@@ -589,9 +587,7 @@ struct NetworkMonitorIPTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -664,9 +660,7 @@ struct NetworkGlobalStateTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -785,9 +779,7 @@ struct WiFiRadioPowerTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -994,9 +986,7 @@ struct NetworkVPNRoutingTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -1082,9 +1072,7 @@ struct LinkSpeedChangeTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -1152,9 +1140,7 @@ struct WiFiJoinDedupTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -1364,9 +1350,7 @@ struct PromiscuousModeTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -1443,9 +1427,7 @@ struct BondMemberTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -1508,9 +1490,7 @@ struct AdapterRemovalTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.isEmpty {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
 
         let events = await delivery.events
@@ -1530,9 +1510,7 @@ struct AdapterRemovalTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.isEmpty {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
 
         let events = await delivery.events
@@ -1617,9 +1595,7 @@ struct NetworkPathEventTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -1689,9 +1665,7 @@ struct WiFiInterfaceModeTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -2091,5 +2065,19 @@ struct UnnamedNetworkTests {
         // impossible one in dBm, which is what the original labels it.
         #expect(WiFiDetail(transmitPower: 1496).transmitPowerNote == "1496 mW")
         #expect(WiFiDetail(transmitPower: 0).transmitPowerNote == nil)
+    }
+}
+
+/// Waits until `isReady` answers true, or a couple of seconds pass.
+///
+/// Bounded by the clock rather than by a number of turns. How many turns a scripted
+/// source needs depends on how the runtime schedules and how busy the machine is, so a
+/// fixed count is a guess that holds until the next toolchain: the counts this replaced
+/// began failing at random under Swift 6.4. Sleeping rather than spinning on `yield`
+/// also lets the monitor's own task run instead of competing with it.
+private func waitUntil(_ isReady: () async -> Bool) async {
+    let deadline = Date().addingTimeInterval(2)
+    while await isReady() == false, Date() < deadline {
+        try? await Task.sleep(nanoseconds: 200_000)
     }
 }

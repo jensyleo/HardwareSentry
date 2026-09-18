@@ -62,9 +62,7 @@ struct AudioMonitorTests {
 
         await monitor.start()
         try? await Task.sleep(nanoseconds: UInt64((debounce + 0.05) * 1_000_000_000))
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -169,9 +167,7 @@ struct AudioMonitorTests {
         )
         await monitor.apply(volumeCriticalThreshold: 90, notifiesVirtualDevices: true, notifiesBluetoothDevices: false)
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.isEmpty {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
 
         let events = await delivery.events
@@ -355,9 +351,7 @@ struct AudioVolumeCriticalTests {
             volumeCriticalThreshold: threshold
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -424,9 +418,7 @@ struct AudioVolumeCriticalTests {
         )
         await monitor.apply(volumeCriticalThreshold: 70, notifiesVirtualDevices: false, notifiesBluetoothDevices: false)
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.isEmpty {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
         #expect(await delivery.events.count == 1)
     }
@@ -450,9 +442,7 @@ struct AudioDeviceStateTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -598,5 +588,19 @@ struct AudioBluetoothTests {
     func announcedWhenOn() async {
         let events = await run(notifiesBluetoothDevices: true)
         #expect(events.map(\.name) == ["AudioDeviceConnected"])
+    }
+}
+
+/// Waits until `isReady` answers true, or a couple of seconds pass.
+///
+/// Bounded by the clock rather than by a number of turns. How many turns a scripted
+/// source needs depends on how the runtime schedules and how busy the machine is, so a
+/// fixed count is a guess that holds until the next toolchain: the counts this replaced
+/// began failing at random under Swift 6.4. Sleeping rather than spinning on `yield`
+/// also lets the monitor's own task run instead of competing with it.
+private func waitUntil(_ isReady: () async -> Bool) async {
+    let deadline = Date().addingTimeInterval(2)
+    while await isReady() == false, Date() < deadline {
+        try? await Task.sleep(nanoseconds: 200_000)
     }
 }

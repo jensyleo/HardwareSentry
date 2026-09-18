@@ -75,9 +75,7 @@ struct CameraMonitorTests {
         if settleSeconds > 0 {
             try? await Task.sleep(nanoseconds: UInt64(settleSeconds * 1_000_000_000))
         }
-        for _ in 0..<100_000 where await delivery.events.count < expecting {
-            await Task.yield()
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         for _ in 0..<200 {
             await Task.yield()
         }
@@ -120,9 +118,7 @@ struct CameraMonitorTests {
         )
         await monitor.apply(notifiesVirtualDevices: true)
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.isEmpty {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
 
         let events = await delivery.events
@@ -238,14 +234,14 @@ struct CameraMonitorTests {
         await monitor.start()
 
         source.send(.connected(uid: "cam-1", name: "Logitech BRIO", detail: CameraDetail(transport: "USB")))
-        for _ in 0..<100_000 where await delivery.events.count < 1 { await Task.yield() }
+        await waitUntil { await delivery.events.count >= 1 }
         #expect(await delivery.events.map(\.title) == ["Webcam Connected"])
 
         // An unrelated setting changing mid-connection must not affect this camera.
         await monitor.apply(notifiesVirtualDevices: true)
 
         source.send(.disconnected(uid: "cam-1", name: "Logitech BRIO"))
-        for _ in 0..<100_000 where await delivery.events.count < 2 { await Task.yield() }
+        await waitUntil { await delivery.events.count >= 2 }
         source.finish()
         await monitor.stop()
 
@@ -386,7 +382,7 @@ struct CameraMonitorFieldTests {
             )
         )
         await monitor.start()
-        for _ in 0..<100_000 where await delivery.events.isEmpty { await Task.yield() }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
         return await delivery.events.first?.body
     }
@@ -459,7 +455,7 @@ struct CameraMonitorFieldTests {
             )
         )
         await monitor.start()
-        for _ in 0..<100_000 where await delivery.events.isEmpty { await Task.yield() }
+        await waitUntil { await delivery.events.isEmpty == false }
         await monitor.stop()
 
         #expect(await delivery.events.first?.body == "iPhone Camera")
@@ -549,5 +545,19 @@ struct CameraIdentityTests {
         #expect(CameraDetail.vidPid(fromModelID: "") == nil)
         // Anything that could not be a 16-bit identifier is refused rather than truncated.
         #expect(CameraDetail.vidPid(fromModelID: "VendorID_99999 ProductID_1") == nil)
+    }
+}
+
+/// Waits until `isReady` answers true, or a couple of seconds pass.
+///
+/// Bounded by the clock rather than by a number of turns. How many turns a scripted
+/// source needs depends on how the runtime schedules and how busy the machine is, so a
+/// fixed count is a guess that holds until the next toolchain: the counts this replaced
+/// began failing at random under Swift 6.4. Sleeping rather than spinning on `yield`
+/// also lets the monitor's own task run instead of competing with it.
+private func waitUntil(_ isReady: () async -> Bool) async {
+    let deadline = Date().addingTimeInterval(2)
+    while await isReady() == false, Date() < deadline {
+        try? await Task.sleep(nanoseconds: 200_000)
     }
 }

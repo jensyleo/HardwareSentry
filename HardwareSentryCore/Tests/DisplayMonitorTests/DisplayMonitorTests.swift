@@ -208,9 +208,7 @@ struct DisplayMonitorStartupTests {
             )
         )
         await monitor.start()
-        for _ in 0..<200 where await delivery.events.count < expecting {
-            try? await Task.sleep(for: .milliseconds(1))
-        }
+        await waitUntil { await delivery.events.count >= expecting }
         await monitor.stop()
         return await delivery.events
     }
@@ -424,5 +422,19 @@ struct DisplayFieldTests {
         let connected = events.filter { $0.name == DisplayEvent.connected.rawValue }
         #expect(connected.count == 1)
         #expect(connected.first?.body == "External Display\nResolution:\t3840×2160\nRefresh rate:\t60 Hz\nRole:\tExtended")
+    }
+}
+
+/// Waits until `isReady` answers true, or a couple of seconds pass.
+///
+/// Bounded by the clock rather than by a number of turns. How many turns a scripted
+/// source needs depends on how the runtime schedules and how busy the machine is, so a
+/// fixed count is a guess that holds until the next toolchain: the counts this replaced
+/// began failing at random under Swift 6.4. Sleeping rather than spinning on `yield`
+/// also lets the monitor's own task run instead of competing with it.
+private func waitUntil(_ isReady: () async -> Bool) async {
+    let deadline = Date().addingTimeInterval(2)
+    while await isReady() == false, Date() < deadline {
+        try? await Task.sleep(nanoseconds: 200_000)
     }
 }
