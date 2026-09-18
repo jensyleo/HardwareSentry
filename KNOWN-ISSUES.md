@@ -614,56 +614,50 @@ is yielded exactly as it always was, with no added latency.
 **Reported live**, 2026-09-03, alongside screenshots showing the title/body disagreement
 directly.
 
-## First disconnection after launch is still announced, with USB notices switched off
+## Stale, needs re-testing: "first disconnection after launch is still announced"
 
-**Severity:** minor. One extra notification, once per launch, and only in a specific order
-of events.
+**Status:** the entry below was written against an implementation that no longer exists.
+Re-read 2026-09-18 against the current code, and every mechanism it names is gone:
 
-**What happens.** With "Notify for USB devices independently of USB Monitor" switched
-**off**, a camera that was **already plugged in when the application started** still
-announces its *first* disconnection. Every cycle after that behaves: the reconnection is
-silent, and so is the disconnection that follows it.
+| Named in the entry | Occurrences in the source today |
+|---|---|
+| `connectedTransports` | 0 |
+| `turningUSBOffAlsoSilencesAnAlreadyConnectedCamera` | 0 |
+| `usbCameraCanBeSuppressedAgain` | 0 |
 
-**Reported live**, 2026-09-03: "sigue sin funcionar a la primera pero es porque la app
-inicia cuando ya está la cámara conectada".
+**What replaced it.** The switch no longer silences Camera Monitor, and structurally
+cannot: `CameraMonitor` contains no reference to the setting at all, the registry hands it
+only `notifiesVirtualDevices`, and the switch's entire effect is one line —
+`if !cameraNotifiesUSBDevices { kinds.insert(.webcam) }` — which folds *USB Monitor's*
+notice away. Camera Monitor announces a webcam unconditionally now, by design and with its
+own doc comment saying so: "a camera is always announced as what it actually is". Once USB
+Monitor's generic notice can be the one folded away, the word "webcam" has to live here
+unconditionally or it is lost rather than merely said twice.
 
-**The cause is not established.** Worth saying plainly, because the obvious explanation is
-wrong and cost time already. The obvious explanation would be that the startup sweep leaves
-the monitor without the record its departure logic depends on. It does not: the sweep
-yields the same `.connected` events through the same `handle(_:)`, so `connectedTransports`
-and `suppressedUIDs` are populated exactly as a live connection would populate them. The
-whole modelled path — connect, then disconnect, with the switch off throughout — is covered
-and passes (`usbCameraCanBeSuppressedAgain`).
+So the premise the entry rests on — that switching this off should quieten the camera's own
+notice — is not what the setting means any more. Whether anything still misbehaves is
+**unknown and untested**: nobody has reproduced it since the redesign.
 
-So something outside that model is responsible. Candidates, in the order worth checking:
+**Evidence available without a repro.** This application's own history records the category
+of every notification. Every camera notification in it comes from Camera Monitor; not one
+comes from USB Monitor. That settles the third candidate the old entry listed — which
+module is speaking — without needing the hardware.
 
-1. **Another application announcing it.** HG4MAC watches the same hardware and draws its
-   banners in the same screen corner, with its own wording and its own settings, and is
-   completely invisible to HardwareSentry. This already caused a long false hunt on
-   2026-09-03. Tell them apart by the wording: HG4MAC says `"USB Connection"` /
-   `"USB Disconnection"`; HardwareSentry says `"USB Device Connected"` /
-   `"USB Device Disconnected"`. Check with `pgrep -fl HG4MAC` before anything else.
-2. **The transport reported at that particular moment.** See the composite-device timing
-   issue above — the same registry-entry staleness could plausibly affect Camera's own
-   AVFoundation-based transport reporting too, though this has not been measured
-   specifically for that path yet.
-3. **Which monitor is actually speaking.** Camera and Audio both announce this device, and
-   both have their own switch. A notification from the one whose switch is still on reads
-   as the other one failing.
+**How to re-test, with tools the old entry did not have.** Switch on General ▸ "Say which
+module raised it", which stamps every message with the module that raised it, then: quit
+HG4MAC (`pgrep -fl HG4MAC` first — it caused a long false hunt once), relaunch with a USB
+webcam already connected and the switch off, and unplug it. If the only banner says
+`Module: Camera`, that is the current design working as documented, not a defect. A banner
+saying `Module: USB` would be the real thing, and would point at USB Monitor's departure
+path rather than at anything here.
 
-**Already fixed, and not to be re-diagnosed.** Two separate defects in this same setting
-were found and fixed first; each one on its own looked like the entire problem:
+**Kept rather than deleted** because the two defects fixed along the way are still worth
+not re-diagnosing:
 
 - The transport was described as `"usb"` — the raw four-character code, because no case in
-  `CameraDetail.describe(transport:)` named USB — while the switch compared against
-  `"USB"`. The setting did nothing whatsoever. Pinned now by a test on the spelling itself,
-  and the comparison is case-insensitive so it cannot break the same way twice.
-- The disconnection consulted only whether the *arrival* had been suppressed, so switching
-  the setting off while a device was already connected leaked that device's departure.
-  Fixed by remembering how each device attaches and judging the departure against the
-  settings as they stand. Covered by
-  `turningUSBOffAlsoSilencesAnAlreadyConnectedCamera`.
+  `CameraDetail.describe(transport:)` named USB — while the comparison expected `"USB"`.
+  The setting did nothing whatsoever. Pinned now by a test on the spelling itself, and
+  `CameraMonitor.isUSB` compares without regard to case so it cannot break the same way.
+- The disconnection once consulted only whether the *arrival* had been suppressed, so
+  switching the setting off while a device was already connected leaked its departure.
 
-**How to settle it.** Quit HG4MAC, relaunch HardwareSentry with the camera connected and
-the switch off, and watch whether a banner appears at all at launch and on the first
-unplug. That separates candidate 1 from the rest in one pass.
