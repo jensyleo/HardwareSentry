@@ -42,8 +42,15 @@ count that is both correct and quick, because the quantity being guessed is not 
 All 35 of them wait on the clock now, through one small `waitUntil` helper: it returns the
 moment the condition holds, and gives up after two seconds. Sleeping rather than spinning
 also lets the monitor's own task run instead of competing with it for the same thread. Six
-consecutive runs, no failures, about five and a half seconds — against half a second
-before, most of the difference being the cases that *must* wait to prove nothing arrives.
+consecutive runs, no failures, about six seconds — against half a second before, most of
+the difference being the cases that *must* wait to prove nothing arrives.
+
+Twenty-nine more waits were converted in the same pass, in nine files the day's failures
+never touched. Those spin a fixed number of turns with no condition at all, used where the
+test cannot name a number to wait up to: a change that gets suppressed produces fewer
+events than changes. They are the same guess in the same shape — one of them, in
+`PowerMonitorTests`, used the very count of 100 that had just been failing elsewhere — so
+they were converted before they could fail too rather than after.
 
 ### Fixed: a network share was recognised by a field that is empty for network shares
 

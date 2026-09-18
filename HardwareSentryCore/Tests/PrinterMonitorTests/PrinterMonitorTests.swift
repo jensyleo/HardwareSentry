@@ -49,7 +49,7 @@ struct PrinterMonitorTests {
         )
 
         await monitor.start()
-        for _ in 0..<100 { await Task.yield() }
+        await settle()
         await monitor.stop()
         return await delivery.events
     }
@@ -348,7 +348,7 @@ struct PrinterSupplyWarningTests {
             )
         )
         await monitor.start()
-        for _ in 0..<100 { await Task.yield() }
+        await settle()
         await monitor.stop()
         return await delivery.events.filter { $0.name == PrinterEvent.supplyLow.rawValue }
     }
@@ -452,7 +452,7 @@ struct PrintJobTests {
             )
         )
         await monitor.start()
-        for _ in 0..<100 { await Task.yield() }
+        await settle()
         await monitor.stop()
         return await delivery.events
     }
@@ -568,4 +568,15 @@ struct PrintJobTests {
 
         #expect(Set(PrinterMonitor.fields.map(\.name)) == Set(PrinterField.allCases.map(\.rawValue)))
     }
+}
+
+/// Gives the monitor's own task a moment to say anything it is going to say.
+///
+/// Used where the test cannot name a number to wait for: a change that gets suppressed
+/// produces fewer events than changes, so there is nothing to count up to. A fixed moment
+/// of the clock rather than a fixed number of turns — how many turns that takes depends on
+/// the runtime's scheduling and the machine's load, which is what began failing at random
+/// under Swift 6.4. Proving that nothing arrives can only ever be done by waiting.
+private func settle() async {
+    try? await Task.sleep(nanoseconds: 50_000_000)
 }

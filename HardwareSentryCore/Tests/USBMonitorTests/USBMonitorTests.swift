@@ -61,11 +61,11 @@ struct USBMonitorTests {
         )
 
         await monitor.start()
-        // The monitor consumes its source on its own task; give it a turn to finish.
-        // Unconditional, rather than waiting for a target event count: a suppressed
-        // change means fewer events than changes, which the old count-based wait would
-        // have spun on until it timed out.
-        for _ in 0..<200 { await Task.yield() }
+        // The monitor consumes its source on its own task. Unconditional, rather than
+        // waiting for a target event count: a suppressed change means fewer events than
+        // changes, so there is no number to wait up to — which is why this settles for a
+        // moment instead. See `settle()`.
+        await settle()
         await monitor.stop()
         return await delivery.events
     }
@@ -215,12 +215,12 @@ struct USBMonitorTests {
         await monitor.start()
 
         source.send(.attached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])))
-        for _ in 0..<200 { await Task.yield() }
+        await settle()
         #expect(await delivery.events.count == 1)
 
         await monitor.apply(kindsCoveredElsewhere: [.audioVideo], ignoresIdentifiedGenericDevices: false)
         source.send(.detached(USBDevice(name: "Logitech BRIO", deviceClass: 0xEF, interfaceClasses: [0x0E, 0x01])))
-        for _ in 0..<200 { await Task.yield() }
+        await settle()
         source.finish()
         await monitor.stop()
 
@@ -1108,4 +1108,15 @@ struct USBSerialVendorDatabaseTests {
         #expect(parsed[0x0403] == "Future Technology Devices International, Ltd")
         #expect(parsed.count == 2, "the indented device sub-entry must not be read as its own vendor")
     }
+}
+
+/// Gives the monitor's own task a moment to say anything it is going to say.
+///
+/// Used where the test cannot name a number to wait for: a change that gets suppressed
+/// produces fewer events than changes, so there is nothing to count up to. A fixed moment
+/// of the clock rather than a fixed number of turns — how many turns that takes depends on
+/// the runtime's scheduling and the machine's load, which is what began failing at random
+/// under Swift 6.4. Proving that nothing arrives can only ever be done by waiting.
+private func settle() async {
+    try? await Task.sleep(nanoseconds: 50_000_000)
 }
