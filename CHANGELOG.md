@@ -23,6 +23,30 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### Fixed: a network share was recognised by a field that is empty for network shares
+
+NAS detection read Disk Arbitration's `DADeviceProtocol` and looked for "SMB", "AFP" or
+"NFS" in it. That field names the *bus* a disk sits on — "USB", "SATA", "Apple Fabric",
+"Secure Digital" — and a share has no bus, so it is `nil`. Read live 2026-09-18 from the
+one network volume mounted at the time, against every local volume on the same Mac:
+
+    /System/Volumes/Data/home    DeviceProtocol: nil            VolumeKind: autofs
+    /  and every APFS sibling    DeviceProtocol: Apple Fabric   VolumeKind: apfs
+
+A share is recognised by its filesystem now — `smbfs`, `afpfs`, `nfs`, `webdav`, `ftp` —
+and by Disk Arbitration stating outright that the volume is on the network, which is the
+answer that does not depend on knowing every protocol in advance. WebDAV and FTP are
+named for the first time; both are as much somewhere-else-on-the-network as the three
+that were listed before, which is the whole of what the row claims.
+
+The protocol check is kept rather than replaced: it costs nothing, and if some mount does
+report a protocol there it still answers.
+
+`autofs` is deliberately excluded even though it reports itself as being on the network.
+It is the automounter's own placeholder — `/System/Volumes/Data/home` is one on every Mac,
+with no share behind it — and announcing it would be announcing the operating system's own
+plumbing rather than anything somebody connected to.
+
 ### A banner's close control moves to the top-left
 
 Where macOS itself puts it. Notification Center's close button sits over the top-left

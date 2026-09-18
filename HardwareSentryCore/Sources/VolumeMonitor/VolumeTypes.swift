@@ -179,17 +179,38 @@ public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
         }
     }
 
+    /// The filesystems macOS mounts a network share with. `webdav` and `ftp` belong here
+    /// as much as the three that were listed before: all four are somewhere else on the
+    /// network, which is the only thing this row claims.
+    private static func namesANetworkFilesystem(_ kind: String?) -> Bool {
+        guard let kind = kind?.lowercased() else { return false }
+        return ["smbfs", "afpfs", "nfs", "webdav", "ftp"].contains(kind)
+    }
+
+    /// `autofs` is the automounter's own placeholder, and it reports itself as being on
+    /// the network — `/System/Volumes/Data/home` is one on every Mac, mounted with no
+    /// share behind it. Nobody connected to it, so announcing it as a NAS would be
+    /// announcing the operating system's own plumbing.
+    private static func isAutomounterPlaceholder(_ kind: String?) -> Bool {
+        kind?.lowercased() == "autofs"
+    }
+
     /// Unnamed USB storage this size or larger is guessed to be an enclosure rather than a
     /// flash drive. Only ever consulted when the name says nothing — a 1 TB flash drive is
     /// a real product, so an explicit name always wins over the size.
     static let externalDiskThresholdBytes: UInt64 = 400 * 1024 * 1024 * 1024
 
+    /// - Parameter filesystemKind: Disk Arbitration's `VolumeKind` — the filesystem's own
+    ///   name (`apfs`, `smbfs`, `nfs`, `webdav`…), not to be confused with this type.
+    /// - Parameter isNetwork: Disk Arbitration's `VolumeNetwork`.
     public static func infer(
         protocolName: String?,
         mediaName: String?,
         mediaKind: String?,
         sizeBytes: UInt64?,
-        isInternal: Bool = false
+        isInternal: Bool = false,
+        filesystemKind: String? = nil,
+        isNetwork: Bool = false
     ) -> VolumeKind? {
         // Every APFS sibling of the boot container — Preboot, VM, Update, xarts,
         // iSCPreboot, Data/home, and "/" itself — reports the SAME large size as the
@@ -205,7 +226,20 @@ public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
            kind.contains("cd") || kind.contains("dvd") || kind.contains("blu-ray") {
             return .optical
         }
-        if let proto = protocolName?.uppercased(), ["SMB", "AFP", "NFS"].contains(proto) {
+        // A network share is recognised by its filesystem, and by Disk Arbitration saying
+        // outright that the volume is on the network — not by the device protocol, which
+        // describes the *bus* a disk sits on (USB, SATA, Apple Fabric, Secure Digital)
+        // and is `nil` for a share, there being no bus. Read live 2026-09-18 from the one
+        // network volume mounted at the time:
+        //
+        //     /System/Volumes/Data/home
+        //     DeviceProtocol: nil   VolumeKind: autofs   VolumeNetwork: true
+        //
+        // The protocol check is kept as well rather than replaced: it costs nothing, and
+        // if some mount does report "SMB" there it still answers.
+        if Self.namesANetworkFilesystem(filesystemKind) { return .nas }
+        if isNetwork, !Self.isAutomounterPlaceholder(filesystemKind) { return .nas }
+        if let proto = protocolName?.uppercased(), ["SMB", "AFP", "NFS", "WEBDAV"].contains(proto) {
             return .nas
         }
         if protocolName?.caseInsensitiveCompare("Secure Digital") == .orderedSame { return .sdCard }

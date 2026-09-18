@@ -245,7 +245,9 @@ private final class Watcher: @unchecked Sendable {
             mediaName: Self.mediaNameForGuessing(description),
             mediaKind: description[kDADiskDescriptionMediaKindKey as String] as? String,
             sizeBytes: sizeBytes,
-            isInternal: description[kDADiskDescriptionDeviceInternalKey as String] as? Bool ?? false
+            isInternal: description[kDADiskDescriptionDeviceInternalKey as String] as? Bool ?? false,
+            filesystemKind: description[kDADiskDescriptionVolumeKindKey as String] as? String,
+            isNetwork: description[kDADiskDescriptionVolumeNetworkKey as String] as? Bool ?? false
         )
     }
 

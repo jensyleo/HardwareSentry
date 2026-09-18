@@ -75,3 +75,71 @@ struct VolumeKindTests {
         #expect(VolumeKind.allCases.allSatisfy { $0.iconBaseName.hasPrefix("Device-") })
     }
 }
+
+@Suite("VolumeKind · network shares")
+struct VolumeKindNetworkTests {
+    private func infer(
+        filesystem: String? = nil,
+        isNetwork: Bool = false,
+        protocolName: String? = nil,
+        media: String? = nil,
+        size: UInt64? = nil
+    ) -> VolumeKind? {
+        VolumeKind.infer(
+            protocolName: protocolName, mediaName: media, mediaKind: nil, sizeBytes: size,
+            filesystemKind: filesystem, isNetwork: isNetwork
+        )
+    }
+
+    @Test("a share is recognised by its filesystem, whichever protocol carried it")
+    func networkFilesystemsAreRecognised() {
+        // The three that were already named, plus the two that were not. All five are
+        // somewhere else on the network, which is the whole of what this row claims.
+        for filesystem in ["smbfs", "afpfs", "nfs", "webdav", "ftp"] {
+            #expect(infer(filesystem: filesystem, isNetwork: true) == .nas, "\(filesystem)")
+            // Also when Disk Arbitration does not set the network flag.
+            #expect(infer(filesystem: filesystem) == .nas, "\(filesystem), flag unset")
+        }
+        // Spelling is not load-bearing.
+        #expect(infer(filesystem: "SMBFS") == .nas)
+    }
+
+    @Test("a network volume is recognised even when its filesystem is unfamiliar")
+    func networkFlagAloneIsEnough() {
+        #expect(infer(filesystem: "somefutureshare", isNetwork: true) == .nas)
+        #expect(infer(isNetwork: true) == .nas)
+    }
+
+    @Test("the device protocol is nil for a share, which is why it cannot be relied on")
+    func protocolIsNotTheSignal() {
+        // Read live 2026-09-18 from the one network volume mounted at the time:
+        //   /System/Volumes/Data/home — DeviceProtocol: nil, VolumeKind: autofs,
+        //   VolumeNetwork: true
+        // Every local volume on the same Mac reported a bus instead — "Apple Fabric".
+        // Detection that reads only the protocol therefore answers nothing for a share.
+        #expect(infer(filesystem: "smbfs", protocolName: nil) == .nas)
+        // Kept as an extra path all the same: it costs nothing and loses nothing.
+        #expect(infer(protocolName: "SMB") == .nas)
+        #expect(infer(protocolName: "WebDAV") == .nas)
+    }
+
+    @Test("the automounter's own placeholder is not a share somebody connected to")
+    func automounterIsNotANAS() {
+        // `/System/Volumes/Data/home` is on every Mac, says it is on the network, and has
+        // no share behind it. Announcing it would be announcing the system's plumbing.
+        #expect(infer(filesystem: "autofs", isNetwork: true) == nil)
+        #expect(infer(filesystem: "AutoFS", isNetwork: true) == nil)
+    }
+
+    @Test("local disks are untouched by any of this")
+    func localDisksAreUnaffected() {
+        // APFS on the internal bus, and real USB disks — none of them may become a NAS,
+        // and each must still land where it always did.
+        #expect(infer(filesystem: "apfs", protocolName: "Apple Fabric") != .nas)
+        #expect(infer(filesystem: "exfat", protocolName: "USB", media: "Cruzer Flash Drive") == .usbDrive)
+        #expect(infer(filesystem: "hfs", protocolName: "USB", size: 2_000_000_000_000) == .externalDisk)
+        // A disk that says nothing recognisable is still unclassified rather than a share:
+        // the new checks must not turn "nothing is known" into "it is on the network".
+        #expect(infer(filesystem: "exfat", protocolName: "USB", media: "SanDisk Cruzer") == nil)
+    }
+}
