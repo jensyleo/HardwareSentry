@@ -1,4 +1,5 @@
 import Foundation
+import SentryTestSupport
 import SignalCore
 import SentryContract
 import Testing
@@ -408,19 +409,5 @@ struct VolumeKindRowTests {
     func moduleIconIsDeclared() {
         #expect(VolumeMonitor.icon == .asset("DisksVolumes-Mounted", in: .module))
         #expect(VolumeMonitor.icon != VolumeMonitor.events.first?.icon)
-    }
-}
-
-/// Waits until `isReady` answers true, or a couple of seconds pass.
-///
-/// Bounded by the clock rather than by a number of turns. How many turns a scripted
-/// source needs depends on how the runtime schedules and how busy the machine is, so a
-/// fixed count is a guess that holds until the next toolchain: the counts this replaced
-/// began failing at random under Swift 6.4. Sleeping rather than spinning on `yield`
-/// also lets the monitor's own task run instead of competing with it.
-private func waitUntil(_ isReady: () async -> Bool) async {
-    let deadline = Date().addingTimeInterval(2)
-    while await isReady() == false, Date() < deadline {
-        try? await Task.sleep(nanoseconds: 200_000)
     }
 }

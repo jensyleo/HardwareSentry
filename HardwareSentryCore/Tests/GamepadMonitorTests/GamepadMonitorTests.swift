@@ -1,4 +1,5 @@
 import Foundation
+import SentryTestSupport
 import SignalCore
 import SentryContract
 import Testing
@@ -227,19 +228,5 @@ struct GamepadMonitorFieldTests {
         for name in ["GamepadMonitor-Icon", "GamepadMonitor-Icon-Xbox", "GamepadMonitor-Icon-PlayStation", "GamepadMonitor-Icon-JoyCon", "GamepadMonitor-Icon-SwitchPro"] {
             #expect(Bundle.module.url(forResource: name, withExtension: "png") != nil, "missing artwork: \(name)")
         }
-    }
-}
-
-/// Waits until `isReady` answers true, or a couple of seconds pass.
-///
-/// Bounded by the clock rather than by a number of turns. How many turns a scripted
-/// source needs depends on how the runtime schedules and how busy the machine is, so a
-/// fixed count is a guess that holds until the next toolchain: the counts this replaced
-/// began failing at random under Swift 6.4. Sleeping rather than spinning on `yield`
-/// also lets the monitor's own task run instead of competing with it.
-private func waitUntil(_ isReady: () async -> Bool) async {
-    let deadline = Date().addingTimeInterval(2)
-    while await isReady() == false, Date() < deadline {
-        try? await Task.sleep(nanoseconds: 200_000)
     }
 }

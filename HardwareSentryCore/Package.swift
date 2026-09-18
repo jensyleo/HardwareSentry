@@ -128,6 +128,12 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
+        // Test-only helpers shared across the monitor test targets — a wait-on-the-clock
+        // pair, so that fix does not stay ten identical copies. Not a testTarget: SPM
+        // does not let two test targets depend on each other, so an ordinary target is
+        // the only way to share code between them.
+        .target(name: "SentryTestSupport"),
+
         .testTarget(
             name: "SentryContractTests",
             dependencies: ["SentryContract"],
@@ -135,69 +141,69 @@ let package = Package(
         ),
         .testTarget(
             name: "USBMonitorTests",
-            dependencies: ["USBMonitor"],
+            dependencies: ["USBMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "ThermalMonitorTests",
-            dependencies: ["ThermalMonitor"],
+            dependencies: ["ThermalMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "GamepadMonitorTests",
-            dependencies: ["GamepadMonitor"],
+            dependencies: ["GamepadMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "ThunderboltMonitorTests",
-            dependencies: ["ThunderboltMonitor"],
+            dependencies: ["ThunderboltMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "ScannerMonitorTests",
-            dependencies: ["ScannerMonitor"],
+            dependencies: ["ScannerMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "CameraMonitorTests",
-            dependencies: ["CameraMonitor"],
+            dependencies: ["CameraMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "DisplayMonitorTests",
-            dependencies: ["DisplayMonitor"],
+            dependencies: ["DisplayMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             // CCUPS as well, so the capability test can name the real bits rather than
             // hardcoding numbers that would not follow the header if it ever changed.
             name: "PrinterMonitorTests",
-            dependencies: ["PrinterMonitor", "CCUPS"],
+            dependencies: ["PrinterMonitor", "CCUPS", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "BluetoothMonitorTests",
-            dependencies: ["BluetoothMonitor"],
+            dependencies: ["BluetoothMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "AudioMonitorTests",
-            dependencies: ["AudioMonitor"],
+            dependencies: ["AudioMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "VolumeMonitorTests",
-            dependencies: ["VolumeMonitor"],
+            dependencies: ["VolumeMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "PowerMonitorTests",
-            dependencies: ["PowerMonitor"],
+            dependencies: ["PowerMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "NetworkMonitorTests",
-            dependencies: ["NetworkMonitor"],
+            dependencies: ["NetworkMonitor", "SentryTestSupport"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]

@@ -1,4 +1,5 @@
 import Foundation
+import SentryTestSupport
 import SignalCore
 import SentryContract
 import Testing
@@ -1108,15 +1109,4 @@ struct USBSerialVendorDatabaseTests {
         #expect(parsed[0x0403] == "Future Technology Devices International, Ltd")
         #expect(parsed.count == 2, "the indented device sub-entry must not be read as its own vendor")
     }
-}
-
-/// Gives the monitor's own task a moment to say anything it is going to say.
-///
-/// Used where the test cannot name a number to wait for: a change that gets suppressed
-/// produces fewer events than changes, so there is nothing to count up to. A fixed moment
-/// of the clock rather than a fixed number of turns — how many turns that takes depends on
-/// the runtime's scheduling and the machine's load, which is what began failing at random
-/// under Swift 6.4. Proving that nothing arrives can only ever be done by waiting.
-private func settle() async {
-    try? await Task.sleep(nanoseconds: 50_000_000)
 }
