@@ -593,22 +593,34 @@ private final class RegistryWatcher: @unchecked Sendable {
     /// goes stale during the same driver-matching dance a composite device's does — not
     /// only a plain composite device's, as first assumed.
     ///
-    /// Bounded at 8 seconds by default (32 tries, 250ms apart), not the 1 second first
-    /// tried here — measured directly against the exact enclosure that kept reporting
-    /// this unfixed, with a purpose-built diagnostic tool watching the real timeline
-    /// rather than reasoning about it: its interfaces resolve within 200ms, comfortably
-    /// inside `enrichedInterfaceClasses`'s own window, but its disk's BSD
-    /// name/description was not readable until **4.4 seconds** after that — the whole
-    /// reason every attempt at this fix looked identical to "never resolves" from inside
-    /// a 1-second window. A device that still answers nothing by this longer deadline is
-    /// left exactly as generic as it always would have been; an ordinary device that
-    /// resolves immediately never pays any of this wait, since the very first check —
-    /// before any sleep — already catches it.
+    /// Bounded at 8 seconds by default, not the 1 second first tried here — measured
+    /// directly against the exact enclosure that kept reporting this unfixed, with a
+    /// purpose-built diagnostic tool watching the real timeline rather than reasoning
+    /// about it: its interfaces resolve within 200ms, comfortably inside
+    /// `enrichedInterfaceClasses`'s own window, but its disk's BSD name/description was
+    /// not readable until **4.4 seconds** after that — the whole reason every attempt at
+    /// this fix looked identical to "never resolves" from inside a 1-second window. A
+    /// device that still answers nothing by this longer deadline is left exactly as
+    /// generic as it always would have been; an ordinary device that resolves
+    /// immediately never pays any of this wait, since the very first check — before any
+    /// sleep — already catches it.
+    ///
+    /// Backed off rather than polled at a flat interval — see `pollBackoffSchedule` for
+    /// why: a flat 250ms interval over an 8-second worst case means up to 32 full-system
+    /// `IOServiceGetMatchingServices` scans for one device, several times over if more
+    /// than one Mass Storage device is ambiguous at once (most likely exactly when this
+    /// runs hardest — the startup sweep, reading in everything already connected in a
+    /// burst). Doubling the wait after each miss, capped so it never stops checking
+    /// often, cuts that repeated system-wide enumeration to a handful of tries without
+    /// giving up any of the 8-second worst-case bound a slow enclosure still gets.
     ///
     /// `pollInterval`/`timeout` are configurable (see `IOKitUSBDeviceSource.init`) rather
     /// than the fixed 250ms/8s measured above: a Mac where those numbers are wrong for
     /// its own disks can be tuned without a new build, the same reasoning
-    /// `MonitorTuningModel`'s other polling settings already rest on.
+    /// `MonitorTuningModel`'s other polling settings already rest on. `pollInterval` is
+    /// now where that schedule *starts*, not how often every check happens — the fast
+    /// early tries a shorter value used to buy are unaffected, since the very first
+    /// check, before any wait, still needs no interval to happen at all.
     private static func enrichedMassStorageHint(
         vendorID: UInt16?,
         productID: UInt16?,
@@ -619,15 +631,13 @@ private final class RegistryWatcher: @unchecked Sendable {
         guard vendorID != nil || productID != nil || locationID != nil else { return nil }
         guard pollInterval > 0 else { return matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) }
 
-        let attempts = max(1, Int((timeout / pollInterval).rounded(.up)))
-        let nanoseconds = UInt64(max(0, pollInterval) * 1_000_000_000)
-        for _ in 0..<attempts {
+        for wait in MassStoragePollSchedule.backoff(pollInterval: pollInterval, timeout: timeout) {
             if let hint = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) {
                 return hint
             }
-            try? await Task.sleep(nanoseconds: nanoseconds)
+            try? await Task.sleep(nanoseconds: UInt64(max(0, wait) * 1_000_000_000))
         }
-        return nil
+        return matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID)
     }
 
     /// A fresh, one-shot scan of every currently published device of this class, for the
@@ -1048,5 +1058,46 @@ enum HIDUsagePriority {
         case 0x0C where entry.usage == 0x01: return 2
         default: return 3
         }
+    }
+}
+
+/// How long `enrichedMassStorageHint` waits before each retry against a slow disk's
+/// description, doubling from `pollInterval` and capped at one second, never running
+/// past `timeout` in total.
+///
+/// Its own type rather than a method on the private watcher, so a test can pin the
+/// schedule directly — whether it starts fast, backs off, respects the cap, and never
+/// overruns the deadline — with no IOKit call and no real disk needed for any of it.
+///
+/// Backed off rather than polled at a flat interval: a flat 250ms interval over an
+/// 8-second worst case means up to 32 full-system `IOServiceGetMatchingServices` scans
+/// for one device, several times over if more than one Mass Storage device is ambiguous
+/// at once — most likely exactly when this runs hardest, the startup sweep reading in
+/// everything already connected in a burst. Doubling the wait after each miss cuts that
+/// repeated system-wide enumeration to a handful of tries without giving up any of the
+/// 8-second worst-case bound a slow enclosure still gets — see
+/// `IOKitUSBDeviceSource.enrichedMassStorageHint`'s own doc comment for where that bound
+/// itself was measured.
+///
+/// The one-second cap keeps this a *poll*, not a long-shot single retry: even fully
+/// backed off, a device is still checked roughly once a second, so the doubling only
+/// ever trades a little detection latency for far fewer scans, not the other way
+/// around. Uncapped doubling from a 2-second timeout would reach that timeout in three
+/// tries either way; the cap only changes anything once the schedule has run long
+/// enough for it to matter.
+enum MassStoragePollSchedule {
+    static func backoff(pollInterval: TimeInterval, timeout: TimeInterval) -> [TimeInterval] {
+        guard pollInterval > 0, timeout > 0 else { return [] }
+        let cap = max(pollInterval, 1.0)
+        var schedule: [TimeInterval] = []
+        var elapsed: TimeInterval = 0
+        var interval = pollInterval
+        while elapsed < timeout {
+            let wait = min(interval, cap, timeout - elapsed)
+            schedule.append(wait)
+            elapsed += wait
+            interval = min(interval * 2, cap)
+        }
+        return schedule
     }
 }

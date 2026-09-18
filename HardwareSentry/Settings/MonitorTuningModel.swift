@@ -272,11 +272,13 @@ final class MonitorTuningModel {
         didSet { defaults.set(massStorageDetectionEnabled, forKey: Self.massStorageDetectionEnabledKey); onChange?() }
     }
 
-    /// How often an unresolved Mass Storage device is re-checked while USB Monitor waits
-    /// for its disk description — see `IOKitUSBDeviceSource`'s own retry. Mirrors Wi-Fi's
-    /// two-slider shape (`wifiSignalSeconds`/`wifiSignalCooldownSeconds`) on purpose:
-    /// same idea, a check interval and a bound on how long to keep checking. Takes effect
-    /// the next time the application starts, like every other USB source setting here.
+    /// How soon an unresolved Mass Storage device is first re-checked while USB Monitor
+    /// waits for its disk description, and how far apart the earliest re-checks are —
+    /// see `MassStoragePollSchedule`, which backs off from this value rather than
+    /// repeating it flat. Mirrors Wi-Fi's two-slider shape
+    /// (`wifiSignalSeconds`/`wifiSignalCooldownSeconds`) on purpose: same idea, a check
+    /// interval and a bound on how long to keep checking. Takes effect the next time
+    /// the application starts, like every other USB source setting here.
     var massStoragePollMilliseconds: Double {
         didSet { defaults.set(massStoragePollMilliseconds, forKey: Self.massStoragePollMillisecondsKey); onChange?() }
     }

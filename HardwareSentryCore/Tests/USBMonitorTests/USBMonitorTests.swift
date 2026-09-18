@@ -811,6 +811,58 @@ struct USBDeviceDetailTests {
         #expect(HIDUsagePriority.preferred(from: []) == nil)
     }
 
+    @Test("the Mass Storage retry schedule starts fast and backs off, capped at one second")
+    func massStoragePollScheduleBacksOff() {
+        // The defaults: 250ms starting interval, 8s worst case.
+        let schedule = MassStoragePollSchedule.backoff(pollInterval: 0.25, timeout: 8.0)
+        #expect(schedule.first == 0.25, "the very first wait must still be the fast one")
+        #expect(schedule.dropFirst().first == 0.5, "doubles on the second try")
+        #expect(schedule.dropFirst(2).first == 1.0, "doubles again")
+        // Capped at one second from here on, except the very last wait, which is
+        // trimmed to land exactly on the deadline rather than overrun it.
+        #expect(schedule.dropFirst(3).dropLast().allSatisfy { $0 == 1.0 })
+        #expect(schedule.last! <= 1.0)
+        #expect(schedule.reduce(0, +) == 8.0, "never runs past the deadline, and never short of it either")
+
+        // Reported live, 2026-09-06: a real enclosure whose disk description was not
+        // readable until 4.4 seconds in. Confirm it is still caught inside the schedule,
+        // not merely inside the 8-second total.
+        let elapsedBeforeCatch = schedule.reduce(into: 0.0) { total, wait in
+            if total < 4.4 { total += wait }
+        }
+        #expect(elapsedBeforeCatch >= 4.4, "a check must land at or after the real device resolved")
+        #expect(elapsedBeforeCatch < 5.0, "and not much later — this is the cost of backing off, not free")
+    }
+
+    @Test("the schedule never overruns its deadline, at any starting interval")
+    func massStoragePollScheduleRespectsDeadline() {
+        for pollInterval in [0.1, 0.25, 0.5, 1.0, 2.0] {
+            for timeout in [2.0, 5.0, 8.0, 20.0] {
+                let schedule = MassStoragePollSchedule.backoff(pollInterval: pollInterval, timeout: timeout)
+                let total = schedule.reduce(0, +)
+                #expect(abs(total - timeout) < 0.0001, "pollInterval=\(pollInterval) timeout=\(timeout)")
+                #expect(schedule.allSatisfy { $0 <= max(pollInterval, 1.0) + 0.0001 })
+            }
+        }
+    }
+
+    @Test("a starting interval already at or above the one-second cap stays flat")
+    func massStoragePollScheduleNeverShrinksTheStartingInterval() {
+        // The slider's own range goes up to 2000ms — above the cap that exists to keep
+        // a *short* interval from growing unboundedly. It must never grow past what
+        // somebody explicitly configured, nor shrink below it.
+        let schedule = MassStoragePollSchedule.backoff(pollInterval: 2.0, timeout: 8.0)
+        #expect(schedule.allSatisfy { $0 == 2.0 || $0 < 2.0 }, "no wait may exceed the configured interval")
+        #expect(schedule.dropLast().allSatisfy { $0 == 2.0 }, "every wait but the last, trimmed to the deadline, is flat")
+    }
+
+    @Test("an invalid interval or timeout yields an empty schedule, never a hang")
+    func massStoragePollScheduleRefusesNonsense() {
+        #expect(MassStoragePollSchedule.backoff(pollInterval: 0, timeout: 8.0) == [])
+        #expect(MassStoragePollSchedule.backoff(pollInterval: 0.25, timeout: 0) == [])
+        #expect(MassStoragePollSchedule.backoff(pollInterval: -1, timeout: 8.0) == [])
+    }
+
     @Test("a HID device leading with Consumer or Digitizer usage is named, not filed under Keyboard/Mouse")
     func consumerAndDigitizerUsagesAreNamed() {
         // Consumer (0x0C) / Consumer Control (0x01) — a media remote or volume knob.

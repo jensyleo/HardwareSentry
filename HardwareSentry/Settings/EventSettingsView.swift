@@ -425,7 +425,7 @@ private struct ModuleDetail: View {
                             "Poll interval",
                             value: $tuning.massStoragePollMilliseconds,
                             range: 100...2000,
-                            caption: "How often an external disk's own description is re-checked while its kind is still unresolved (100–2000 ms). A disk that resolves before the first check pays none of this wait; a shorter interval only speeds up the ones that don\u{2019}t.",
+                            caption: "How soon an external disk's own description is first re-checked while its kind is still unresolved, and how far apart the earliest re-checks are (100–2000 ms). A disk that resolves before the first check pays none of this wait; a shorter interval only speeds up the ones that don\u{2019}t. Later checks space out on their own from here \u{2014} up to once a second \u{2014} so a disk that takes a while is not re-checked dozens of times over.",
                             unit: "ms"
                         )
                         slider(
