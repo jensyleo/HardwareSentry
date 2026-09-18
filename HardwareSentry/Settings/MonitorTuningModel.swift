@@ -103,6 +103,7 @@ final class MonitorTuningModel {
         volumeFreeSpaceSeconds = defaults.double(forKey: Self.volumeFreeSpaceSecondsKey)
         ignoredDrives = defaults.stringArray(forKey: Self.ignoredDrivesKey) ?? []
         namesReportingModule = defaults.bool(forKey: Self.namesReportingModuleKey)
+        ignoresSystemManagedVolumes = defaults.object(forKey: Self.systemManagedVolumesKey) as? Bool ?? true
         connectionNaming = defaults.string(forKey: Self.connectionNamingKey)
             .flatMap(ConnectionNaming.init(rawValue:)) ?? .mediumAndType
     }
@@ -315,7 +316,15 @@ final class MonitorTuningModel {
         }
     }
 
-    var volumeExclusions: VolumeExclusions { VolumeExclusions(patterns: ignoredDrives) }
+    var volumeExclusions: VolumeExclusions {
+        VolumeExclusions(patterns: ignoredDrives, ignoresSystemManagedVolumes: ignoresSystemManagedVolumes)
+    }
+
+    /// Whether the volumes macOS mounts for itself are passed over. On unless somebody
+    /// has said otherwise — see `VolumeExclusions.ignoresSystemManagedVolumes`.
+    var ignoresSystemManagedVolumes: Bool {
+        didSet { defaults.set(ignoresSystemManagedVolumes, forKey: Self.systemManagedVolumesKey); onChange?() }
+    }
 
     /// Whether every message ends with the module that raised it. Off by default — see
     /// `MonitorContext.namesReportingModule`.
@@ -470,5 +479,6 @@ final class MonitorTuningModel {
     private static let volumeFreeSpaceSecondsKey = "Volume.FreeSpacePollSeconds"
     private static let connectionNamingKey = "HardwareSentry.ConnectionNaming"
     private static let namesReportingModuleKey = "HardwareSentry.NamesReportingModule"
+    private static let systemManagedVolumesKey = "Volume.IgnoresSystemManaged"
     private static let ignoredDrivesKey = "Volume.IgnoredDrives"
 }

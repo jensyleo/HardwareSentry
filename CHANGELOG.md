@@ -23,6 +23,40 @@ collection for their media keys. Touch screens and touch pads (`0x0D` usages `0x
 Neither has artwork of its own yet — both borrow the HID glyph, as the gamepad row
 already does.
 
+### The volumes macOS mounts for itself are passed over
+
+Measured over the upgrade to macOS 27: Volume Monitor raised **188 notifications**, about
+60% of everything this application said in the period, and not one of them was a disk
+anybody plugged in. Forty read "Volume Ejected Unsafely" — alarming wording for something
+nobody did and nobody can act on.
+
+They come from macOS's own machinery: the staging volume a software update runs from
+(`/System/Volumes/Update/mnt1`), its target and temporary mounts (`msu-target-*`,
+`tmp-mount-*`), the signed disk images system extensions are delivered in, and the hidden
+APFS volumes every Mac has — Preboot, VM, xarts, iSCPreboot, Hardware.
+
+These could not be listed in the existing "ignored drives" editor instead, which is the
+reason this is built in rather than left to whoever is annoyed by it: each of those mounts
+is named afresh with a random suffix — `tmp-mount-HUnUd0`, `tmp-mount-0pLNqq`,
+`tmp-mount-1Ih9QL` — so there is no name anybody could write down. Only the prefixes hold
+still.
+
+Volume ▸ "Ignore the volumes macOS mounts for itself", **on by default**. That makes it the
+one place in this application where a default silences something, which is why the setting
+states the evidence rather than merely asserting it is noise.
+
+The built-in set is kept separate from the patterns somebody writes: a list they wrote
+stays theirs, and a built-in list merely copied into it once could never be corrected for
+anyone who had already run the application. It matches by *path* wherever a path will do —
+`/System/Volumes/` and the cryptex directory belong to the system, whereas a volume
+*named* "Update" or "Hardware" could plausibly be somebody's own disk. `/Volumes/`, where a
+person's disks actually mount, is deliberately absent, and the test that matters most is
+the one proving a real disk is never caught.
+
+One question this raised answered itself: the exclusion is applied before an event is ever
+raised, so an excluded volume never reaches the dispatcher and cannot contribute to a
+flap report either.
+
 ### Fixed: tests that began failing at random under Xcode 27 / Swift 6.4
 
 Nothing in the application itself broke on the new toolchain — it builds without a single

@@ -621,6 +621,14 @@ private struct ModuleDetail: View {
             // this is a list of specific exceptions to all of it — read more naturally
             // after the general settings than in the middle of them.
             if module.category.rawValue == "Volume", title == titles.first {
+                Section("Volumes macOS manages itself") {
+                    Toggle("Ignore the volumes macOS mounts for itself", isOn: $tuning.ignoresSystemManagedVolumes)
+                    Text("macOS mounts and unmounts a great deal on its own account \u{2014} the staging volume a software update runs from, the signed disk images system extensions are delivered in, and the hidden APFS volumes every Mac has. Measured over one upgrade: 188 notifications, about 60% of everything said in the period, and not one of them a disk anybody plugged in. Forty read \u{201C}Volume Ejected Unsafely\u{201D}, which is alarming wording for something nobody did.\n\nThese cannot be listed below instead: each of those mounts is named afresh every time, so there is no name to write down. Switch this off to hear about them again.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 IgnoredDrivesEditor(drives: $tuning.ignoredDrives)
             }
 
