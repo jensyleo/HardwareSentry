@@ -579,7 +579,7 @@ struct PowerRungTests {
             #expect(declared != nil, "\(rung) has no row")
             // `.asset` gives no icon for a name that resolves to nothing, so this catches
             // a typo in an artwork name as well as a missing row.
-            #expect(declared?.icon != .none, "\(rung) has no icon")
+            #expect(declared?.icon != NotificationIcon.none, "\(rung) has no icon")
             #expect(declared?.title == rung.settingsTitle)
         }
     }

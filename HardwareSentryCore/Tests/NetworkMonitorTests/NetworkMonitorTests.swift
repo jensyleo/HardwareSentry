@@ -1843,7 +1843,7 @@ struct WiFiSignalLevelRowTests {
         for level in WiFiSignalLevel.allCases {
             let declared = NetworkMonitor.events.first { $0.name == level.event.rawValue }
             #expect(declared != nil, "\(level) has no declared event")
-            #expect(declared?.icon != .none, "\(level) has no icon")
+            #expect(declared?.icon != NotificationIcon.none, "\(level) has no icon")
             #expect(declared?.enabledByDefault == true)
         }
     }

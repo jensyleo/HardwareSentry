@@ -376,7 +376,7 @@ struct BluetoothSignalLevelTests {
         for level in BluetoothSignalLevel.allCases {
             let declared = BluetoothMonitor.events.first { $0.name == level.event.rawValue }
             #expect(declared != nil, "\(level) has no declared event")
-            #expect(declared?.icon != .none, "\(level) has no icon")
+            #expect(declared?.icon != NotificationIcon.none, "\(level) has no icon")
             // Off by default, as in the original: an accessory's signal moves whenever it
             // is picked up.
             #expect(declared?.enabledByDefault == false)
