@@ -1,52 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Draws a `NotificationIcon`, wherever one needs drawing.
-///
-/// Shared between the banner and the settings screen on purpose: the icon shown next to an
-/// event in preferences has to be the icon that will actually arrive, and two separate
-/// pieces of drawing code would drift apart the first time either was touched.
-public struct NotificationIconView: View {
-    private let icon: NotificationIcon
-
-    public init(_ icon: NotificationIcon) {
-        self.icon = icon
-    }
-
-    public var body: some View {
-        switch icon {
-        case .symbol(let name):
-            Image(systemName: name)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .foregroundStyle(.secondary)
-        case .imageData(let data):
-            // An image built from unusable bytes comes back non-nil but invalid, so being
-            // handed something is not enough to know it can be drawn.
-            if let image = NSImage(data: data), image.isValid {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                Self.applicationIcon
-            }
-        case .none:
-            Self.applicationIcon
-        }
-    }
-
-    /// What a notification with no icon of its own falls back to — the application's, which
-    /// is honest about where the message came from.
-    @ViewBuilder
-    static var applicationIcon: some View {
-        if let image = NSApplication.shared.applicationIconImage {
-            Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
-        } else {
-            Image(systemName: "bell").resizable().aspectRatio(contentMode: .fit)
-        }
-    }
-}
-
 public extension NotificationIcon {
     /// The icon as an image of a definite size.
     ///

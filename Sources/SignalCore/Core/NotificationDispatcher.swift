@@ -28,14 +28,6 @@ public actor NotificationDispatcher {
         self.now = now
     }
 
-    public func setPipeline(_ pipeline: [any NotificationMiddleware]) {
-        self.pipeline = pipeline
-    }
-
-    public func setDelivery(_ delivery: any NotificationDelivering) {
-        self.delivery = delivery
-    }
-
     /// Waits for the opening rush to die down, then switches to `.steady`.
     ///
     /// Everything already attached is announced at launch, and how long that takes depends
