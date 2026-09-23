@@ -10,6 +10,8 @@ Requires macOS 15 or later. Apple Silicon.
 parity audit; see `CHANGELOG.md` for what has landed so far and `KNOWN-ISSUES.md` for what
 is understood, small, and not yet worth holding a release for.
 
+![HardwareSentry Settings — General tab](Screenshots/settings-general.png)
+
 ## What it does
 
 Thirteen modules, each watching one kind of hardware: USB, Thunderbolt, Bluetooth, network,
