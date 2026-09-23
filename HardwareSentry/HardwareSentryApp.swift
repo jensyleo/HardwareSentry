@@ -33,6 +33,12 @@ struct HardwareSentryApp: App {
 
             Divider()
 
+            Button("Uninstall HardwareSentry…") {
+                Uninstaller.confirmAndRun()
+            }
+
+            Divider()
+
             Button("Quit HardwareSentry") {
                 NSApplication.shared.terminate(nil)
             }
