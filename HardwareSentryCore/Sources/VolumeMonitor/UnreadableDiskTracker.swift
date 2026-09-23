@@ -91,8 +91,4 @@ public struct UnreadableDiskTracker: Sendable {
     public mutating func forget(wholeDiskName: String) {
         reported.remove(wholeDiskName)
     }
-
-    public func hasReported(wholeDiskName: String) -> Bool {
-        reported.contains(wholeDiskName)
-    }
 }
