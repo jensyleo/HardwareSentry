@@ -10,6 +10,9 @@ Requires macOS 15 or later. Apple Silicon.
 parity audit; see `CHANGELOG.md` for what has landed so far and `KNOWN-ISSUES.md` for what
 is understood, small, and not yet worth holding a release for.
 
+[Download the latest release](https://github.com/jensyleo/HardwareSentry/releases/latest)
+— unsigned, so the first launch needs a right-click ▸ Open.
+
 ![HardwareSentry Settings — General tab](Screenshots/settings-general.png)
 
 ## What it does
