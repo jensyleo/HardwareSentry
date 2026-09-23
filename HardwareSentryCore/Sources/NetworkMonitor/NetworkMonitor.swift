@@ -187,7 +187,7 @@ public actor NetworkMonitor: Monitor {
             await context.notify(
                 NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi",
                 title: "AirPort Disconnected",
-                body: ssid.map { "Left network \($0)." } ?? "",
+                body: ssid.map { "No longer connected to \($0)." } ?? "",
                 icon: .asset("Network-Wifi-Off", in: .module)
             )
         case .linkSnapshot(let links):

@@ -13,7 +13,7 @@ is understood, small, and not yet worth holding a release for.
 [Download the latest release](https://github.com/jensyleo/HardwareSentry/releases/latest)
 — unsigned, so the first launch needs a right-click ▸ Open.
 
-![HardwareSentry Settings — General tab](Screenshots/settings-general.png)
+![HardwareSentry Settings — Notifications tab, showing every module and event that can be switched on or off](Screenshots/settings-notifications.png)
 
 ## What it does
 
@@ -83,13 +83,14 @@ It exits non-zero on a gap. See `PARITY.md` for what it covers and what it canno
 
 GNU General Public License v3 — see `LICENSE`.
 
-## Attribution
+## Inspiration
 
-HardwareSentry is an independent Swift rewrite. Its notification wording, the set of
-hardware facts it reports, and its current placeholder artwork derive from HardwareGrowler,
-part of The Growl Project, which is distributed under the BSD 3-Clause licence. That licence
-permits the reuse and requires the notice be retained; `THIRD-PARTY-NOTICES.md` reproduces it
-in full and sets out precisely what is derived and what is not.
+HardwareSentry is inspired by HardwareGrowler, part of The Growl Project: seeing it in use
+is what suggested which categories of hardware events are worth reporting at all. It is
+otherwise independent — a clean-room Swift rewrite that shares no source code, artwork, or
+text with HardwareGrowler. The architecture (one actor per monitor behind a declared
+contract, a middleware dispatch pipeline, per-event preferences), the notification drawing
+and appearance system, and every icon are original to this project.
 
 The Growl Project does not endorse this application.
 

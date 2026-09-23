@@ -402,7 +402,7 @@ public actor PowerMonitor: Monitor {
                 title: "Battery Low!",
                 body: await body(
                     for: snapshot,
-                    leading: [.always("Battery Low, Please plug the computer in now")]
+                    leading: [.always("Find a charger soon — the battery is running out.")]
                 ),
                 icon: .asset(Self.iconName(for: snapshot), in: .module)
             )

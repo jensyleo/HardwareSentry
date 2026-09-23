@@ -557,9 +557,9 @@ struct PowerSourceDetailTests {
 
     @Test("the time is worded for the direction it is going")
     func timeNoteWording() {
-        #expect(battery.timeNote == "Time to charge: 47 minutes")
+        #expect(battery.timeNote == "47 minutes until full")
         let discharging = PowerSourceDetail(minutesRemaining: 210, isCharging: false)
-        #expect(discharging.timeNote == "Time remaining: 210 minutes")
+        #expect(discharging.timeNote == "210 minutes of charge left")
     }
 
     @Test("a time the system has not worked out yet is not shown")

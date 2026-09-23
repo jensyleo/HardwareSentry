@@ -6,6 +6,33 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### Dead-code sweep
+
+A full audit (SignalCore included) found three genuinely unused members and removed them:
+`NotificationDispatcher.setPipeline`/`setDelivery` (every dispatcher gets its pipeline and
+delivery channel at construction; nothing ever swapped them afterward), the standalone
+`NotificationIconView` SwiftUI view (superseded by the `NotificationIcon.image(side:)`
+extension in the same file, which every actual call site already used), and
+`UnreadableDiskTracker.hasReported(wholeDiskName:)` (an accessor with no caller). Everything
+else audited — public API surface, delegate callbacks, `SystemDelivery`'s intentionally
+unused-in-repo package API — was confirmed live or deliberate.
+
+### The third-party notice overstated what was actually reused from HardwareGrowler
+
+`THIRD-PARTY-NOTICES.md` claimed the per-module icons and two camera workarounds were
+Growl's. Neither claim survived a provenance audit against the original HardwareGrowler-NC
+import inside HG4MAC's own history: the icons are independently drawn artwork that only
+kept Growl's old filenames, and Camera Monitor — the two workarounds' whole subject — never
+existed in the original at all. Removed the file; the README's Attribution section is now
+Inspiration, and says plainly that this is a clean-room rewrite sharing no source, artwork,
+or text with HardwareGrowler.
+
+A follow-up, exhaustive pass — every module's notification strings diffed line by line
+against the original, not just a sample — found two more sentences carried over unchanged
+beyond the low-battery body line already caught: Network Monitor's Wi-Fi disconnect body
+("Left network %@.") and Power Monitor's charge-time note ("Time to charge/remaining: %ld
+minutes"). All three are reworded now.
+
 ### USB remotes and graphics tablets are named instead of filed under Keyboard/Mouse
 
 HID is one USB class for a keyboard, a mouse, a gamepad, a media remote and a graphics

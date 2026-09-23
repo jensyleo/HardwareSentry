@@ -114,8 +114,8 @@ public struct PowerSourceDetail: Sendable, Equatable {
     var timeNote: String? {
         guard let minutesRemaining, minutesRemaining > 0 else { return nil }
         return isCharging
-            ? "Time to charge: \(minutesRemaining) minutes"
-            : "Time remaining: \(minutesRemaining) minutes"
+            ? "\(minutesRemaining) minutes until full"
+            : "\(minutesRemaining) minutes of charge left"
     }
 
     /// The diagnostic numbers, joined. One line rather than seven, because they are read
