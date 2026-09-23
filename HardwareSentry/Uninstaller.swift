@@ -61,22 +61,33 @@ enum Uninstaller {
             "Library/Application Support/CrashReporter"
         ]
 
+        // `appPath` is wherever the running `.app` happens to sit on disk, not a value
+        // this process chose — a folder renamed to contain a quote or `$(...)` must not
+        // be able to break out of the script below and run as this shell. Every
+        // interpolated value is single-quoted, the only quoting style shell metacharacters
+        // (backticks, `$`, `;`, double quotes) cannot escape from.
         var script = "sleep 1\n"
-        script += "defaults delete \(bundleID) >/dev/null 2>&1\n"
+        script += "defaults delete \(shellQuoted(bundleID)) >/dev/null 2>&1\n"
         for directory in searchDirectories {
             let path = "\(home)/\(directory)"
-            script += "find \"\(path)\" -maxdepth 1 -iname '*\(bundleID)*' -exec rm -rf {} + >/dev/null 2>&1\n"
-            script += "find \"\(path)\" -maxdepth 1 -iname '*HardwareSentry*' -exec rm -rf {} + >/dev/null 2>&1\n"
+            script += "find \(shellQuoted(path)) -maxdepth 1 -iname \(shellQuoted("*\(bundleID)*")) -exec rm -rf {} + >/dev/null 2>&1\n"
+            script += "find \(shellQuoted(path)) -maxdepth 1 -iname '*HardwareSentry*' -exec rm -rf {} + >/dev/null 2>&1\n"
         }
-        script += "mv \"\(appPath)\" \"\(home)/.Trash/\" >/dev/null 2>&1\n"
+        script += "mv \(shellQuoted(appPath)) \(shellQuoted("\(home)/.Trash/")) >/dev/null 2>&1\n"
 
         if alsoResettingPermissions {
             // Codenames TCC uses internally for Bluetooth, Location, and Local Network —
             // undocumented, so this may need revisiting on a future macOS.
             let services = ["BluetoothAlways", "BluetoothPeripheral", "Liverpool", "Willow"]
-            let resets = services.map { "tccutil reset \($0) \(bundleID)" }.joined(separator: "; ")
-            let escaped = resets.replacingOccurrences(of: "\"", with: "\\\"")
-            script += "osascript -e 'do shell script \"\(escaped)\" with administrator privileges' >/dev/null 2>&1\n"
+            let resets = services
+                .map { "tccutil reset \($0) \(shellQuoted(bundleID))" }
+                .joined(separator: "; ")
+            // AppleScript's own string literal, not the shell's — its escaping rules are
+            // backslash-based, unrelated to the single-quoting used above.
+            let appleScriptEscaped = resets
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            script += "osascript -e 'do shell script \"\(appleScriptEscaped)\" with administrator privileges' >/dev/null 2>&1\n"
         }
 
         let task = Process()
@@ -85,5 +96,15 @@ enum Uninstaller {
         try? task.run()
 
         NSApplication.shared.terminate(nil)
+    }
+
+    /// Wraps a value in single quotes for safe interpolation into a `/bin/sh` script,
+    /// escaping any single quotes the value itself contains.
+    ///
+    /// Single quotes are the only shell quoting style nothing inside can break out of:
+    /// double quotes still expand `$…`, backticks, and `\`, which a booby-trapped folder
+    /// name could exploit.
+    private static func shellQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
