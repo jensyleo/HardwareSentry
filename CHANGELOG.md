@@ -6,6 +6,15 @@ tagged release yet, so everything so far lives under **Unreleased**.
 
 ## [Unreleased]
 
+### A network share names its protocol, not macOS's internal filesystem name
+
+Volume Monitor already told a NAS/file-server mount apart from local storage (by its
+filesystem — `smbfs`, `afpfs`, `nfs`, `webdav`, `ftp` — and Disk Arbitration's own
+`VolumeNetwork` flag), but the notification's "File system" line showed that same raw
+name, which nobody but macOS itself would recognise. It now reads SMB, AFP, NFS, WebDAV or
+FTP instead; every other filesystem (APFS, ExFAT…) is still shown exactly as macOS names
+it, unchanged.
+
 ### Dead-code sweep
 
 A full audit (SignalCore included) found three genuinely unused members and removed them:

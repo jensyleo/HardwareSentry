@@ -106,6 +106,23 @@ public struct VolumeDetail: Sendable, Equatable {
             ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)
         }
     }
+
+    /// `fileSystemType` as macOS reports it is the right value to detect a network share
+    /// with, but the wrong one to show somebody — "smbfs" names an implementation detail,
+    /// not the protocol a person recognises. Only the network filesystems get a friendlier
+    /// name; everything else (apfs, exfat, msdos…) is shown exactly as macOS names it,
+    /// unchanged, since nothing here claims those need translating too.
+    public var fileSystemLabel: String? {
+        guard let fileSystemType else { return nil }
+        switch fileSystemType.lowercased() {
+        case "smbfs": return "SMB"
+        case "afpfs": return "AFP"
+        case "nfs": return "NFS"
+        case "webdav": return "WebDAV"
+        case "ftp": return "FTP"
+        default: return fileSystemType
+        }
+    }
 }
 
 /// What kind of thing a volume lives on, when that can be said with any confidence.

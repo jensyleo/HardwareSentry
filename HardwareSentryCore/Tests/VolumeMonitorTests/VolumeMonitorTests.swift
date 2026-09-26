@@ -178,6 +178,20 @@ struct VolumeMonitorTests {
         #expect(bare.first?.body.contains("File system:") == false)
     }
 
+    @Test("a network share's file system is named for the protocol, not macOS's internal name")
+    func networkFileSystemsAreShownByProtocolName() async {
+        let cases: [(String, String)] = [
+            ("smbfs", "SMB"), ("afpfs", "AFP"), ("nfs", "NFS"), ("webdav", "WebDAV"), ("ftp", "FTP")
+        ]
+        for (raw, friendly) in cases {
+            let events = await run([.mounted(
+                path: "/Volumes/Share", name: "Share",
+                detail: VolumeDetail(fileSystemType: raw, kind: .nas)
+            )])
+            #expect(events.first?.body.contains("File system: \(friendly)") == true)
+        }
+    }
+
     @Test("stopping twice is harmless")
     func stoppingTwiceIsHarmless() async {
         let monitor = VolumeMonitor(

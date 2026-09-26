@@ -181,7 +181,7 @@ public actor VolumeMonitor: Monitor {
                     .field(VolumeField.caseSensitive.rawValue, "Case-sensitive", detail.caseSensitiveNote),
                     .prose(VolumeField.interfaceType.rawValue, "Interface", detail.interfaceDescription),
                     .prose(VolumeField.busInfo.rawValue, "Bus", detail.busNote),
-                    .prose(VolumeField.fileSystem.rawValue, "File system", detail.fileSystemType),
+                    .prose(VolumeField.fileSystem.rawValue, "File system", detail.fileSystemLabel),
                     .prose(VolumeField.size.rawValue, "Size", detail.sizeLabel)
                 ]),
                 icon: .asset(detail.kind?.iconBaseName ?? "DisksVolumes-Mounted", in: .module),
