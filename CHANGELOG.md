@@ -1,10 +1,11 @@
 # Changelog
 
 All notable changes to this project are documented here. The format loosely follows
-[Keep a Changelog](https://keepachangelog.com/); HardwareSentry has not made a first
-tagged release yet, so everything so far lives under **Unreleased**.
+[Keep a Changelog](https://keepachangelog.com/) and the project uses
+[semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
+the first tagged release.
 
-## [Unreleased]
+## [0.2.0] - 2026-10-08
 
 ### A network share names its protocol, not macOS's internal filesystem name
 
@@ -14,6 +15,8 @@ filesystem — `smbfs`, `afpfs`, `nfs`, `webdav`, `ftp` — and Disk Arbitration
 name, which nobody but macOS itself would recognise. It now reads SMB, AFP, NFS, WebDAV or
 FTP instead; every other filesystem (APFS, ExFAT…) is still shown exactly as macOS names
 it, unchanged.
+
+## [0.1.0] - 2026-10-08
 
 ### Dead-code sweep
 
