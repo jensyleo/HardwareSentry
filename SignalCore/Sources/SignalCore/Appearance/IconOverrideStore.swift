@@ -1,0 +1,99 @@
+import Foundation
+import Observation
+
+/// Remembers which icon someone picked for each kind of event.
+///
+/// One preferences key per event rather than one encoded blob, for the same reason
+/// `BannerAppearanceStore` does it: the choices stay readable with `defaults read`, and a
+/// value that cannot be understood costs exactly that one event's icon instead of every
+/// icon at once.
+@MainActor
+@Observable
+public final class IconOverrideStore {
+    private let defaults: UserDefaults
+    private let keyPrefix: String
+
+    /// The whole set as one value, ready to hand to the dispatch pipeline.
+    public private(set) var overrides: IconOverrides
+
+    /// Bumped on every change, so a host that wants to push the new set somewhere has one
+    /// thing to observe rather than needing to diff.
+    public private(set) var revision: Int = 0
+
+    public init(defaults: UserDefaults = .standard, keyPrefix: String = "SignalCore.IconOverride") {
+        self.defaults = defaults
+        self.keyPrefix = keyPrefix
+
+        var loaded = IconOverrides()
+        let prefix = keyPrefix + "."
+        for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix(prefix) {
+            guard let stored = value as? String,
+                  let override = IconOverride(storedValue: stored)
+            else { continue }
+            loaded.setByStorageKey(String(key.dropFirst(prefix.count)), to: override)
+        }
+        overrides = loaded
+    }
+
+    /// The name an override is filed under when it belongs to the module itself rather
+    /// than to one of its notifications.
+    ///
+    /// A reserved name rather than a second store: a module's icon is chosen in the same
+    /// place, saved in the same file, exported in the same profile and reset by the same
+    /// button as its notifications' icons, so making it a different kind of thing would be
+    /// three mechanisms doing one job. No monitor can collide with it — every event this
+    /// application raises is named after what happened, and nothing "happened" here.
+    public static let moduleIconEvent = "__module__"
+
+    public func override(for event: String, in category: NotificationCategory) -> IconOverride? {
+        overrides[event, in: category]
+    }
+
+    public func setOverride(_ override: IconOverride?, for event: String, in category: NotificationCategory) {
+        let storageKey = IconOverrides.key(event, in: category)
+        overrides.setByStorageKey(storageKey, to: override)
+
+        let key = "\(keyPrefix).\(storageKey)"
+        if let override {
+            defaults.set(override.storedValue, forKey: key)
+        } else {
+            // Removed rather than written as an empty string: "no choice" and "chose
+            // nothing" would otherwise be indistinguishable next launch.
+            defaults.removeObject(forKey: key)
+        }
+        revision += 1
+    }
+
+    /// Points every choice that used one picture file at another instead — for a host that
+    /// has moved the picture somewhere it keeps for itself.
+    public func repointFile(from oldPath: String, to newPath: String) {
+        let keys = overrides.storageKeys(choosing: .file(oldPath))
+        guard !keys.isEmpty else { return }
+        for key in keys {
+            overrides.setByStorageKey(key, to: .file(newPath))
+            defaults.set(IconOverride.file(newPath).storedValue, forKey: "\(keyPrefix).\(key)")
+        }
+        revision += 1
+    }
+
+    /// Forgets every choice, putting each event back to the icon its monitor picked.
+    public func resetAll() {
+        let prefix = keyPrefix + "."
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            defaults.removeObject(forKey: key)
+        }
+        overrides = IconOverrides()
+        revision += 1
+    }
+}
+
+extension IconOverrides {
+    /// Set by the already-composed storage key, for the store, which works in those terms.
+    mutating func setByStorageKey(_ key: String, to override: IconOverride?) {
+        guard let separator = key.firstIndex(of: ".") else { return }
+        let category = NotificationCategory(String(key[key.startIndex..<separator]))
+        let event = String(key[key.index(after: separator)...])
+        guard !event.isEmpty else { return }
+        self[event, in: category] = override
+    }
+}
