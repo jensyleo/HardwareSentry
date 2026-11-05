@@ -14,23 +14,27 @@
 		206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */; };
 		33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */ = {isa = PBXBuildFile; productRef = 142F87B528848BC07D8EF1FE /* SentryContract */; };
 		3670D0248C02FFA2FE274D09 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AE904B07C635814F100CB5 /* AboutView.swift */; };
-		7DD019835A644BDEB374B56C /* Uninstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3C27829D584DB4A4AA40C9 /* Uninstaller.swift */; };
+		439E6EC4E3051E9F54E3971D /* IconSourceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A3D9FFAF198126999257DA /* IconSourceModel.swift */; };
 		48247C77EEC05F77535966EE /* MonitorTuningModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */; };
 		51CE2F48BEBB2DA79EE06525 /* HelpTopic.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA18C113A3EA310D4D5067A2 /* HelpTopic.swift */; };
+		52CC5F3DA62E3A5180F38C5D /* Uninstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9410D5CCDC897BFCFE943753 /* Uninstaller.swift */; };
 		6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3BB57E267D9097497B67D5 /* SettingsView.swift */; };
 		80046909DBF1CE41414BDB05 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F12EAA9A55261D9EE07357 /* HistoryView.swift */; };
 		8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */; };
 		94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */; };
+		ADCDC842A05DC72901A62F13 /* CustomIconChooser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 092F7266B7149DC0CA7086D2 /* CustomIconChooser.swift */; };
 		B46EA15B0547902EF7D1086A /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0F1E3F48F27D6A0B52004A /* GeneralSettingsView.swift */; };
 		BB98EC1CDD359930915A1A69 /* SettingsProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71B3698948C459922312CF56 /* SettingsProfile.swift */; };
 		C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */; };
 		C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */; };
+		E086FA44D05E71273AF317A2 /* SystemIcons in Frameworks */ = {isa = PBXBuildFile; productRef = DA9B411E614207C84D4C8765 /* SystemIcons */; };
 		F32FA0A3099738191D9A130A /* GeneralSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */; };
 		F76A1D28924864D7762D5C35 /* MonitorRegistry in Frameworks */ = {isa = PBXBuildFile; productRef = 04A73023C9FE09C7DEB77BBC /* MonitorRegistry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventIconPicker.swift; sourceTree = "<group>"; };
+		092F7266B7149DC0CA7086D2 /* CustomIconChooser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomIconChooser.swift; sourceTree = "<group>"; };
 		0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsView.swift; sourceTree = "<group>"; };
 		19F12EAA9A55261D9EE07357 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		6359397D73BFB64775C78C3F /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
@@ -39,10 +43,10 @@
 		6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsModel.swift; sourceTree = "<group>"; };
 		71B3698948C459922312CF56 /* SettingsProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsProfile.swift; sourceTree = "<group>"; };
 		755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		3F3C27829D584DB4A4AA40C9 /* Uninstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Uninstaller.swift; sourceTree = "<group>"; };
 		7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorTuningModel.swift; sourceTree = "<group>"; };
 		806C9A334783CD70AB34DA02 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		8435F26A20F9C35BB3AD1448 /* HardwareSentry.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HardwareSentry.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9410D5CCDC897BFCFE943753 /* Uninstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Uninstaller.swift; sourceTree = "<group>"; };
 		9760C652282756CC6EBD17A6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareSentryApp.swift; sourceTree = "<group>"; };
 		B354C2715438FE9B05F3F376 /* SFSymbolBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFSymbolBrowser.swift; sourceTree = "<group>"; };
@@ -50,6 +54,7 @@
 		C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsModel.swift; sourceTree = "<group>"; };
 		CA18C113A3EA310D4D5067A2 /* HelpTopic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpTopic.swift; sourceTree = "<group>"; };
 		CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHistoryStore.swift; sourceTree = "<group>"; };
+		E3A3D9FFAF198126999257DA /* IconSourceModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconSourceModel.swift; sourceTree = "<group>"; };
 		E8AE904B07C635814F100CB5 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -60,6 +65,7 @@
 			files = (
 				F76A1D28924864D7762D5C35 /* MonitorRegistry in Frameworks */,
 				33A222654493C2CC8F0ADB60 /* SentryContract in Frameworks */,
+				E086FA44D05E71273AF317A2 /* SystemIcons in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,9 +76,9 @@
 			isa = PBXGroup;
 			children = (
 				755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */,
-				3F3C27829D584DB4A4AA40C9 /* Uninstaller.swift */,
 				AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */,
 				9760C652282756CC6EBD17A6 /* Info.plist */,
+				9410D5CCDC897BFCFE943753 /* Uninstaller.swift */,
 				968319D5CBD5928CDE60F0E3 /* Help */,
 				3758C393170A3699012E2882 /* Resources */,
 				3DFF1199ACCAFC0EEAC825CA /* Settings */,
@@ -91,12 +97,14 @@
 		3DFF1199ACCAFC0EEAC825CA /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				092F7266B7149DC0CA7086D2 /* CustomIconChooser.swift */,
 				08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */,
 				6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */,
 				0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */,
 				C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */,
 				6D0F1E3F48F27D6A0B52004A /* GeneralSettingsView.swift */,
 				19F12EAA9A55261D9EE07357 /* HistoryView.swift */,
+				E3A3D9FFAF198126999257DA /* IconSourceModel.swift */,
 				7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */,
 				CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */,
 				71B3698948C459922312CF56 /* SettingsProfile.swift */,
@@ -160,6 +168,7 @@
 			packageProductDependencies = (
 				04A73023C9FE09C7DEB77BBC /* MonitorRegistry */,
 				142F87B528848BC07D8EF1FE /* SentryContract */,
+				DA9B411E614207C84D4C8765 /* SystemIcons */,
 			);
 			productName = HardwareSentry;
 			productReference = 8435F26A20F9C35BB3AD1448 /* HardwareSentry.app */;
@@ -220,7 +229,7 @@
 			files = (
 				3670D0248C02FFA2FE274D09 /* AboutView.swift in Sources */,
 				C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */,
-				7DD019835A644BDEB374B56C /* Uninstaller.swift in Sources */,
+				ADCDC842A05DC72901A62F13 /* CustomIconChooser.swift in Sources */,
 				1945E63340C5FA7F3A28C418 /* EventIconPicker.swift in Sources */,
 				8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */,
 				94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */,
@@ -230,11 +239,13 @@
 				51CE2F48BEBB2DA79EE06525 /* HelpTopic.swift in Sources */,
 				0BD5A290F3CFC773FA8F659F /* HelpView.swift in Sources */,
 				80046909DBF1CE41414BDB05 /* HistoryView.swift in Sources */,
+				439E6EC4E3051E9F54E3971D /* IconSourceModel.swift in Sources */,
 				48247C77EEC05F77535966EE /* MonitorTuningModel.swift in Sources */,
 				206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */,
 				0869A4227B9226648974BEA0 /* SFSymbolBrowser.swift in Sources */,
 				BB98EC1CDD359930915A1A69 /* SettingsProfile.swift in Sources */,
 				6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */,
+				52CC5F3DA62E3A5180F38C5D /* Uninstaller.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -313,7 +324,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
 				PRODUCT_NAME = HardwareSentry;
 				SDKROOT = macosx;
@@ -401,7 +412,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
 				PRODUCT_NAME = HardwareSentry;
 				SDKROOT = macosx;
@@ -448,6 +459,10 @@
 		142F87B528848BC07D8EF1FE /* SentryContract */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SentryContract;
+		};
+		DA9B411E614207C84D4C8765 /* SystemIcons */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SystemIcons;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

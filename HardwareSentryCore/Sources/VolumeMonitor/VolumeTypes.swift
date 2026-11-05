@@ -1,4 +1,5 @@
 import Foundation
+import SentryContract
 
 /// What a volume could be described as at the moment it mounted.
 ///
@@ -138,6 +139,12 @@ public struct VolumeDetail: Sendable, Equatable {
 /// plain volume icon. A wrong specific icon is worse than a right generic one.
 public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
     case sdCard, usbDrive, externalDisk, optical, nas
+
+    /// What this kind's icon depicts, for swapping in another picture of the same thing.
+    public var iconKind: DeviceIconKind { DeviceIconKind("volume", rawValue) }
+
+    /// A volume with no honest signal about what it is.
+    public static let genericIconKind = DeviceIconKind("volume", "generic")
 
     /// How the row is named in Settings, in the original's words.
     var settingsTitle: String {

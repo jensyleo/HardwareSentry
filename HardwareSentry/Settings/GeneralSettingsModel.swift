@@ -43,13 +43,11 @@ enum IconVisibility: Int, CaseIterable, Identifiable {
 final class GeneralSettingsModel {
     @ObservationIgnored private let preferences: NotificationPreferencesStore
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let iconOverrides: IconOverrideStore
 
     private var revision = 0
 
-    init(preferences: NotificationPreferencesStore, iconOverrides: IconOverrideStore, defaults: UserDefaults = .standard) {
+    init(preferences: NotificationPreferencesStore, defaults: UserDefaults = .standard) {
         self.preferences = preferences
-        self.iconOverrides = iconOverrides
         self.defaults = defaults
     }
 

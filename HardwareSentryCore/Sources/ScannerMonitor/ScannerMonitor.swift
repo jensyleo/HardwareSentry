@@ -17,14 +17,14 @@ public actor ScannerMonitor: Monitor {
     public static let enabledByDefault = false
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: ScannerEvent.found.rawValue, title: "Network scanner found", icon: .asset("ScannerMonitor-Icon-Found", in: .module)),
-        .init(name: ScannerEvent.lost.rawValue, title: "Network scanner lost", icon: .asset("ScannerMonitor-Icon-Lost", in: .module)),
+        .init(name: ScannerEvent.found.rawValue, title: "Network scanner found", icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner")),
+        .init(name: ScannerEvent.lost.rawValue, title: "Network scanner lost", icon: .asset("ScannerMonitor-Icon-Lost", in: .module), iconKind: DeviceIconKind("scanner", "scanner")),
         // Both off. Unlike everything else in this application these two are not read from
         // something the system already knows: each one costs an HTTP request to the
         // scanner every few seconds, for as long as it is on the network. That is a real
         // cost to impose on somebody who has not asked for it.
-        .init(name: ScannerEvent.scanStatus.rawValue, title: "Scan started / finished", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-Found", in: .module)),
-        .init(name: ScannerEvent.adfStateChanged.rawValue, title: "Document feeder loaded / empty / jammed", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-Found", in: .module))
+        .init(name: ScannerEvent.scanStatus.rawValue, title: "Scan started / finished", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner")),
+        .init(name: ScannerEvent.adfStateChanged.rawValue, title: "Document feeder loaded / empty / jammed", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner"))
     ]
 
     public static let fields: [MonitorFieldDescription] = ScannerField.allCases.map {
@@ -141,7 +141,7 @@ public actor ScannerMonitor: Monitor {
                     .always(name),
                     .prose(ScannerField.statusReasons.rawValue, "Reason", status.reasonsNote)
                 ]),
-                icon: .asset("ScannerMonitor-Icon-Found", in: .module),
+                icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner"),
                 // A scanner that has stopped mid-job is waiting for somebody; one that has
                 // simply finished is not.
                 priority: state == .stopped || state == .down ? .high : .normal
@@ -157,7 +157,7 @@ public actor ScannerMonitor: Monitor {
                     .always(name),
                     .prose(ScannerField.statusReasons.rawValue, "Reason", status.reasonsNote)
                 ]),
-                icon: .asset("ScannerMonitor-Icon-Found", in: .module),
+                icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner"),
                 priority: adf.needsAttention ? .high : .normal
             )
         }
@@ -201,7 +201,7 @@ public actor ScannerMonitor: Monitor {
                     .field(ScannerField.colorModes.rawValue, "Colour", detail?.colorModes),
                     .field(ScannerField.adminURL.rawValue, "Admin", detail?.adminURL)
                 ]),
-                icon: .asset("ScannerMonitor-Icon-Found", in: .module)
+                icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner"), iconBadge: .positive
             )
         case .lost(let name):
             await context.notify(
@@ -209,7 +209,7 @@ public actor ScannerMonitor: Monitor {
                 subject: name,
                 title: "Network Scanner Lost",
                 body: name,
-                icon: .asset("ScannerMonitor-Icon-Lost", in: .module)
+                icon: .asset("ScannerMonitor-Icon-Lost", in: .module), iconKind: DeviceIconKind("scanner", "scanner"), iconBadge: .negative
             )
         }
     }

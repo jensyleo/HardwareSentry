@@ -15,16 +15,17 @@ public actor BluetoothMonitor: Monitor {
             name: kind.connectedEvent.rawValue,
             title: kind.settingsTitle,
             icon: .asset(kind.iconBaseName, in: .module),
+            iconKind: kind.iconKind,
             group: Group.device
         )
     } + [
-        .init(name: BluetoothEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("Bluetooth-On", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("Bluetooth-On", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, group: Group.device),
+        .init(name: BluetoothEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("Bluetooth-Off", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, group: Group.device),
         .init(name: BluetoothEvent.radioOn.rawValue, title: "Bluetooth Radio On", enabledByDefault: false, icon: .asset("Bluetooth-Radio-On", in: .module), group: Group.device),
         .init(name: BluetoothEvent.radioOff.rawValue, title: "Bluetooth Radio Off", enabledByDefault: false, icon: .asset("Bluetooth-Radio-Off", in: .module), group: Group.device),
         .init(name: BluetoothEvent.subsystemStateChanged.rawValue, title: "Bluetooth Status Changed", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.paired.rawValue, title: "Paired", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.unpaired.rawValue, title: "Unpaired", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.paired.rawValue, title: "Paired", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, group: Group.device),
+        .init(name: BluetoothEvent.unpaired.rawValue, title: "Unpaired", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, group: Group.device),
 
         // Off by default, as in the original, and unlike the Wi-Fi ones. An accessory's
         // signal moves whenever it is picked up or carried to the next room, so on a Mac
@@ -37,8 +38,8 @@ public actor BluetoothMonitor: Monitor {
         // Off by default, as in the original: a BLE accessory is discovered as already
         // connected rather than connecting, so this fires for whatever is on the desk
         // every time the radio comes back — which is not an event anybody caused.
-        .init(name: BluetoothEvent.leConnected.rawValue, title: "BLE Accessory Connected", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), group: Group.device),
-        .init(name: BluetoothEvent.leDisconnected.rawValue, title: "BLE Accessory Disconnected", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), group: Group.device),
+        .init(name: BluetoothEvent.leConnected.rawValue, title: "BLE Accessory Connected", enabledByDefault: false, icon: .asset("Bluetooth-On", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, group: Group.device),
+        .init(name: BluetoothEvent.leDisconnected.rawValue, title: "BLE Accessory Disconnected", enabledByDefault: false, icon: .asset("Bluetooth-Off", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, group: Group.device),
         .init(name: BluetoothEvent.signalNone.rawValue, title: BluetoothSignalLevel.lost.settingsTitle, enabledByDefault: false, icon: .asset(BluetoothSignalLevel.lost.iconName, in: .module), group: Group.signal)
     ]
 
@@ -62,6 +63,9 @@ public actor BluetoothMonitor: Monitor {
     /// The artwork each device was last seen with, so a disconnect can still show what
     /// kind of thing left rather than a generic Bluetooth glyph.
     private var lastKindByName: [String: BluetoothDeviceKind] = [:]
+    /// The model each connected device reported, so its departure can show the same
+    /// picture its arrival did — the disconnect carries nothing but a name.
+    private var lastModelByName: [String: String] = [:]
     private var signalWatcher: BluetoothSignalWatcher
     private var lastKnownRadioOn: Bool?
     private var lastKnownPaired: [String: String]?
@@ -115,6 +119,8 @@ public actor BluetoothMonitor: Monitor {
         switch event {
         case .classicConnected(let name, let kind, let detail):
             if let kind { lastKindByName[name] = kind }
+            let model = DeviceIconModel.string(vendorID: detail?.vendorID, productID: detail?.productID)
+            if let model { lastModelByName[name] = model }
             // Folded away rather than reworded: Gamepad Monitor's own notice for the same
             // controller carries its category, player index and battery, none of which is
             // readable from the Class of Device record this monitor reads.
@@ -147,11 +153,15 @@ public actor BluetoothMonitor: Monitor {
                     .field(BluetoothField.hidDetail.rawValue, "HID", detail?.hidDetail),
                     .field(BluetoothField.linkDiagnostics.rawValue, "Link", detail?.linkDiagnosticsNote)
                 ]),
-                icon: .asset(kind?.iconBaseName ?? "Bluetooth-On", in: .module)
+                icon: .asset(kind?.iconBaseName ?? "Bluetooth-On", in: .module),
+                iconKind: kind?.iconKind ?? BluetoothDeviceKind.genericIconKind,
+                iconModel: model,
+                iconBadge: .positive
             )
 
         case .classicDisconnected(let name):
             let kind = lastKindByName.removeValue(forKey: name)
+            let model = lastModelByName.removeValue(forKey: name)
             // A departure is only announced for a device whose arrival was: folding the
             // connect away and then saying it left would be a notification about
             // something this monitor never said had arrived.
@@ -169,7 +179,10 @@ public actor BluetoothMonitor: Monitor {
                     action: "Disconnected"
                 ),
                 body: name,
-                icon: .asset(kind.map { "\($0.iconBaseName)-Disconnected" } ?? "Bluetooth-Off", in: .module)
+                icon: .asset(kind.map { "\($0.iconBaseName)-Disconnected" } ?? "Bluetooth-Off", in: .module),
+                iconKind: kind?.iconKind ?? BluetoothDeviceKind.genericIconKind,
+                iconModel: model,
+                iconBadge: .negative
             )
 
         case .radioPower(let isOn):
@@ -210,7 +223,9 @@ public actor BluetoothMonitor: Monitor {
                     .field(BluetoothField.identity.rawValue, "Identity", detail.identityNote),
                     .field(BluetoothField.address.rawValue, "Serial", detail.serialNumber)
                 ]),
-                icon: .asset("Bluetooth-On", in: .module)
+                icon: .asset("Bluetooth-On", in: .module),
+                iconKind: BluetoothDeviceKind.genericIconKind,
+                iconBadge: .positive
             )
 
         case .bleDisconnected(let name):
@@ -219,7 +234,9 @@ public actor BluetoothMonitor: Monitor {
                 subject: name,
                 title: "Bluetooth LE Accessory Disconnected",
                 body: name,
-                icon: .asset("Bluetooth-Off", in: .module)
+                icon: .asset("Bluetooth-Off", in: .module),
+                iconKind: BluetoothDeviceKind.genericIconKind,
+                iconBadge: .negative
             )
         }
     }
@@ -267,11 +284,11 @@ public actor BluetoothMonitor: Monitor {
 
         for address in currentAddresses.subtracting(previousAddresses) {
             let name = current[address] ?? address
-            await context.notify(BluetoothEvent.paired.rawValue, subject: address, title: "Bluetooth Device Paired", body: name, icon: .asset("Bluetooth-On", in: .module))
+            await context.notify(BluetoothEvent.paired.rawValue, subject: address, title: "Bluetooth Device Paired", body: name, icon: .asset("Bluetooth-On", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, iconBadge: .positive)
         }
         for address in previousAddresses.subtracting(currentAddresses) {
             let name = previous[address] ?? address
-            await context.notify(BluetoothEvent.unpaired.rawValue, subject: address, title: "Bluetooth Device Unpaired", body: name, icon: .asset("Bluetooth-Off", in: .module))
+            await context.notify(BluetoothEvent.unpaired.rawValue, subject: address, title: "Bluetooth Device Unpaired", body: name, icon: .asset("Bluetooth-Off", in: .module), iconKind: BluetoothDeviceKind.genericIconKind, iconBadge: .negative)
         }
 
         lastKnownPaired = current

@@ -14,21 +14,21 @@ public actor AudioMonitor: Monitor {
     /// this keeps them apart — an "in use" notification and an "idle" one are the two
     /// halves of a privacy signal, and somebody may reasonably want only the first.
     public static let events: [MonitorEventDescription] = [
-        .init(name: AudioEvent.connected.rawValue, title: "Connected", icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.disconnected.rawValue, title: "Disconnected/Muted", icon: .asset("AudioMonitor-Icon-Off", in: .module)),
-        .init(name: AudioEvent.defaultOutputChanged.rawValue, title: "Default Output Changed", icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default Input Changed", icon: .asset("AudioMonitor-Icon-MicIdle", in: .module)),
-        .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone In Use / Idle", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
+        .init(name: AudioEvent.connected.rawValue, title: "Connected", icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
+        .init(name: AudioEvent.disconnected.rawValue, title: "Disconnected/Muted", icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
+        .init(name: AudioEvent.defaultOutputChanged.rawValue, title: "Default Output Changed", icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
+        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default Input Changed", icon: .asset("AudioMonitor-Icon-MicIdle", in: .module), iconKind: DeviceIconKind("audio", "microphone")),
+        .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone In Use / Idle", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module), iconKind: DeviceIconKind("audio", "microphone")),
         .init(name: AudioEvent.sampleRateChanged.rawValue, title: "Sample Rate Changed", icon: .asset("AudioMonitor-Icon-SampleRate", in: .module)),
         .init(name: AudioEvent.volumeCritical.rawValue, title: "Volume Critical", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)),
-        .init(name: AudioEvent.jackChanged.rawValue, title: "Audio Jack Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.dataSourceChanged.rawValue, title: "Audio Source Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.deviceStoppedResponding.rawValue, title: "Device Stopped Responding", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
-        .init(name: AudioEvent.microphoneModeChanged.rawValue, title: "Microphone Mode Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)),
-        .init(name: AudioEvent.headTrackingConnected.rawValue, title: "Head-Tracking Headphones", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.headTrackingDisconnected.rawValue, title: "Head-Tracking Headphones Gone", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module)),
-        .init(name: AudioEvent.midiDeviceAdded.rawValue, title: "MIDI Device Connected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module)),
-        .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI Device Disconnected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module))
+        .init(name: AudioEvent.jackChanged.rawValue, title: "Audio Jack Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
+        .init(name: AudioEvent.dataSourceChanged.rawValue, title: "Audio Source Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
+        .init(name: AudioEvent.deviceStoppedResponding.rawValue, title: "Device Stopped Responding", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
+        .init(name: AudioEvent.microphoneModeChanged.rawValue, title: "Microphone Mode Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-MicInUse", in: .module), iconKind: DeviceIconKind("audio", "microphone")),
+        .init(name: AudioEvent.headTrackingConnected.rawValue, title: "Head-Tracking Headphones", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "headphones")),
+        .init(name: AudioEvent.headTrackingDisconnected.rawValue, title: "Head-Tracking Headphones Gone", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "headphones")),
+        .init(name: AudioEvent.midiDeviceAdded.rawValue, title: "MIDI Device Connected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "midi")),
+        .init(name: AudioEvent.midiDeviceRemoved.rawValue, title: "MIDI Device Disconnected", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "midi"))
     ]
 
     public static let fields: [MonitorFieldDescription] = AudioField.allCases.map {
@@ -178,7 +178,7 @@ public actor AudioMonitor: Monitor {
             }
             await refreshMicNotifications()
         case .midiDeviceAdded(let name):
-            await context.notify(AudioEvent.midiDeviceAdded.rawValue, subject: name, title: "MIDI Device Connected", body: name, icon: .asset("AudioMonitor-Icon", in: .module))
+            await context.notify(AudioEvent.midiDeviceAdded.rawValue, subject: name, title: "MIDI Device Connected", body: name, icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "midi"), iconBadge: .positive)
         case .sampleRateChanged(_, let name, let from, let to):
             await context.notify(
                 AudioEvent.sampleRateChanged.rawValue, subject: name,
@@ -198,7 +198,7 @@ public actor AudioMonitor: Monitor {
                 subject: "\(name)-\(isConnected ? "in" : "out")",
                 title: isConnected ? "Audio Jack Connected" : "Audio Jack Disconnected",
                 body: name,
-                icon: .asset(isConnected ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off", in: .module)
+                icon: .asset(isConnected ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: isConnected ? .positive : .negative
             )
 
         case .dataSourceChanged(let name, let source):
@@ -206,21 +206,21 @@ public actor AudioMonitor: Monitor {
                 AudioEvent.dataSourceChanged.rawValue, subject: name,
                 title: "Audio Source Changed",
                 body: "\(name)\n\(source)",
-                icon: .asset("AudioMonitor-Icon", in: .module)
+                icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")
             )
 
         case .deviceStoppedResponding(let name):
             await context.notify(
                 AudioEvent.deviceStoppedResponding.rawValue, subject: name,
                 title: "Audio Device Stopped Responding", body: name,
-                icon: .asset("AudioMonitor-Icon-Off", in: .module)
+                icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: .warning
             )
 
         case .microphoneModeChanged(let mode):
             await context.notify(
                 AudioEvent.microphoneModeChanged.rawValue, subject: "MicrophoneMode",
                 title: "Microphone Mode Changed", body: mode,
-                icon: .asset("AudioMonitor-Icon-MicInUse", in: .module)
+                icon: .asset("AudioMonitor-Icon-MicInUse", in: .module), iconKind: DeviceIconKind("audio", "microphone")
             )
 
         case .headTrackingChanged(let isActive):
@@ -229,11 +229,11 @@ public actor AudioMonitor: Monitor {
                 subject: "HeadTracking",
                 title: isActive ? "Head-Tracking Headphones Connected" : "Head-Tracking Headphones Disconnected",
                 body: isActive ? "AirPods (or similar) with spatial audio head tracking are now active" : "",
-                icon: .asset(isActive ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off", in: .module)
+                icon: .asset(isActive ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "headphones"), iconBadge: isActive ? .positive : .negative
             )
 
         case .midiDeviceRemoved(let name):
-            await context.notify(AudioEvent.midiDeviceRemoved.rawValue, subject: name, title: "MIDI Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
+            await context.notify(AudioEvent.midiDeviceRemoved.rawValue, subject: name, title: "MIDI Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "midi"), iconBadge: .negative)
         }
     }
 
@@ -270,7 +270,7 @@ public actor AudioMonitor: Monitor {
                 subject: id,
                 title: "Audio Device Connected",
                 body: await context.body(Self.detailLines(for: device)),
-                icon: .asset("AudioMonitor-Icon", in: .module)
+                icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: .positive
             )
         }
         for id in knownIDs.subtracting(currentIDs) {
@@ -284,7 +284,7 @@ public actor AudioMonitor: Monitor {
             } ?? false
             guard wasReported, !suppressedNow else { continue }
             let name = knownDevices[id]?.name ?? "Audio Device"
-            await context.notify(AudioEvent.disconnected.rawValue, subject: id, title: "Audio Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module))
+            await context.notify(AudioEvent.disconnected.rawValue, subject: id, title: "Audio Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: .negative)
         }
 
         knownDevices = current
@@ -313,7 +313,8 @@ public actor AudioMonitor: Monitor {
             ] + (knownDevices[id].map(Self.detailLines(for:)) ?? [])),
             // An input change should not show a speaker: this is the microphone's own
             // notification, and the artwork is half of what makes it recognisable.
-            icon: .asset(kind == .output ? "AudioMonitor-Icon" : "AudioMonitor-Icon-MicIdle", in: .module)
+            icon: .asset(kind == .output ? "AudioMonitor-Icon" : "AudioMonitor-Icon-MicIdle", in: .module),
+            iconKind: kind == .output ? DeviceIconKind("audio", "speaker") : DeviceIconKind("audio", "microphone")
         )
     }
 
@@ -351,7 +352,7 @@ public actor AudioMonitor: Monitor {
             subject: "\(id)-\(running ? "started" : "stopped")",
             title: running ? "Microphone Started Being Used" : "Microphone Stopped Being Used",
             body: name,
-            icon: .asset(running ? "AudioMonitor-Icon-MicInUse" : "AudioMonitor-Icon-MicIdle", in: .module)
+            icon: .asset(running ? "AudioMonitor-Icon-MicInUse" : "AudioMonitor-Icon-MicIdle", in: .module), iconKind: DeviceIconKind("audio", "microphone")
         )
     }
 }

@@ -19,17 +19,17 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
         .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
         .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module), group: Group.addresses),
-        .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
-        .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module), group: Group.wired),
-        .init(name: NetworkEvent.linkSpeedChanged.rawValue, title: "Link speed or duplex changed", enabledByDefault: false, icon: .asset("Network-Ethernet-Speed", in: .module), group: Group.wired),
-        .init(name: NetworkEvent.adapterAttaching.rawValue, title: "Network adapter plugged in", icon: .asset("Network-Interface-On", in: .module), group: Group.wired),
-        .init(name: NetworkEvent.adapterDetaching.rawValue, title: "Network adapter unplugged", icon: .asset("Network-Interface-Off", in: .module), group: Group.wired),
-        .init(name: NetworkEvent.bondMemberStatusChanged.rawValue, title: "Bonded link member changed", enabledByDefault: false, icon: .asset("Network-Ethernet-On", in: .module), group: Group.wired),
-        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiRadioOn.rawValue, title: "Wi-Fi radio turned on", icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiRadioOff.rawValue, title: "Wi-Fi radio turned off", icon: .asset("Network-Wifi-Radio-Off", in: .module), group: Group.wifi),
-        .init(name: NetworkEvent.wifiHostAPModeChanged.rawValue, title: "Internet Sharing started/stopped", enabledByDefault: false, icon: .asset("Network-Wifi-Radio-On", in: .module), group: Group.wifi),
+        .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module), iconKind: DeviceIconKind("network", "wired"), group: Group.wired),
+        .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module), iconKind: DeviceIconKind("network", "wired"), group: Group.wired),
+        .init(name: NetworkEvent.linkSpeedChanged.rawValue, title: "Link speed or duplex changed", enabledByDefault: false, icon: .asset("Network-Ethernet-Speed", in: .module), iconKind: DeviceIconKind("network", "wired"), group: Group.wired),
+        .init(name: NetworkEvent.adapterAttaching.rawValue, title: "Network adapter plugged in", icon: .asset("Network-Interface-On", in: .module), iconKind: DeviceIconKind("network", "adapter"), group: Group.wired),
+        .init(name: NetworkEvent.adapterDetaching.rawValue, title: "Network adapter unplugged", icon: .asset("Network-Interface-Off", in: .module), iconKind: DeviceIconKind("network", "adapter"), group: Group.wired),
+        .init(name: NetworkEvent.bondMemberStatusChanged.rawValue, title: "Bonded link member changed", enabledByDefault: false, icon: .asset("Network-Ethernet-On", in: .module), iconKind: DeviceIconKind("network", "wired"), group: Group.wired),
+        .init(name: NetworkEvent.wifiConnected.rawValue, title: "Joined a Wi-Fi network", icon: .asset("Network-Wifi-4", in: .module), iconKind: DeviceIconKind("network", "wifi"), group: Group.wifi),
+        .init(name: NetworkEvent.wifiDisconnected.rawValue, title: "Left a Wi-Fi network", icon: .asset("Network-Wifi-Off", in: .module), iconKind: DeviceIconKind("network", "wifi"), group: Group.wifi),
+        .init(name: NetworkEvent.wifiRadioOn.rawValue, title: "Wi-Fi radio turned on", icon: .asset("Network-Wifi-Radio-On", in: .module), iconKind: DeviceIconKind("network", "wifi"), group: Group.wifi),
+        .init(name: NetworkEvent.wifiRadioOff.rawValue, title: "Wi-Fi radio turned off", icon: .asset("Network-Wifi-Radio-Off", in: .module), iconKind: DeviceIconKind("network", "wifi"), group: Group.wifi),
+        .init(name: NetworkEvent.wifiHostAPModeChanged.rawValue, title: "Internet Sharing started/stopped", enabledByDefault: false, icon: .asset("Network-Wifi-Radio-On", in: .module), iconKind: DeviceIconKind("network", "wifi"), group: Group.wifi),
         .init(name: NetworkEvent.wifiSignalExcellent.rawValue, title: WiFiSignalLevel.excellent.settingsTitle, icon: .asset(WiFiSignalLevel.excellent.iconName, in: .module), group: Group.signal),
         .init(name: NetworkEvent.wifiSignalGood.rawValue, title: WiFiSignalLevel.good.settingsTitle, icon: .asset(WiFiSignalLevel.good.iconName, in: .module), group: Group.signal),
         .init(name: NetworkEvent.wifiSignalFair.rawValue, title: WiFiSignalLevel.fair.settingsTitle, icon: .asset(WiFiSignalLevel.fair.iconName, in: .module), group: Group.signal),
@@ -47,7 +47,7 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.locationChanged.rawValue, title: "Network location changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
         .init(name: NetworkEvent.serviceOrderChanged.rawValue, title: "Service order changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
         .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
-        .init(name: NetworkEvent.promiscuousModeChanged.rawValue, title: "Interface started capturing packets", icon: .asset("Network-Interface-On", in: .module), group: Group.system)
+        .init(name: NetworkEvent.promiscuousModeChanged.rawValue, title: "Interface started capturing packets", icon: .asset("Network-Interface-On", in: .module), iconKind: DeviceIconKind("network", "adapter"), group: Group.system)
     ]
 
     /// The headings its rows sit under. Named once so an event and the field that goes
@@ -177,7 +177,7 @@ public actor NetworkMonitor: Monitor {
                 // The bars for the signal it actually joined with, the way the original
                 // does it — a fixed four-bar icon on every connection is a strength
                 // indicator that indicates nothing.
-                icon: .asset(WiFiSignalLevel(rssi: detail?.rssi ?? 0).iconName, in: .module)
+                icon: .asset(WiFiSignalLevel(rssi: detail?.rssi ?? 0).iconName, in: .module), iconKind: DeviceIconKind("network", "wifi"), iconBadge: .positive
             )
         case .wifiDisconnected(let ssid):
             // Forgotten rather than kept: comparing the next network's signal against
@@ -188,7 +188,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.wifiDisconnected.rawValue, subject: "WiFi",
                 title: "AirPort Disconnected",
                 body: ssid.map { "No longer connected to \($0)." } ?? "",
-                icon: .asset("Network-Wifi-Off", in: .module)
+                icon: .asset("Network-Wifi-Off", in: .module), iconKind: DeviceIconKind("network", "wifi"), iconBadge: .negative
             )
         case .linkSnapshot(let links):
             await handleLinkSnapshot(links)
@@ -214,13 +214,13 @@ public actor NetworkMonitor: Monitor {
             await context.notify(
                 NetworkEvent.adapterAttaching.rawValue, subject: interfaceName,
                 title: "Network Adapter Detected", body: interfaceName,
-                icon: .asset("Network-Interface-On", in: .module)
+                icon: .asset("Network-Interface-On", in: .module), iconKind: DeviceIconKind("network", "adapter"), iconBadge: .positive
             )
         case .adapterDetaching(let interfaceName):
             await context.notify(
                 NetworkEvent.adapterDetaching.rawValue, subject: interfaceName,
                 title: "Network Adapter Being Removed", body: interfaceName,
-                icon: .asset("Network-Interface-Off", in: .module)
+                icon: .asset("Network-Interface-Off", in: .module), iconKind: DeviceIconKind("network", "adapter"), iconBadge: .negative
             )
         case .wifiSignal(let rssi, let ssid):
             await handleWiFiSignal(rssi: rssi, ssid: ssid)
@@ -315,7 +315,7 @@ public actor NetworkMonitor: Monitor {
                         .field(NetworkField.linkMode.rawValue, "Mode", state.media?.mode),
                         .field(NetworkField.linkNegotiated.rawValue, "Negotiated", state.media?.negotiatedNote)
                     ]),
-                    icon: .asset(state.kind.icon(active: true), in: .module)
+                    icon: .asset(state.kind.icon(active: true), in: .module), iconKind: state.kind.iconKind, iconBadge: .positive
                 )
             } else if state.isActive, was?.isActive == true,
                       let now = state.media?.speed, let before = was?.media?.speed, now != before {
@@ -325,13 +325,13 @@ public actor NetworkMonitor: Monitor {
                     NetworkEvent.linkSpeedChanged.rawValue, subject: interfaceName,
                     title: "Ethernet Speed Changed",
                     body: "\(interfaceName):\t\(before) → \(now)",
-                    icon: .asset("Network-Ethernet-Speed", in: .module)
+                    icon: .asset("Network-Ethernet-Speed", in: .module), iconKind: DeviceIconKind("network", "wired")
                 )
             } else if !state.isActive, was?.isActive == true {
                 await context.notify(
                     NetworkEvent.linkDown.rawValue, subject: interfaceName,
                     title: "\(state.kind.label) Link Down", body: "Interface:\t\(interfaceName)",
-                    icon: .asset(state.kind.icon(active: false), in: .module)
+                    icon: .asset(state.kind.icon(active: false), in: .module), iconKind: state.kind.iconKind, iconBadge: .negative
                 )
             }
         }
@@ -500,7 +500,7 @@ public actor NetworkMonitor: Monitor {
             await context.notify(
                 NetworkEvent.promiscuousModeChanged.rawValue, subject: interfaceName,
                 title: "Promiscuous Mode Enabled", body: interfaceName,
-                icon: .asset("Network-Interface-On", in: .module)
+                icon: .asset("Network-Interface-On", in: .module), iconKind: DeviceIconKind("network", "adapter")
             )
         }
     }
@@ -519,7 +519,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.bondMemberStatusChanged.rawValue, subject: interfaceName,
                 title: "Link Aggregation Member Status Changed",
                 body: "\(interfaceName): \(status.label)",
-                icon: .asset("Network-Interface-On", in: .module)
+                icon: .asset("Network-Interface-On", in: .module), iconKind: DeviceIconKind("network", "adapter")
             )
         }
     }
@@ -535,7 +535,7 @@ public actor NetworkMonitor: Monitor {
             NetworkEvent.wifiHostAPModeChanged.rawValue, subject: "WiFiMode",
             title: "Wi-Fi Interface Mode Changed",
             body: "\(previous) → \(mode)",
-            icon: .asset("Network-Wifi-Radio-On", in: .module)
+            icon: .asset("Network-Wifi-Radio-On", in: .module), iconKind: DeviceIconKind("network", "wifi")
         )
     }
 
@@ -593,7 +593,7 @@ public actor NetworkMonitor: Monitor {
             subject: "WiFiRadio",
             title: isOn ? "Wi-Fi Turned On" : "Wi-Fi Turned Off",
             body: "",
-            icon: .asset(isOn ? "Network-Wifi-Radio-On" : "Network-Wifi-Radio-Off", in: .module)
+            icon: .asset(isOn ? "Network-Wifi-Radio-On" : "Network-Wifi-Radio-Off", in: .module), iconKind: DeviceIconKind("network", "wifi"), iconBadge: isOn ? .positive : .negative
         )
     }
 

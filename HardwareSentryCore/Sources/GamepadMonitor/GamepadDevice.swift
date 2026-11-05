@@ -1,4 +1,5 @@
 import Foundation
+import SentryContract
 
 /// Which kind of GameController-framework device changed.
 ///
@@ -7,6 +8,14 @@ import Foundation
 public enum GamepadDeviceKind: Sendable, Equatable {
     case controller
     case racingWheel
+
+    /// What this kind's icon depicts, for swapping in another picture of the same thing.
+    public var iconKind: DeviceIconKind {
+        switch self {
+        case .controller: return DeviceIconKind("gamepad", "controller")
+        case .racingWheel: return DeviceIconKind("gamepad", "racingWheel")
+        }
+    }
 }
 
 /// What a game controller could be described as when it arrived.

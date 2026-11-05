@@ -56,6 +56,25 @@ struct BluetoothMonitorTests {
         #expect(events[1].name == "BluetoothDisconnected")
     }
 
+    @Test("a device's own model rides along on arriving and on leaving")
+    func modelOnBothEnds() async {
+        let detail = BluetoothDetail(kind: .keyboard, vendorID: 0x004C, productID: 0x0322)
+        let events = await run([
+            .classicConnected(name: "Magic Keyboard", kind: .keyboard, detail: detail),
+            .classicDisconnected(name: "Magic Keyboard")
+        ])
+
+        #expect(events.map(\.iconModel) == ["004c:0322", "004c:0322"])
+        #expect(events.map(\.iconKind) == ["bluetooth.keyboard", "bluetooth.keyboard"])
+        #expect(events.map(\.iconBadge) == [.positive, .negative])
+    }
+
+    @Test("a device that did not say its model carries none")
+    func noModel() async {
+        let events = await run([.classicConnected(name: "Keyboard", kind: .keyboard)])
+        #expect(events.first?.iconModel == nil)
+    }
+
     @Test("the first radio power reading is a silent baseline")
     func radioPowerBaselineIsSilent() async {
         let events = await run([.radioPower(isOn: true)])

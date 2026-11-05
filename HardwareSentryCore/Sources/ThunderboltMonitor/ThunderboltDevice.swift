@@ -1,4 +1,5 @@
 import Foundation
+import SentryContract
 
 /// A Thunderbolt/PCI device, as much of one as is worth telling someone about.
 ///
@@ -77,6 +78,12 @@ public struct ThunderboltDevice: Sendable, Equatable {
 public enum ThunderboltDeviceKind: String, Sendable, Equatable, CaseIterable {
     case egpu, dock, disk, networkAdapter, capture, communication
     case inputDevice, serialBus, wirelessController
+
+    /// What this kind's icon depicts, for swapping in another picture of the same thing.
+    public var iconKind: DeviceIconKind { DeviceIconKind("thunderbolt", rawValue) }
+
+    /// A device whose class has no row of its own.
+    public static let genericIconKind = DeviceIconKind("thunderbolt", "generic")
 
     public init?(baseClass: UInt8?) {
         switch baseClass {

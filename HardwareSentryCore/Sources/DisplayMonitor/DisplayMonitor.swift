@@ -9,16 +9,16 @@ public actor DisplayMonitor: Monitor {
     public static let category = DisplayEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: DisplayEvent.connected.rawValue, title: "Display connected", icon: .asset("Display-On", in: .module)),
-        .init(name: DisplayEvent.disconnected.rawValue, title: "Display disconnected", icon: .asset("Display-Off", in: .module)),
-        .init(name: DisplayEvent.modeChanged.rawValue, title: "Resolution/refresh rate/rotation changed", icon: .asset("Display-On", in: .module)),
-        .init(name: DisplayEvent.roleChanged.rawValue, title: "Role changed (Main/Extended/Mirrored)", icon: .asset("Display-On", in: .module)),
-        .init(name: DisplayEvent.sleepChanged.rawValue, title: "Display slept/woke", icon: .asset("Display-Off", in: .module)),
-        .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false, icon: .asset("Display-On", in: .module)),
+        .init(name: DisplayEvent.connected.rawValue, title: "Display connected", icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")),
+        .init(name: DisplayEvent.disconnected.rawValue, title: "Display disconnected", icon: .asset("Display-Off", in: .module), iconKind: DeviceIconKind("display", "monitor")),
+        .init(name: DisplayEvent.modeChanged.rawValue, title: "Resolution/refresh rate/rotation changed", icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")),
+        .init(name: DisplayEvent.roleChanged.rawValue, title: "Role changed (Main/Extended/Mirrored)", icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")),
+        .init(name: DisplayEvent.sleepChanged.rawValue, title: "Display slept/woke", icon: .asset("Display-Off", in: .module), iconKind: DeviceIconKind("display", "monitor")),
+        .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false, icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")),
         // Off by default, and it should stay that way for anybody who does not want it:
         // it reads undocumented kernel log text, only works on Apple Silicon, and has to
         // poll. What it buys is a second or two of warning before the real notification.
-        .init(name: DisplayEvent.linkDetected.rawValue, title: "Video link detected (experimental)", enabledByDefault: false, icon: .asset("Display-On", in: .module))
+        .init(name: DisplayEvent.linkDetected.rawValue, title: "Video link detected (experimental)", enabledByDefault: false, icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor"))
     ]
 
     public static let fields: [MonitorFieldDescription] = DisplayField.allCases.map {
@@ -65,7 +65,7 @@ public actor DisplayMonitor: Monitor {
                 A physical video link was seen before macOS had assigned the display a role.
                 Read from internal kernel log text, so it may be wrong and may stop working                 after a system update.
                 """,
-                icon: .asset("Display-On", in: .module)
+                icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")
             )
 
         case .colorProfileChanged:
@@ -74,7 +74,7 @@ public actor DisplayMonitor: Monitor {
                 subject: "ColorProfile",
                 title: "Display Color Profile Changed",
                 body: "A display's ICC color profile changed (System Settings, Night Shift/True Tone, or a calibration tool)",
-                icon: .asset("Display-On", in: .module)
+                icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")
             )
         }
     }
@@ -109,7 +109,7 @@ public actor DisplayMonitor: Monitor {
                 subject: id,
                 title: "Display Connected",
                 body: await context.body(Self.connectLines(for: display)),
-                icon: .asset("Display-On", in: .module)
+                icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor"), iconBadge: .positive
             )
         }
         for id in knownIDs.subtracting(currentIDs) {
@@ -119,7 +119,7 @@ public actor DisplayMonitor: Monitor {
                 subject: id,
                 title: "Display Disconnected",
                 body: name,
-                icon: .asset("Display-Off", in: .module)
+                icon: .asset("Display-Off", in: .module), iconKind: DeviceIconKind("display", "monitor"), iconBadge: .negative
             )
         }
 
@@ -138,7 +138,7 @@ public actor DisplayMonitor: Monitor {
                         subject: id,
                         title: "Display Mode Changed",
                         body: body,
-                        icon: .asset("Display-On", in: .module)
+                        icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")
                     )
                 }
             }
@@ -148,7 +148,7 @@ public actor DisplayMonitor: Monitor {
                     subject: id,
                     title: "Display Role Changed",
                     body: "\(latest.name)\nRole:\t\(Self.label(for: previous.role)) → \(Self.label(for: latest.role))",
-                    icon: .asset("Display-On", in: .module)
+                    icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")
                 )
             }
             if previous.isAsleep != latest.isAsleep {
@@ -157,7 +157,7 @@ public actor DisplayMonitor: Monitor {
                     subject: id,
                     title: latest.isAsleep ? "Display Slept" : "Display Woke",
                     body: latest.name,
-                    icon: .asset(latest.isAsleep ? "Display-Off" : "Display-On", in: .module)
+                    icon: .asset(latest.isAsleep ? "Display-Off" : "Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor"), iconBadge: latest.isAsleep ? .negative : .positive
                 )
             }
         }

@@ -5,6 +5,68 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.0.0] - 2026-11-05
+
+The first stable release.
+
+### Build
+
+- **SignalCore is now part of this repository**, in `SignalCore/`, with its full history.
+  Until now it was built from a folder outside the repository, so the published source
+  could not be compiled by anyone else. It stays an independent, application-agnostic
+  Swift package.
+
+### Added
+
+- **macOS's own device pictures, by default.** Notification icons now use the picture
+  macOS itself shows for each device — keyboard, mouse, headphones, speaker, printer,
+  scanner, display, disks, SD cards, network shares — read at run time from the Mac's own
+  system folders; no Apple artwork is part of this project. For Apple's own accessories
+  (Magic Keyboard, Magic Mouse, Magic Trackpad, AirPods, Beats) it is the picture of the
+  exact model, looked up from the device's vendor and product ID in macOS's own list. A
+  device macOS has no picture of keeps this application's artwork, and so does any
+  picture a later macOS moves or removes.
+- **App or System per module.** A switch at the top of each module's Icons tab chooses
+  between macOS's pictures (the default) and this application's artwork. The module's own
+  icon, in the module list, follows it. Rows macOS has no picture for say so beside their
+  name.
+- **App per notification.** Next to Custom and Symbol, every notification — and the
+  module's own icon — can keep this application's artwork even with its module set to
+  System. Any choice made for one notification beats the module-wide switch.
+- **A state mark on borrowed pictures.** macOS's pictures, and pictures somebody chose, are
+  one image for every state, so a small badge in the corner now says which way it went:
+  green tick (connected, mounted), red cross (disconnected, ejected), orange mark (needs
+  attention). This application's own artwork already draws its state in and gets none.
+  Settings previews the same mark.
+
+### Changed
+
+- **Custom pictures are copied, not referenced.** A chosen image is re-encoded (PNG, at
+  most 512 px) into `~/Library/Application Support/HardwareSentry/CustomIcons`, so the
+  original can be moved or deleted without breaking the icon. Pictures chosen in earlier
+  versions are copied in automatically on first launch; copies nothing uses any more are
+  deleted. Files that are not images, or are over 50 MB, are refused with a message.
+- **"System" button renamed "Symbol".** The per-notification button that opens SF Symbols
+  is now called Symbol, since "System" is now the module-wide choice of macOS's pictures.
+- Export/Import Profile carries each module's App/System choice. Profiles saved by earlier
+  versions still import.
+- The uninstaller removes the application's Application Support folder by name, in
+  addition to the name search it already ran.
+
+### Fixed
+
+- **A blurred bar hid each module's tabs in Settings on macOS 26.** The module list and its
+  panel no longer use a split view, which reserved a toolbar-height strip at the top of
+  the panel that macOS 26 drew as a blur over the tab picker.
+- **Every build reported version 1.0.** Regenerating the Xcode project wrote a literal
+  version into `Info.plist`; the version is now always read from the build settings.
+- A USB test could fail intermittently because several tests switched one shared setting
+  at the same time; that suite now runs its tests one after another.
+
+### Removed
+
+- An unused stored property in the General settings model.
+
 ## [0.2.0] - 2026-10-08
 
 ### A network share names its protocol, not macOS's internal filesystem name
