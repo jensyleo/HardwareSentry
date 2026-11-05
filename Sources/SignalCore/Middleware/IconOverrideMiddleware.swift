@@ -39,14 +39,26 @@ public actor IconOverrideMiddleware: NotificationMiddleware {
         }
 
         var event = event
+        // Chosen by a person, so final: no later stage should swap it for "another picture
+        // of the same device". Clearing what the icon depicts is how that is said — it is
+        // the only thing such a stage looks for.
+        event.iconKind = nil
+        event.iconModel = nil
+        // A picture somebody chose is one picture for every state, so the state is marked
+        // on it instead of being lost.
+        event.showsIconBadge = true
         switch override {
+        case .original:
+            // The monitor's own artwork, which paints its state in already.
+            event.showsIconBadge = false
         case .symbol(let name):
             event.icon = .symbol(name)
         case .file(let path):
             guard let data = data(atPath: path) else {
                 // The file moved, or was deleted. The monitor's own icon is a better
                 // answer than no icon, and far better than refusing to show the
-                // notification over a decoration.
+                // notification over a decoration — and that icon carries its own state.
+                event.showsIconBadge = false
                 return .deliver(event)
             }
             event.icon = .imageData(data)

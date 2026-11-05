@@ -23,11 +23,14 @@ public struct BannerContent: Sendable, Equatable {
     public let title: String
     public let lines: [Line]
     public let icon: NotificationIcon
+    /// The state to mark on the icon, or nil to draw it as it is.
+    public let badge: IconBadge?
 
-    public init(title: String, lines: [Line], icon: NotificationIcon) {
+    public init(title: String, lines: [Line], icon: NotificationIcon, badge: IconBadge? = nil) {
         self.title = title
         self.lines = lines
         self.icon = icon
+        self.badge = badge
     }
 
     /// Separates a reported change from the label that introduces it.
@@ -40,6 +43,7 @@ public struct BannerContent: Sendable, Equatable {
     public init(event: NotificationEvent) {
         self.title = event.title
         self.icon = event.icon
+        self.badge = event.showsIconBadge ? event.iconBadge : nil
         self.lines = event.body
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map(String.init)

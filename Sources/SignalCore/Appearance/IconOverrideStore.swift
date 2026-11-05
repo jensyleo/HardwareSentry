@@ -64,6 +64,18 @@ public final class IconOverrideStore {
         revision += 1
     }
 
+    /// Points every choice that used one picture file at another instead — for a host that
+    /// has moved the picture somewhere it keeps for itself.
+    public func repointFile(from oldPath: String, to newPath: String) {
+        let keys = overrides.storageKeys(choosing: .file(oldPath))
+        guard !keys.isEmpty else { return }
+        for key in keys {
+            overrides.setByStorageKey(key, to: .file(newPath))
+            defaults.set(IconOverride.file(newPath).storedValue, forKey: "\(keyPrefix).\(key)")
+        }
+        revision += 1
+    }
+
     /// Forgets every choice, putting each event back to the icon its monitor picked.
     public func resetAll() {
         let prefix = keyPrefix + "."

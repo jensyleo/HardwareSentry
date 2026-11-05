@@ -18,4 +18,21 @@ struct NotificationEventTests {
         #expect(connected.subject == disconnected.subject)
         #expect(connected.name != disconnected.name)
     }
+
+    @Test("an event that says nothing about its icon's kind or state carries neither")
+    func iconKindAndBadgeDefaultToNil() {
+        let event = NotificationEvent(name: "X", category: "USB", title: "t", body: "b")
+        #expect(event.iconKind == nil)
+        #expect(event.iconBadge == nil)
+    }
+
+    @Test("the icon's kind and state are carried as given")
+    func iconKindAndBadgeAreCarried() {
+        let event = NotificationEvent(
+            name: "X", category: "USB", title: "t", body: "b",
+            iconKind: "usb.keyboard", iconBadge: .negative
+        )
+        #expect(event.iconKind == "usb.keyboard")
+        #expect(event.iconBadge == .negative)
+    }
 }

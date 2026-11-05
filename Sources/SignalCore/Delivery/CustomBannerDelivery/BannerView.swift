@@ -55,6 +55,11 @@ struct BannerView: View {
         HStack(alignment: .top, spacing: 10) {
             icon
                 .frame(width: iconSide, height: iconSide)
+                .overlay(alignment: .bottomTrailing) {
+                    if let badge = content.badge {
+                        IconBadgeView(badge: badge, iconSide: iconSide)
+                    }
+                }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(content.title)

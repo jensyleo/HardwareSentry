@@ -109,6 +109,26 @@ struct IconOverrideStoreTests {
         #expect(reopened.overrides.isEmpty)
     }
 
+    @Test("repointing a file moves every choice that used it, and survives a relaunch")
+    @MainActor func repointFile() {
+        let defaults = UserDefaults(suiteName: "repoint-\(UUID().uuidString)")!
+        let store = IconOverrideStore(defaults: defaults, keyPrefix: "T")
+        store.setOverride(.file("/old.png"), for: "A", in: "USB")
+        store.setOverride(.file("/old.png"), for: "B", in: "Audio")
+        store.setOverride(.file("/other.png"), for: "C", in: "USB")
+        let before = store.revision
+
+        store.repointFile(from: "/old.png", to: "/new.png")
+
+        #expect(store.override(for: "A", in: "USB") == .file("/new.png"))
+        #expect(store.override(for: "B", in: "Audio") == .file("/new.png"))
+        #expect(store.override(for: "C", in: "USB") == .file("/other.png"))
+        #expect(store.revision > before)
+        let reloaded = IconOverrideStore(defaults: defaults, keyPrefix: "T")
+        #expect(reloaded.override(for: "B", in: "Audio") == .file("/new.png"))
+        #expect(Set(reloaded.overrides.allChoices.map(\.storedValue)) == ["file:/new.png", "file:/other.png"])
+    }
+
     @Test("the revision moves on every edit, so a host has one thing to watch")
     @MainActor
     func revisionAdvances() {
@@ -131,6 +151,65 @@ struct IconOverrideMiddlewareTests {
         guard case .deliver(let out) = await middleware.process(event, context: DispatchContext(phase: .steady, firedAt: Date()))
         else { return nil }
         return out.icon
+    }
+
+    private func badgeShown(after middleware: IconOverrideMiddleware, _ event: NotificationEvent) async -> Bool? {
+        guard case .deliver(let out) = await middleware.process(event, context: DispatchContext(phase: .steady, firedAt: Date()))
+        else { return nil }
+        return out.showsIconBadge
+    }
+
+    @Test("keeping the original survives being written down and read back")
+    func originalRoundTrips() {
+        #expect(IconOverride(storedValue: IconOverride.original.storedValue) == .original)
+        #expect(IconOverride.original.storedValue == "original")
+    }
+
+    @Test("keeping the original leaves the icon alone, unmarked, and stops later stages swapping it")
+    func originalIsFinal() async {
+        var overrides = IconOverrides()
+        overrides["USBConnected", in: "USB"] = .original
+        var event = self.event
+        event.iconKind = "usb.generic"
+        event.iconModel = "05ac:0001"
+        guard case .deliver(let out) = await IconOverrideMiddleware(overrides: overrides)
+            .process(event, context: DispatchContext(phase: .steady, firedAt: Date()))
+        else { Issue.record("dropped"); return }
+        #expect(out.icon == .symbol("default.icon"))
+        #expect(out.showsIconBadge == false)
+        #expect(out.iconKind == nil)
+        #expect(out.iconModel == nil)
+    }
+
+    @Test("any choice made by hand clears what the icon depicts; no choice keeps it")
+    func choiceClearsKind() async {
+        var event = self.event
+        event.iconKind = "usb.generic"
+        var overrides = IconOverrides()
+        overrides["USBConnected", in: "USB"] = .symbol("star")
+        let context = DispatchContext(phase: .steady, firedAt: Date())
+        if case .deliver(let out) = await IconOverrideMiddleware(overrides: overrides).process(event, context: context) {
+            #expect(out.iconKind == nil)
+        }
+        if case .deliver(let out) = await IconOverrideMiddleware().process(event, context: context) {
+            #expect(out.iconKind == "usb.generic")
+        }
+    }
+
+    @Test("a chosen picture has the state marked on it; the monitor's own does not")
+    func badgeFollowsTheChoice() async {
+        var overrides = IconOverrides()
+        overrides["USBConnected", in: "USB"] = .symbol("star")
+        #expect(await badgeShown(after: IconOverrideMiddleware(overrides: overrides), event) == true)
+        #expect(await badgeShown(after: IconOverrideMiddleware(), event) == false)
+    }
+
+    @Test("a chosen file that has gone missing falls back unmarked, since the fallback carries its own state")
+    func missingFileIsUnmarked() async {
+        var overrides = IconOverrides()
+        overrides["USBConnected", in: "USB"] = .file("/nope.png")
+        let middleware = IconOverrideMiddleware(overrides: overrides, readFile: { _ in nil })
+        #expect(await badgeShown(after: middleware, event) == false)
     }
 
     @Test("an event nobody chose an icon for keeps the one its monitor picked")

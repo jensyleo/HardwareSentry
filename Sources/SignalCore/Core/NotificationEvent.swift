@@ -30,6 +30,33 @@ public struct NotificationEvent: Sendable {
     public var title: String
     public var body: String
     public var icon: NotificationIcon
+
+    /// What the icon depicts, as a stable identifier the host defines — `"usb.keyboard"`,
+    /// `"volume.nas"`. Nil when the icon depicts an idea rather than a thing (a signal
+    /// level, a VPN, a temperature), which is most of what is not a device.
+    ///
+    /// Lets a later stage swap the picture for another of the same thing — the operating
+    /// system's own, say — without knowing anything about the module that raised it.
+    /// Nothing in this library reads it; it is carried, not interpreted.
+    public var iconKind: String?
+
+    /// Which model the device is, as `"vvvv:pppp"` — vendor and product ID in lowercase
+    /// hex — when it said. Lets a later stage find a picture of that exact model rather
+    /// than of its kind. Carried, not interpreted, like `iconKind`.
+    public var iconModel: String?
+
+    /// The state the icon stands for, when the picture alone might not show it. See
+    /// `IconBadge`. Nil for an icon that has no state to show.
+    public var iconBadge: IconBadge?
+
+    /// Whether whatever draws the icon should mark `iconBadge` on it.
+    ///
+    /// Off by default because a host's own artwork usually paints the state into the
+    /// picture already — a device with a cross through it — and a second mark on top would
+    /// say the same thing twice. Switched on by a stage that swaps that artwork for a
+    /// picture with no state in it: the operating system's own, or one somebody chose.
+    public var showsIconBadge: Bool
+
     public var priority: Priority
     public var isSticky: Bool
     public var onInteraction: NotificationInteractionHandler?
@@ -51,6 +78,10 @@ public struct NotificationEvent: Sendable {
         title: String,
         body: String,
         icon: NotificationIcon = .none,
+        iconKind: String? = nil,
+        iconModel: String? = nil,
+        iconBadge: IconBadge? = nil,
+        showsIconBadge: Bool = false,
         priority: Priority = .normal,
         isSticky: Bool = false,
         onInteraction: NotificationInteractionHandler? = nil
@@ -61,6 +92,10 @@ public struct NotificationEvent: Sendable {
         self.title = title
         self.body = body
         self.icon = icon
+        self.iconKind = iconKind
+        self.iconModel = iconModel
+        self.iconBadge = iconBadge
+        self.showsIconBadge = showsIconBadge
         self.priority = priority
         self.isSticky = isSticky
         self.onInteraction = onInteraction

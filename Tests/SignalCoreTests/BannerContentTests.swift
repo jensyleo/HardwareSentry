@@ -64,4 +64,14 @@ struct BannerContentTests {
         #expect(content.title == "USB Device Connected")
         #expect(content.icon == .symbol("cable.connector"))
     }
+
+    @Test("the state is marked only when the event asks for it")
+    func badgeOnlyWhenAsked() {
+        var event = NotificationEvent(name: "n", category: "c", title: "t", body: "", iconBadge: .negative)
+        #expect(BannerContent(event: event).badge == nil)
+        event.showsIconBadge = true
+        #expect(BannerContent(event: event).badge == .negative)
+        event.iconBadge = nil
+        #expect(BannerContent(event: event).badge == nil)
+    }
 }

@@ -8,13 +8,12 @@ public enum IconOverride: Sendable, Equatable, Hashable {
     /// An SF Symbol name. Always available, no artwork to manage, scales and recolours
     /// with the banner.
     case symbol(String)
-    /// An image somewhere on disk, by path.
-    ///
-    /// Stored as a path rather than a copy, so the picture stays the file the person
-    /// pointed at — renaming or editing it changes the icon, which is what someone
-    /// pointing at a file of their own generally expects. The cost is that moving the file
-    /// breaks the override, which `resolve` handles by falling back rather than failing.
+    /// An image somewhere on disk, by path. A host that wants the choice to survive the
+    /// person's own file being moved keeps a copy and stores the copy's path.
     case file(String)
+    /// The icon the event was raised with, kept on purpose — so that a later stage that
+    /// would otherwise swap it for another picture of the same thing leaves it alone.
+    case original
 
     /// How the choice is written into preferences. A single string per event rather than
     /// an encoded blob, so it can be read and fixed with `defaults read`.
@@ -22,11 +21,14 @@ public enum IconOverride: Sendable, Equatable, Hashable {
         switch self {
         case .symbol(let name): return "symbol:\(name)"
         case .file(let path): return "file:\(path)"
+        case .original: return "original"
         }
     }
 
     public init?(storedValue: String) {
-        if let name = storedValue.dropPrefix("symbol:") {
+        if storedValue == "original" {
+            self = .original
+        } else if let name = storedValue.dropPrefix("symbol:") {
             guard !name.isEmpty else { return nil }
             self = .symbol(name)
         } else if let path = storedValue.dropPrefix("file:") {
@@ -52,6 +54,14 @@ public struct IconOverrides: Sendable, Equatable {
     }
 
     public var isEmpty: Bool { byKey.isEmpty }
+
+    /// Every choice made, in no particular order.
+    public var allChoices: [IconOverride] { Array(byKey.values) }
+
+    /// The storage keys of every choice equal to `choice`, for the store.
+    func storageKeys(choosing choice: IconOverride) -> [String] {
+        byKey.filter { $0.value == choice }.map(\.key)
+    }
 
     /// The key an event's choice is filed under. Category and name together, because two
     /// monitors may well both have an event called `Connected`.
