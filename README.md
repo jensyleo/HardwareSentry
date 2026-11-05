@@ -6,9 +6,9 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** pre-release, version 0.3.0. Every module below is ported and covered by the
-parity audit; see `CHANGELOG.md` for what has landed so far and `KNOWN-ISSUES.md` for what
-is understood, small, and not yet worth holding a release for.
+**Status:** version 1.0.0, the first stable release. Every module below is ported and
+covered by the parity audit; see `CHANGELOG.md` for what has changed and `KNOWN-ISSUES.md`
+for what is understood, small, and not yet worth holding a release for.
 
 [Download the latest release](https://github.com/jensyleo/HardwareSentry/releases/latest)
 — unsigned, so the first launch needs a right-click ▸ Open.
@@ -55,6 +55,10 @@ off.
 xcodegen generate
 xcodebuild -project HardwareSentry.xcodeproj -scheme HardwareSentry -configuration Release build
 ```
+
+Everything needed is in this repository. The notification core, `SignalCore`, is its own
+Swift package in the `SignalCore/` folder — application-agnostic, so it can serve other
+applications too.
 
 Tests live in the `HardwareSentryCore` and `SignalCore` packages:
 

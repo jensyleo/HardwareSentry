@@ -5,7 +5,16 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
-## [0.3.0] - 2026-11-05
+## [1.0.0] - 2026-11-05
+
+The first stable release.
+
+### Build
+
+- **SignalCore is now part of this repository**, in `SignalCore/`, with its full history.
+  Until now it was built from a folder outside the repository, so the published source
+  could not be compiled by anyone else. It stays an independent, application-agnostic
+  Swift package.
 
 ### Added
 
