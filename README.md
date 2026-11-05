@@ -14,9 +14,22 @@ keys and no storage backend, so the same core can serve unrelated applications.
 
 ## Status
 
-Early development. The dispatcher, the event model and duplicate suppression are implemented and
-tested. Flap detection, both delivery channels, the banner stack controller and the preferences
-store are designed but not yet written.
+Implemented and tested, and in daily use as the notification core of HardwareSentry, which
+is where it currently lives. The API may still change between that application's releases;
+it is expected to move to a repository of its own once it settles.
+
+What is in it:
+
+- An actor-isolated dispatcher with an ordered middleware pipeline and a launch phase that
+  treats the opening burst of notifications as a burst.
+- Middleware for duplicate suppression, flap (instability) detection, per-category and
+  per-event enablement, icon overrides and a history hook.
+- Two delivery channels: the system notification centre, and self-drawn floating banners
+  with stacking, pacing, sound, and a configurable appearance (corner, display, size,
+  material and tint, lifetime, animation speed) with its own editor view.
+- Per-event icon choices (an SF Symbol, a picture file, or the event's own icon kept on
+  purpose), and a state badge drawn on icons that do not show their state themselves.
+- A preferences store for categories, events and optional body fields.
 
 ## Requirements
 
@@ -39,6 +52,9 @@ swift test
 | `NotificationDispatcher` | Actor that runs the middleware pipeline and hands off to delivery |
 | `NotificationMiddleware` | One pipeline stage; may pass through, transform, or suppress an event |
 | `NotificationDelivering` | A channel capable of presenting an event to the user |
+| `BannerDelivery` | Draws its own floating banners, outside Notification Centre |
+| `IconOverrideStore` | Remembers an icon chosen for an event, readable with `defaults read` |
+| `NotificationPreferencesStore` | Remembers which categories, events and body fields are wanted |
 
 Being actor-isolated rather than lock-guarded means data-race safety is enforced by the compiler
 rather than by convention, and every pipeline stage is independently testable without launching
