@@ -13,13 +13,14 @@ public actor ThunderboltMonitor: Monitor {
         .init(
             name: kind.connectedEvent.rawValue,
             title: kind.settingsTitle,
-            icon: .asset(kind.iconBaseName, in: .module)
+            icon: .asset(kind.iconBaseName, in: .module),
+            iconKind: kind.iconKind
         )
     } + [
-        .init(name: ThunderboltEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("Thunderbolt-On", in: .module)),
-        .init(name: ThunderboltEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("Thunderbolt-Off", in: .module)),
-        .init(name: ThunderboltEvent.egpuConnected.rawValue, title: "External GPU connected", enabledByDefault: false, icon: .asset("TB-TypeEGPU", in: .module)),
-        .init(name: ThunderboltEvent.egpuDisconnected.rawValue, title: "External GPU disconnected", enabledByDefault: false, icon: .asset("TB-TypeEGPU-Disconnected", in: .module))
+        .init(name: ThunderboltEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("Thunderbolt-On", in: .module), iconKind: ThunderboltDeviceKind.genericIconKind),
+        .init(name: ThunderboltEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("Thunderbolt-Off", in: .module), iconKind: ThunderboltDeviceKind.genericIconKind),
+        .init(name: ThunderboltEvent.egpuConnected.rawValue, title: "External GPU connected", enabledByDefault: false, icon: .asset("TB-TypeEGPU", in: .module), iconKind: ThunderboltDeviceKind.egpu.iconKind),
+        .init(name: ThunderboltEvent.egpuDisconnected.rawValue, title: "External GPU disconnected", enabledByDefault: false, icon: .asset("TB-TypeEGPU-Disconnected", in: .module), iconKind: ThunderboltDeviceKind.egpu.iconKind)
     ]
 
     /// Said outright: the first event is now an eGPU, and this module is about more.
@@ -86,7 +87,9 @@ public actor ThunderboltMonitor: Monitor {
                     .field(ThunderboltField.identifier.rawValue, "VID:PID", device.identifierLabel),
                     .field(ThunderboltField.vendor.rawValue, "Vendor", device.vendorName)
                 ]),
-                icon: .asset(device.iconBaseName ?? "Thunderbolt-On", in: .module)
+                icon: .asset(device.iconBaseName ?? "Thunderbolt-On", in: .module),
+                iconKind: device.kind?.iconKind ?? ThunderboltDeviceKind.genericIconKind,
+                iconBadge: .positive
             )
             if device.isDisplayController {
                 await context.notify(
@@ -94,7 +97,9 @@ public actor ThunderboltMonitor: Monitor {
                     subject: "eGPU-\(device.name)",
                     title: "eGPU Connected",
                     body: device.name,
-                    icon: .asset("TB-TypeEGPU", in: .module)
+                    icon: .asset("TB-TypeEGPU", in: .module),
+                    iconKind: ThunderboltDeviceKind.egpu.iconKind,
+                    iconBadge: .positive
                 )
             }
 
@@ -110,7 +115,9 @@ public actor ThunderboltMonitor: Monitor {
                     action: "Disconnected"
                 ),
                 body: name,
-                icon: .asset(iconBase.map { "\($0)-Disconnected" } ?? "Thunderbolt-Off", in: .module)
+                icon: .asset(iconBase.map { "\($0)-Disconnected" } ?? "Thunderbolt-Off", in: .module),
+                iconKind: ThunderboltDeviceKind(baseClass: baseClass)?.iconKind ?? ThunderboltDeviceKind.genericIconKind,
+                iconBadge: .negative
             )
             if baseClass == 0x03 {
                 await context.notify(
@@ -118,7 +125,9 @@ public actor ThunderboltMonitor: Monitor {
                     subject: "eGPU-\(name)",
                     title: "eGPU Disconnected",
                     body: name,
-                    icon: .asset("TB-TypeEGPU-Disconnected", in: .module)
+                    icon: .asset("TB-TypeEGPU-Disconnected", in: .module),
+                    iconKind: ThunderboltDeviceKind.egpu.iconKind,
+                    iconBadge: .negative
                 )
             }
         }

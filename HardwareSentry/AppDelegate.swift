@@ -3,6 +3,7 @@ import MonitorRegistry
 import SentryContract
 import ThermalMonitor
 import SignalCore
+import SystemIcons
 import USBMonitor
 
 /// Puts the application together and runs it.
@@ -17,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var eventSettings: EventSettingsModel!
     private(set) var history: NotificationHistoryStore!
     private(set) var iconOverrides: IconOverrideStore!
+    private(set) var iconSources: IconSourceStore!
+    private(set) var iconSourceModel: IconSourceModel!
     private(set) var general: GeneralSettingsModel!
     private(set) var tuning: MonitorTuningModel!
 
@@ -27,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var registry: MonitorRegistry!
     private var bannerDelivery: BannerDelivery!
     private var iconOverrideMiddleware: IconOverrideMiddleware!
+    private var systemIconMiddleware: SystemIconMiddleware!
 
     /// Everything is built here rather than in `applicationDidFinishLaunching`, because
     /// the settings scene may be asked for its content before that runs — and a delegate
@@ -126,7 +130,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preferences = NotificationPreferencesStore(keyPrefix: "HardwareSentry")
         appearance = BannerAppearanceStore(keyPrefix: "HardwareSentry.Appearance")
         iconOverrides = IconOverrideStore(keyPrefix: "HardwareSentry.IconOverride")
+        adoptCustomIconFiles()
         iconOverrideMiddleware = IconOverrideMiddleware(overrides: iconOverrides.overrides)
+        iconSources = IconSourceStore(keyPrefix: "HardwareSentry.IconSource")
+        // One catalogue for the notifications and the settings preview alike, so a picture
+        // read for one is already there for the other.
+        let systemIcons = SystemIconCatalog()
+        systemIconMiddleware = SystemIconMiddleware(choices: iconSources.choices, catalog: systemIcons)
+        iconSourceModel = IconSourceModel(store: iconSources, catalog: systemIcons)
 
         // This application draws its own notifications and does not hand them to macOS.
         //
@@ -151,7 +162,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // reading a file from disk, for an event that is about to be dropped.
                 // Before the history hook, so what is remembered carries the icon that
                 // was actually shown.
+                //
+                // Hand-picked icons first, then the operating system's pictures. A choice
+                // made for one notification — a symbol, a file, or "keep the app's own" —
+                // marks that icon as decided, and the System stage leaves decided icons
+                // alone; so a single choice always beats a module-wide "System".
                 iconOverrideMiddleware!,
+                systemIconMiddleware!,
                 // Last on purpose: what gets remembered is what a person was actually
                 // shown, not everything the monitors raised and the filters then dropped.
                 HistoryHookMiddleware { [history] event, context in
@@ -230,12 +247,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         eventSettings = EventSettingsModel(preferences: preferences, registry: registry)
-        general = GeneralSettingsModel(preferences: preferences, iconOverrides: iconOverrides)
+        general = GeneralSettingsModel(preferences: preferences)
         general.applyStoredIconVisibility()
         menuBarIconIsVisible = general.iconVisibility.showsMenuBarIcon
         trackIconVisibilityChanges()
         trackAppearanceChanges()
         trackIconOverrideChanges()
+        trackIconSourceChanges()
 
     }
 
@@ -365,7 +383,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 let overrides = self.iconOverrides.overrides
                 await self.iconOverrideMiddleware.update(overrides)
+                self.removeUnusedCustomIcons()
                 self.trackIconOverrideChanges()
+            }
+        }
+    }
+
+    /// Every picture an icon choice points at.
+    private var customIconPaths: Set<String> {
+        Set(iconOverrides.overrides.allChoices.compactMap { choice in
+            if case .file(let path) = choice { return path }
+            return nil
+        })
+    }
+
+    /// Brings icons chosen before this application kept its own copies into its keeping:
+    /// each one still pointing at somebody's own file is copied in and repointed, so it
+    /// stops depending on that file staying where it is. A file already gone is left
+    /// alone — the notification falls back to its own icon, and the Icons tab says so.
+    private func adoptCustomIconFiles() {
+        guard let library = CustomIconLibrary.standard() else { return }
+        // By path rather than by event: one picture chosen for several notifications is
+        // copied once and they all point at the same copy.
+        for path in customIconPaths where !library.contains(path: path) {
+            guard FileManager.default.fileExists(atPath: path),
+                  let stored = try? library.importImage(from: URL(fileURLWithPath: path))
+            else { continue }
+            iconOverrides.repointFile(from: path, to: stored)
+        }
+        removeUnusedCustomIcons()
+    }
+
+    /// Deletes the copies no icon uses any more — what was left behind by a reset or by
+    /// choosing a different picture.
+    private func removeUnusedCustomIcons() {
+        CustomIconLibrary.standard()?.removeUnreferenced(keeping: customIconPaths)
+    }
+
+    /// The same again for each module's icon source.
+    private func trackIconSourceChanges() {
+        withObservationTracking {
+            _ = iconSources.revision
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                await self.systemIconMiddleware.update(self.iconSources.choices)
+                self.trackIconSourceChanges()
             }
         }
     }

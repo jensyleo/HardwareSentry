@@ -9,19 +9,19 @@ public actor PrinterMonitor: Monitor {
     public static let category = PrinterEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: PrinterEvent.connected.rawValue, title: "Printer connected", icon: .asset("PrinterMonitor-Icon-Connected", in: .module)),
-        .init(name: PrinterEvent.disconnected.rawValue, title: "Printer disconnected", icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module)),
-        .init(name: PrinterEvent.error.rawValue, title: "Needs attention / OK", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module)),
-        .init(name: PrinterEvent.defaultChanged.rawValue, title: "Default printer changed", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module)),
-        .init(name: PrinterEvent.rejectingJobs.rawValue, title: "Rejecting/accepting jobs", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module)),
+        .init(name: PrinterEvent.connected.rawValue, title: "Printer connected", icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.disconnected.rawValue, title: "Printer disconnected", icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.error.rawValue, title: "Needs attention / OK", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.defaultChanged.rawValue, title: "Default printer changed", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.rejectingJobs.rawValue, title: "Rejecting/accepting jobs", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         // Supply warnings are on: running out of toner is precisely the thing somebody
         // wants told, it fires rarely, and the hysteresis below stops it repeating.
-        .init(name: PrinterEvent.supplyLow.rawValue, title: "Toner/ink running low", icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module)),
+        .init(name: PrinterEvent.supplyLow.rawValue, title: "Toner/ink running low", icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         // The job events are off. Somebody who has just pressed Print knows they pressed
         // Print, and on a busy queue this is one notification per document.
-        .init(name: PrinterEvent.jobStarted.rawValue, title: "Print job started", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Connected", in: .module)),
-        .init(name: PrinterEvent.jobFinished.rawValue, title: "Print job finished", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Connected", in: .module)),
-        .init(name: PrinterEvent.jobCanceled.rawValue, title: "Print job cancelled or aborted", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module))
+        .init(name: PrinterEvent.jobStarted.rawValue, title: "Print job started", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.jobFinished.rawValue, title: "Print job finished", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.jobCanceled.rawValue, title: "Print job cancelled or aborted", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer"))
     ]
 
     public static let fields: [MonitorFieldDescription] = PrinterField.allCases.map {
@@ -116,7 +116,7 @@ public actor PrinterMonitor: Monitor {
                             .field(PrinterField.location.rawValue, "Location", printer.location),
                             .field(PrinterField.model.rawValue, "Model", printer.makeAndModel)
                         ]),
-                        icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module)
+                        icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .warning
                     )
                 } else if wasLow, supply.hasRecovered(fallbackThreshold: supplyThreshold, margin: supplyRecoveryMargin) {
                     // Replaced. Forgotten rather than announced: a fresh cartridge is not
@@ -165,7 +165,7 @@ public actor PrinterMonitor: Monitor {
                 subject: "\(job.printerName)#\(job.id)",
                 title: "Printing \(job.displayTitle)",
                 body: await jobBody(job),
-                icon: .asset("PrinterMonitor-Icon-Connected", in: .module)
+                icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")
             )
         }
 
@@ -182,7 +182,7 @@ public actor PrinterMonitor: Monitor {
                     subject: "\(job.printerName)#\(job.id)",
                     title: "Finished printing \(job.displayTitle)",
                     body: await jobBody(job),
-                    icon: .asset("PrinterMonitor-Icon-Connected", in: .module)
+                    icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")
                 )
             case .canceled, .aborted:
                 await context.notify(
@@ -192,7 +192,7 @@ public actor PrinterMonitor: Monitor {
                         ? "Cancelled printing \(job.displayTitle)"
                         : "Print job failed: \(job.displayTitle)",
                     body: await jobBody(job),
-                    icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module)
+                    icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer")
                 )
             default:
                 // Left the active list without reaching a final state: CUPS moved it, or
@@ -249,11 +249,11 @@ public actor PrinterMonitor: Monitor {
                     .prose(PrinterField.shared.rawValue, "Shared", printer.isShared ? "Yes" : "No"),
                     .prose(PrinterField.capabilities.rawValue, "Capabilities", printer.capabilities)
                 ]),
-                icon: .asset("PrinterMonitor-Icon-Connected", in: .module)
+                icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .positive
             )
         }
         for name in knownNames.subtracting(currentNames) {
-            await context.notify(PrinterEvent.disconnected.rawValue, subject: name, title: "Printer Disconnected", body: name, icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module))
+            await context.notify(PrinterEvent.disconnected.rawValue, subject: name, title: "Printer Disconnected", body: name, icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .negative)
         }
 
         for printer in printers {
@@ -269,7 +269,7 @@ public actor PrinterMonitor: Monitor {
                     body: isProblem
                         ? "\(printer.name)\n\(PrinterStateReasons.friendlyDescription(printer.stateReasons) ?? printer.stateReasons)"
                         : printer.name,
-                    icon: .asset(isProblem ? "PrinterMonitor-Icon-Disconnected" : "PrinterMonitor-Icon-Connected", in: .module)
+                    icon: .asset(isProblem ? "PrinterMonitor-Icon-Disconnected" : "PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: isProblem ? .warning : .positive
                 )
             }
 
@@ -279,7 +279,7 @@ public actor PrinterMonitor: Monitor {
                     subject: printer.name,
                     title: printer.isRejectingJobs ? "Printer Is Rejecting Jobs" : "Printer Is Accepting Jobs Again",
                     body: printer.name,
-                    icon: .asset(printer.isRejectingJobs ? "PrinterMonitor-Icon-Rejecting" : "PrinterMonitor-Icon-Connected", in: .module)
+                    icon: .asset(printer.isRejectingJobs ? "PrinterMonitor-Icon-Rejecting" : "PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: printer.isRejectingJobs ? .warning : .positive
                 )
             }
         }
@@ -293,7 +293,7 @@ public actor PrinterMonitor: Monitor {
                     subject: "Default",
                     title: "Default Printer Changed",
                     body: "\(previousDefault) → \(newDefault)",
-                    icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module)
+                    icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module), iconKind: DeviceIconKind("printer", "printer")
                 )
             }
         }

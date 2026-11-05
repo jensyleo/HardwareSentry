@@ -1,4 +1,5 @@
 import Foundation
+import SentryContract
 
 /// The three subsystem-level states worth reporting on their own, distinct from an
 /// individual device connecting/disconnecting or the radio's own power state.
@@ -60,6 +61,12 @@ public enum BluetoothDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .display: return "Display"
         }
     }
+
+    /// What this kind's icon depicts, for swapping in another picture of the same thing.
+    public var iconKind: DeviceIconKind { DeviceIconKind("bluetooth", rawValue) }
+
+    /// A device that did not say what it is, and the radio's own presence events.
+    public static let genericIconKind = DeviceIconKind("bluetooth", "generic")
 
     /// The event raised when a device of this kind connects.
     var connectedEvent: BluetoothEvent {

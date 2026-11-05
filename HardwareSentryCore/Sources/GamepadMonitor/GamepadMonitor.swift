@@ -14,10 +14,10 @@ public actor GamepadMonitor: Monitor {
     public static let category = GamepadEvent.category
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: GamepadEvent.controllerConnected.rawValue, title: "Game controller connected", icon: .asset("GamepadMonitor-Icon", in: .module)),
-        .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected", icon: .asset("GamepadMonitor-Icon", in: .module)),
-        .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected", icon: .asset("GamepadMonitor-Icon", in: .module)),
-        .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected", icon: .asset("GamepadMonitor-Icon", in: .module))
+        .init(name: GamepadEvent.controllerConnected.rawValue, title: "Game controller connected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.controller.iconKind),
+        .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.controller.iconKind),
+        .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind),
+        .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind)
     ]
 
     // Only what the framework will answer about a controller that is actually here. The
@@ -91,7 +91,9 @@ public actor GamepadMonitor: Monitor {
                 .field(GamepadField.elitePaddles.rawValue, "Elite Paddles", detail?.elitePaddlesNote),
                 .field(GamepadField.lightColor.rawValue, "Lightbar Color", detail?.lightColor)
             ]),
-            icon: .asset(icon, in: .module)
+            icon: .asset(icon, in: .module),
+            iconKind: change.kind.iconKind,
+            iconBadge: change.connected ? .positive : .negative
         )
     }
 

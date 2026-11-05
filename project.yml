@@ -18,6 +18,11 @@ targets:
     info:
       path: HardwareSentry/Info.plist
       properties:
+        # Read from the build settings rather than written here, so the version lives in
+        # one place (MARKETING_VERSION below). Without these, `xcodegen generate` writes
+        # its own literal "1.0" into Info.plist and every build reports that instead.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSBluetoothAlwaysUsageDescription: "HardwareSentry watches for Bluetooth devices connecting and disconnecting, and for the Bluetooth radio's own state, so it can notify you about them."
         # Asked once, before the mic-in-use listener is armed — see
         # CoreAudioSource.requestMicrophoneAccessIfNeeded(). Nothing here ever records or
@@ -51,11 +56,13 @@ targets:
         product: MonitorRegistry
       - package: HardwareSentryCore
         product: SentryContract
+      - package: HardwareSentryCore
+        product: SystemIcons
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jensyleo.hardwaresentry
         PRODUCT_NAME: HardwareSentry
-        MARKETING_VERSION: "0.2.0"
+        MARKETING_VERSION: "0.3.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete

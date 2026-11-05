@@ -2,6 +2,7 @@ import AppKit
 import SentryContract
 import SignalCore
 import SwiftUI
+import SystemIcons
 import ThermalMonitor
 
 /// Which notifications a person wants, module by module.
@@ -17,6 +18,7 @@ import ThermalMonitor
 struct EventSettingsView: View {
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
+    @Bindable var iconSources: IconSourceModel
     @Bindable var tuning: MonitorTuningModel
     /// Fires one thermal transition on demand. See `ThermalSimulator`.
     let simulateThermal: (ThermalState, ThermalState) -> Void
@@ -43,23 +45,28 @@ struct EventSettingsView: View {
         }
     }
 
+    /// A list beside a panel, laid out by hand rather than with `NavigationSplitView`.
+    ///
+    /// A split view assumes it fills its window and reserves a toolbar's height at the top
+    /// of each column. This one sits under the performance picker instead, so from macOS 26
+    /// that reserved strip was drawn as a blurred bar across the top of the panel, hiding
+    /// the module's tabs beneath it. Nothing here needs what the split view adds — a
+    /// collapsible sidebar is no use in a settings window — so the plain layout does the job
+    /// without the strip.
     private var splitView: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             List(model.modules, selection: $selection) { module in
-                ModuleRow(module: module, model: model, iconOverrides: iconOverrides)
+                ModuleRow(module: module, model: model, iconOverrides: iconOverrides, iconSources: iconSources)
                     .tag(module.id)
             }
-            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
-        } detail: {
-            if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, pane: $pane)
-            } else {
-                ContentUnavailableView(
-                    "Choose a Module",
-                    systemImage: "sidebar.left",
-                    description: Text("Pick one on the left to choose which of its notifications arrive.")
-                )
-            }
+            .listStyle(.sidebar)
+            .frame(width: 200)
+            .task { await iconSources.loadModuleImages() }
+
+            Divider()
+
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task {
             await model.load()
@@ -67,6 +74,19 @@ struct EventSettingsView: View {
             // that gives no clue what to do next.
             if selection == nil { selection = model.modules.first?.id }
         }
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+            if let module = model.modules.first(where: { $0.id == selection }) {
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, pane: $pane)
+            } else {
+                ContentUnavailableView(
+                    "Choose a Module",
+                    systemImage: "sidebar.left",
+                    description: Text("Pick one on the left to choose which of its notifications arrive.")
+                )
+            }
     }
 }
 
@@ -119,10 +139,11 @@ private struct ModuleRow: View {
     let module: MonitorDescription
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
+    @Bindable var iconSources: IconSourceModel
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(nsImage: Self.icon(for: module, overrides: iconOverrides))
+            Image(nsImage: Self.icon(for: module, overrides: iconOverrides, systemImage: iconSources.moduleImage(for: module.category)))
             Text(module.category.rawValue)
             Spacer()
             // The module's own switch, here rather than duplicated on the panel: two
@@ -142,15 +163,19 @@ private struct ModuleRow: View {
     /// first event's artwork unless it named something better, which a module covering
     /// several unrelated things has to.
     @MainActor
-    private static func icon(for module: MonitorDescription, overrides: IconOverrideStore) -> NSImage {
+    private static func icon(for module: MonitorDescription, overrides: IconOverrideStore, systemImage: NSImage?) -> NSImage {
         // An override is a symbol name or a path; both become artwork the same way the
         // dispatcher resolves them when a notification fires.
-        let chosen: NSImage? = switch overrides.override(for: IconOverrideStore.moduleIconEvent, in: module.category) {
+        let override = overrides.override(for: IconOverrideStore.moduleIconEvent, in: module.category)
+        let chosen: NSImage? = switch override {
         case .symbol(let name): NotificationIcon.symbol(name).image(side: 18)
         case .file(let path): NSImage(contentsOfFile: path)?.resized(toFit: 18)
-        case nil: nil
+        case .original, nil: nil
         }
+        // Any choice made for the module — including "the app's own" — beats "System",
+        // as it does for notifications.
         return chosen
+            ?? (override == nil ? systemImage?.resized(toFit: 18) : nil)
             ?? module.icon.image(side: 18)
             ?? NSImage(systemSymbolName: "square.dashed", accessibilityDescription: nil)?.resized(toFit: 18)
             ?? NSImage(size: NSSize(width: 18, height: 18))
@@ -184,6 +209,7 @@ private struct ModuleDetail: View {
     let module: MonitorDescription
     @Bindable var model: EventSettingsModel
     @Bindable var iconOverrides: IconOverrideStore
+    @Bindable var iconSources: IconSourceModel
     @Bindable var tuning: MonitorTuningModel
     let simulateThermal: (ThermalState, ThermalState) -> Void
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
@@ -200,9 +226,20 @@ private struct ModuleDetail: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Above the form rather than inside it: this chooses which form is showing,
-            // so it is not one of the settings.
+        Group {
+            if currentTitle == ModulePane.iconsTitle {
+                iconsPane
+            } else {
+                subjectPane(named: currentTitle)
+            }
+        }
+        // Above the form rather than inside it: this chooses which form is showing, so it
+        // is not one of the settings. A safe-area inset rather than a plain stack: from
+        // macOS 26 a scrolling form draws a blurred edge across the top of its column, and
+        // a control merely stacked above the form ended up underneath that blur —
+        // reported as a thick bar hiding the tabs. An inset is laid out by the form itself,
+        // which keeps it clear of its own edge effect and scrolls the content beneath it.
+        .safeAreaInset(edge: .top, spacing: 0) {
             Picker("", selection: Binding(get: { currentTitle }, set: { pane = $0 })) {
                 ForEach(titles, id: \.self) { title in
                     Text(title).tag(title)
@@ -211,13 +248,7 @@ private struct ModuleDetail: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(.horizontal)
-            .padding(.top, 10)
-
-            if currentTitle == ModulePane.iconsTitle {
-                iconsPane
-            } else {
-                subjectPane(named: currentTitle)
-            }
+            .padding(.vertical, 8)
         }
         .navigationTitle(module.category.rawValue)
     }
@@ -706,13 +737,16 @@ private struct ModuleDetail: View {
 
     private var iconsPane: some View {
         Form {
+            notificationIconSourceSection
+
             Section("Module icon") {
                 HStack(spacing: 8) {
                     EventIconPicker(
                         event: IconOverrideStore.moduleIconEvent,
                         category: module.category,
                         defaultIcon: module.icon,
-                        store: iconOverrides
+                        store: iconOverrides,
+                        systemImage: iconSources.moduleImage(for: module.category)
                     )
                     Text("Shown beside this module's name in the list")
                         .foregroundStyle(.secondary)
@@ -720,7 +754,8 @@ private struct ModuleDetail: View {
                     EventIconButtons(
                         event: IconOverrideStore.moduleIconEvent,
                         category: module.category,
-                        store: iconOverrides
+                        store: iconOverrides,
+                        systemWouldApply: iconSources.moduleImage(for: module.category) != nil
                     )
                 }
             }
@@ -746,14 +781,22 @@ private struct ModuleDetail: View {
                                 event: event.name,
                                 category: module.category,
                                 defaultIcon: event.icon,
-                                store: iconOverrides
+                                store: iconOverrides,
+                                systemImage: iconSources.previewImage(forKind: event.iconKind?.rawValue, in: module.category),
+                                badge: IconBadge.representative(forEventName: event.name)
                             )
                             Text(event.title)
+                            if keepsAppIconUnderSystem(event) {
+                                Text("App icon — macOS has none")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
                             Spacer()
                             EventIconButtons(
                                 event: event.name,
                                 category: module.category,
-                                store: iconOverrides
+                                store: iconOverrides,
+                                systemWouldApply: iconSources.previewImage(forKind: event.iconKind?.rawValue, in: module.category) != nil
                             )
                             // A checkbox rather than a switch: this is one item in a long
                             // list of the same question, which is what checkboxes are for,
@@ -785,6 +828,69 @@ private struct ModuleDetail: View {
             }
         }
         .formStyle(.grouped)
+        .task(id: module.id) {
+            await iconSources.load(kinds: module.events.compactMap { $0.iconKind?.rawValue })
+        }
+    }
+
+    // MARK: - Where icons come from
+
+    /// The kinds of device this module's rows depict, without repeats.
+    private var deviceKinds: Set<String> {
+        Set(module.events.compactMap { $0.iconKind?.rawValue })
+    }
+
+    /// App, System, or — row by row below — Custom.
+    ///
+    /// Only offered for a module with devices in it: Power and Thermal draw ideas (a charge
+    /// level, a temperature), and macOS has no picture to put in their place.
+    @ViewBuilder
+    private var notificationIconSourceSection: some View {
+        if !deviceKinds.isEmpty {
+            Section {
+                Picker("Notification icons", selection: Binding(
+                    get: { iconSources.source(for: module.category) },
+                    set: { iconSources.setSource($0, for: module.category) }
+                )) {
+                    Text("App").tag(IconSource.app)
+                    Text("System").tag(IconSource.system)
+                }
+                .pickerStyle(.segmented)
+
+                Text(sourceExplanation)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } footer: {
+                Text("A choice made for a single notification below — App, Symbol or Custom — always takes precedence.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var sourceExplanation: String {
+        switch iconSources.source(for: module.category) {
+        case .app:
+            return "This application's own artwork, with the state drawn into each picture."
+        case .system:
+            let available = deviceKinds.filter { iconSources.images[$0] != nil }.count
+            let looked = deviceKinds.filter { iconSources.images[$0] != nil || iconSources.unavailable.contains($0) }.count
+            let summary = looked < deviceKinds.count
+                ? ""
+                : " macOS has a picture for \(available) of the \(deviceKinds.count) kinds of device here; the rest keep this application's."
+            return "macOS's own picture of each device, read from this Mac, with a mark for connected, disconnected or needing attention." + summary
+        }
+    }
+
+    /// Whether this row stays on the application's artwork even though the module is set
+    /// to System — said beside it, so the choice does not look as if it did not take.
+    private func keepsAppIconUnderSystem(_ event: MonitorEventDescription) -> Bool {
+        guard iconSources.source(for: module.category) == .system,
+              iconOverrides.override(for: event.name, in: module.category) == nil,
+              let kind = event.iconKind?.rawValue
+        else { return false }
+        return iconSources.unavailable.contains(kind)
     }
 
     private func binding(for event: MonitorEventDescription, in category: NotificationCategory) -> Binding<Bool> {

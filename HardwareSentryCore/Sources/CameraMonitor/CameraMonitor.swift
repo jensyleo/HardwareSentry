@@ -18,14 +18,14 @@ public actor CameraMonitor: Monitor {
         // Symbol placeholders, standing in until real artwork exists for each kind — and
         // are themselves the "System" default this row's Custom/System/Reset already
         // offers in Settings, so replacing them later touches only these lines.
-        .init(name: CameraEvent.connected.rawValue, title: "Camera connected", icon: .asset("CameraMonitor-Icon", in: .module)),
-        .init(name: CameraEvent.disconnected.rawValue, title: "Camera disconnected", icon: .asset("CameraMonitor-Icon", in: .module)),
-        .init(name: CameraEvent.webcamConnected.rawValue, title: "Webcam connected", icon: .symbol("web.camera")),
-        .init(name: CameraEvent.webcamDisconnected.rawValue, title: "Webcam disconnected", icon: .symbol("web.camera")),
-        .init(name: CameraEvent.continuityConnected.rawValue, title: "Continuity Camera connected", icon: .symbol("iphone.radiowaves.left.and.right")),
-        .init(name: CameraEvent.continuityDisconnected.rawValue, title: "Continuity Camera disconnected", icon: .symbol("iphone.radiowaves.left.and.right")),
-        .init(name: CameraEvent.deskViewConnected.rawValue, title: "Desk View connected", icon: .symbol("table.furniture")),
-        .init(name: CameraEvent.deskViewDisconnected.rawValue, title: "Desk View disconnected", icon: .symbol("table.furniture")),
+        .init(name: CameraEvent.connected.rawValue, title: "Camera connected", icon: .asset("CameraMonitor-Icon", in: .module), iconKind: DeviceIconKind("camera", "camera")),
+        .init(name: CameraEvent.disconnected.rawValue, title: "Camera disconnected", icon: .asset("CameraMonitor-Icon", in: .module), iconKind: DeviceIconKind("camera", "camera")),
+        .init(name: CameraEvent.webcamConnected.rawValue, title: "Webcam connected", icon: .symbol("web.camera"), iconKind: DeviceIconKind("camera", "webcam")),
+        .init(name: CameraEvent.webcamDisconnected.rawValue, title: "Webcam disconnected", icon: .symbol("web.camera"), iconKind: DeviceIconKind("camera", "webcam")),
+        .init(name: CameraEvent.continuityConnected.rawValue, title: "Continuity Camera connected", icon: .symbol("iphone.radiowaves.left.and.right"), iconKind: DeviceIconKind("camera", "continuity")),
+        .init(name: CameraEvent.continuityDisconnected.rawValue, title: "Continuity Camera disconnected", icon: .symbol("iphone.radiowaves.left.and.right"), iconKind: DeviceIconKind("camera", "continuity")),
+        .init(name: CameraEvent.deskViewConnected.rawValue, title: "Desk View connected", icon: .symbol("table.furniture"), iconKind: DeviceIconKind("camera", "deskView")),
+        .init(name: CameraEvent.deskViewDisconnected.rawValue, title: "Desk View disconnected", icon: .symbol("table.furniture"), iconKind: DeviceIconKind("camera", "deskView")),
         .init(name: CameraEvent.inUseChanged.rawValue, title: "Camera started/stopped being used", icon: .asset("CameraMonitor-Icon-InUse", in: .module)),
         .init(name: CameraEvent.portraitEffectChanged.rawValue, title: "Portrait Effect changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
         .init(name: CameraEvent.studioLightChanged.rawValue, title: "Studio Light changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
@@ -136,6 +136,15 @@ public actor CameraMonitor: Monitor {
         return .asset("CameraMonitor-Icon", in: .module)
     }
 
+    /// What `icon(transport:isDeskViewCamera:isContinuityCamera:)` depicts, decided the
+    /// same way, so another picture of the same camera can be swapped in.
+    private static func iconKind(transport: String?, isDeskViewCamera: Bool, isContinuityCamera: Bool) -> DeviceIconKind {
+        if isDeskViewCamera { return DeviceIconKind("camera", "deskView") }
+        if isContinuityCamera { return DeviceIconKind("camera", "continuity") }
+        if isUSB(transport) { return DeviceIconKind("camera", "webcam") }
+        return DeviceIconKind("camera", "camera")
+    }
+
     /// Called when a setting changes, so it applies without a relaunch.
     public func apply(notifiesVirtualDevices: Bool) {
         self.notifiesVirtualDevices = notifiesVirtualDevices
@@ -194,7 +203,13 @@ public actor CameraMonitor: Monitor {
                     transport: detail?.transport,
                     isDeskViewCamera: detail?.isDeskViewCamera ?? false,
                     isContinuityCamera: detail?.isContinuityCamera ?? false
-                )
+                ),
+                iconKind: Self.iconKind(
+                    transport: detail?.transport,
+                    isDeskViewCamera: detail?.isDeskViewCamera ?? false,
+                    isContinuityCamera: detail?.isContinuityCamera ?? false
+                ),
+                iconBadge: .positive
             )
 
         case .disconnected(let uid, let name):
@@ -217,7 +232,13 @@ public actor CameraMonitor: Monitor {
                     transport: detail?.transport,
                     isDeskViewCamera: detail?.isDeskViewCamera ?? false,
                     isContinuityCamera: detail?.isContinuityCamera ?? false
-                )
+                ),
+                iconKind: Self.iconKind(
+                    transport: detail?.transport,
+                    isDeskViewCamera: detail?.isDeskViewCamera ?? false,
+                    isContinuityCamera: detail?.isContinuityCamera ?? false
+                ),
+                iconBadge: .negative
             )
 
         case .runningStateChanged(let running):

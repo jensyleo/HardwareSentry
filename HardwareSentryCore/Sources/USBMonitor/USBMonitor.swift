@@ -19,13 +19,14 @@ public actor USBMonitor: Monitor {
         .init(
             name: kind.connectedEvent.rawValue,
             title: kind.settingsTitle,
-            icon: .asset(kind.iconBaseName, in: .module)
+            icon: .asset(kind.iconBaseName, in: .module),
+            iconKind: kind.iconKind
         )
     } + [
         // The two the original calls "(generic)": a device that never said what it is,
         // which is most of them, and every disconnection.
-        .init(name: USBEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("USB-On", in: .module)),
-        .init(name: USBEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("USB-Off", in: .module))
+        .init(name: USBEvent.connected.rawValue, title: "Connected (generic)", icon: .asset("USB-On", in: .module), iconKind: USBDeviceKind.genericIconKind),
+        .init(name: USBEvent.disconnected.rawValue, title: "Disconnected (generic)", icon: .asset("USB-Off", in: .module), iconKind: USBDeviceKind.genericIconKind)
     ]
 
     public static let fields: [MonitorFieldDescription] = USBField.allCases.map {
@@ -161,7 +162,13 @@ public actor USBMonitor: Monitor {
                     .field(USBField.failedPower.rawValue, device.detail.failedPowerNote),
                     .field(USBField.portInfo.rawValue, "Port", device.detail.portNote)
                 ]),
-                icon: .asset(device.iconBaseName ?? "USB-On", in: .module)
+                icon: .asset(device.iconBaseName ?? "USB-On", in: .module),
+                iconKind: device.kind?.iconKind ?? USBDeviceKind.genericIconKind,
+                iconModel: DeviceIconModel.string(
+                    vendorID: device.detail.vendorID.map(Int.init),
+                    productID: device.detail.productID.map(Int.init)
+                ),
+                iconBadge: .positive
             )
         case .detached(let device):
             await context.notify(
@@ -176,7 +183,13 @@ public actor USBMonitor: Monitor {
                 // its speed, its power draw, what is inside it — and none of it means
                 // anything about one that has just left.
                 body: device.name,
-                icon: .asset(device.disconnectedIconName, in: .module)
+                icon: .asset(device.disconnectedIconName, in: .module),
+                iconKind: device.kind?.iconKind ?? USBDeviceKind.genericIconKind,
+                iconModel: DeviceIconModel.string(
+                    vendorID: device.detail.vendorID.map(Int.init),
+                    productID: device.detail.productID.map(Int.init)
+                ),
+                iconBadge: .negative
             )
         }
     }

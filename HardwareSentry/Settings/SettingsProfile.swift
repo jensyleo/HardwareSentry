@@ -1,5 +1,6 @@
 import Foundation
 import SignalCore
+import SystemIcons
 
 /// Every choice somebody has made, as one file they can keep.
 ///
@@ -19,6 +20,9 @@ struct SettingsProfile: Codable {
     /// have been restored as a width of 1 point.
     var numbers: [String: Double] = [:]
     var iconOverrides: [String: String] = [:]
+    /// Which modules use macOS's own device pictures. Optional so a profile saved before
+    /// the choice existed still reads — it simply has nothing to say about it.
+    var iconSources: [String: String]?
     var iconVisibility: Int?
     var announcesWhatIsAlreadyThere: Bool?
 
@@ -62,7 +66,13 @@ struct SettingsProfileStore {
             guard prefixes.contains(where: key.hasPrefix) else { continue }
 
             if let text = value as? String {
-                if IconOverride(storedValue: text) != nil { profile.iconOverrides[key] = text }
+                // Told apart by key: icon sources and icon choices are both stored as
+                // text, under prefixes of their own.
+                if key.hasPrefix(Self.iconSourcePrefix) {
+                    if IconSource(rawValue: text) != nil { profile.iconSources = (profile.iconSources ?? [:]).merging([key: text]) { $1 } }
+                } else if IconOverride(storedValue: text) != nil {
+                    profile.iconOverrides[key] = text
+                }
                 continue
             }
             guard let number = value as? NSNumber else { continue }
@@ -99,10 +109,16 @@ struct SettingsProfileStore {
         for (key, value) in profile.iconOverrides where prefixes.contains(where: key.hasPrefix) {
             defaults.set(value, forKey: key)
         }
+        for (key, value) in profile.iconSources ?? [:]
+        where key.hasPrefix(Self.iconSourcePrefix) && IconSource(rawValue: value) != nil {
+            defaults.set(value, forKey: key)
+        }
         if let visibility = profile.iconVisibility {
             defaults.set(visibility, forKey: "HardwareSentry.IconVisibility")
         }
     }
+
+    static let iconSourcePrefix = "HardwareSentry.IconSource."
 
     func write(to url: URL) throws {
         let encoder = JSONEncoder()

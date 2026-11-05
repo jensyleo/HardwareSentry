@@ -26,26 +26,29 @@ public actor VolumeMonitor: Monitor {
             MonitorEventDescription(
                 name: kind.mountedEvent.rawValue,
                 title: kind.settingsTitle,
-                icon: .asset(kind.iconBaseName, in: .module)
+                icon: .asset(kind.iconBaseName, in: .module),
+                iconKind: kind.iconKind
             ),
             MonitorEventDescription(
                 name: kind.unmountedEvent.rawValue,
                 title: "\(kind.settingsTitle) (Unmounted)",
-                icon: .asset("\(kind.iconBaseName)-Unmounted", in: .module)
+                icon: .asset("\(kind.iconBaseName)-Unmounted", in: .module),
+                iconKind: kind.iconKind
             ),
             MonitorEventDescription(
                 name: kind.lowSpaceEvent.rawValue,
                 title: "\(kind.settingsTitle) (Critical)",
                 enabledByDefault: false,
-                icon: .asset("\(kind.iconBaseName)-Critical", in: .module)
+                icon: .asset("\(kind.iconBaseName)-Critical", in: .module),
+                iconKind: kind.iconKind
             )
         ]
     } + [
-        .init(name: VolumeEvent.lowSpace.rawValue, title: "Critical (generic)", enabledByDefault: false, icon: .asset("Device-Critical", in: .module)),
-        .init(name: VolumeEvent.mounted.rawValue, title: "Mounted (generic)", icon: .asset("DisksVolumes-Mounted", in: .module)),
-        .init(name: VolumeEvent.unmounted.rawValue, title: "Unmounted (generic)", icon: .asset("DisksVolumes-Eject", in: .module)),
-        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Ejected Unsafely", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module)),
-        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module))
+        .init(name: VolumeEvent.lowSpace.rawValue, title: "Critical (generic)", enabledByDefault: false, icon: .asset("Device-Critical", in: .module), iconKind: VolumeKind.genericIconKind),
+        .init(name: VolumeEvent.mounted.rawValue, title: "Mounted (generic)", icon: .asset("DisksVolumes-Mounted", in: .module), iconKind: VolumeKind.genericIconKind),
+        .init(name: VolumeEvent.unmounted.rawValue, title: "Unmounted (generic)", icon: .asset("DisksVolumes-Eject", in: .module), iconKind: VolumeKind.genericIconKind),
+        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Ejected Unsafely", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module), iconKind: VolumeKind.genericIconKind),
+        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module), iconKind: VolumeKind.genericIconKind)
     ]
 
     /// Said outright: the first event is now an optical disc, and this module is about
@@ -185,6 +188,8 @@ public actor VolumeMonitor: Monitor {
                     .prose(VolumeField.size.rawValue, "Size", detail.sizeLabel)
                 ]),
                 icon: .asset(detail.kind?.iconBaseName ?? "DisksVolumes-Mounted", in: .module),
+                iconKind: detail.kind?.iconKind ?? VolumeKind.genericIconKind,
+                iconBadge: .positive,
                 // Clicking a mount notification opens the volume, which is the one thing
                 // somebody is likely to want the moment they are told it appeared.
                 onInteraction: { outcome in
@@ -208,7 +213,9 @@ public actor VolumeMonitor: Monitor {
                     subject: report.wholeDiskName,
                     title: "Disk Not Readable",
                     body: report.message,
-                    icon: .asset(kindByPath[report.wholeDiskName].map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module)
+                    icon: .asset(kindByPath[report.wholeDiskName].map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module),
+                    iconKind: kindByPath[report.wholeDiskName]?.iconKind ?? VolumeKind.genericIconKind,
+                    iconBadge: .warning
                 )
             }
 
@@ -240,7 +247,9 @@ public actor VolumeMonitor: Monitor {
                     subject: path,
                     title: "Volume Ejected Unsafely",
                     body: "\(name) disappeared without being ejected first.",
-                    icon: .asset(kind.map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module)
+                    icon: .asset(kind.map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module),
+                    iconKind: kind?.iconKind ?? VolumeKind.genericIconKind,
+                    iconBadge: .warning
                 )
             }
             await context.notify(
@@ -248,7 +257,9 @@ public actor VolumeMonitor: Monitor {
                 subject: path,
                 title: "\(name) Unmounted",
                 body: "",
-                icon: .asset(kind.map { "\($0.iconBaseName)-Unmounted" } ?? "DisksVolumes-Eject", in: .module)
+                icon: .asset(kind.map { "\($0.iconBaseName)-Unmounted" } ?? "DisksVolumes-Eject", in: .module),
+                iconKind: kind?.iconKind ?? VolumeKind.genericIconKind,
+                iconBadge: .negative
             )
 
         case .freeSpaceSnapshot(let byPath):
@@ -276,7 +287,9 @@ public actor VolumeMonitor: Monitor {
                             purgeable
                         )
                     ]),
-                    icon: .asset("Device-Critical", in: .module)
+                    icon: .asset("Device-Critical", in: .module),
+                    iconKind: kindByPath[path]?.iconKind ?? VolumeKind.genericIconKind,
+                    iconBadge: .warning
                 )
             } else if wasBelow, freePercent >= lowSpaceRecoverPercent {
                 pathsBelowSpaceThreshold.remove(path)

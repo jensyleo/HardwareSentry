@@ -1,6 +1,7 @@
 import AppKit
 import SignalCore
 import SwiftUI
+import SystemIcons
 
 /// Lets someone put their own icon on one kind of notification.
 ///
@@ -15,6 +16,12 @@ struct EventIconPicker: View {
     /// and so the button is the icon it changes rather than an abstract placeholder.
     let defaultIcon: NotificationIcon
     @Bindable var store: IconOverrideStore
+    /// The operating system's picture, when this row's module is set to "System" and
+    /// macOS has one — shown in place of `defaultIcon`.
+    var systemImage: NSImage? = nil
+    /// The state this row's notifications carry, marked on the preview whenever the
+    /// picture is one that will be marked in the notification too: macOS's, or a chosen one.
+    var badge: IconBadge? = nil
 
     @State private var isAskingForSymbol = false
 
@@ -31,6 +38,15 @@ struct EventIconPicker: View {
                 store.setOverride(nil, for: event, in: category)
             } label: {
                 Label("Use the Default", systemImage: current == nil ? "checkmark" : "arrow.uturn.backward")
+            }
+            // Only worth offering where the default is not already the app's own picture:
+            // under a module set to System, this is how one notification keeps it.
+            if systemImage != nil || current == .original {
+                Button {
+                    store.setOverride(.original, for: event, in: category)
+                } label: {
+                    Label("Use the App's Icon", systemImage: current == .original ? "checkmark" : "app")
+                }
             }
 
             Divider()
@@ -57,6 +73,14 @@ struct EventIconPicker: View {
         // it, which is the whole window. `.fixedSize()` made that worse by proposing an
         // unbounded size in the first place.
         .frame(width: Self.side + 14, height: Self.side)
+        .overlay(alignment: .bottomTrailing) {
+            if let badge, current != .original, current != nil || systemImage != nil {
+                // Over the picture, not the menu's indicator beside it.
+                IconBadgeView(badge: badge, iconSide: Self.side)
+                    .padding(.trailing, 14)
+                    .allowsHitTesting(false)
+            }
+        }
         .help(helpText)
         .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
             SFSymbolBrowser(
@@ -95,13 +119,19 @@ struct EventIconPicker: View {
                 ?? fallback
                 ?? NSImage(size: NSSize(width: Self.side, height: Self.side))
         case .file(let path):
-            // The file moved. Said here rather than only when the notification fires, so
-            // it can be fixed before anyone misses an icon.
+            // The copy is gone — deleted by hand from Application Support. Said here
+            // rather than only when the notification fires, so it can be fixed before
+            // anyone misses an icon.
             return NSImage(contentsOfFile: path)?.resized(toFit: Self.side)
                 ?? NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)?
                     .resized(toFit: Self.side)
                 ?? NSImage(size: NSSize(width: Self.side, height: Self.side))
+        case .original:
+            return defaultIcon.image(side: Self.side)
+                ?? NSApplication.shared.applicationIconImage?.resized(toFit: Self.side)
+                ?? NSImage(size: NSSize(width: Self.side, height: Self.side))
         case nil:
+            if let systemImage { return systemImage.resized(toFit: Self.side) }
             return defaultIcon.image(side: Self.side)
                 ?? NSApplication.shared.applicationIconImage?.resized(toFit: Self.side)
                 ?? NSImage(size: NSSize(width: Self.side, height: Self.side))
@@ -111,25 +141,22 @@ struct EventIconPicker: View {
     private var helpText: String {
         switch current {
         case .symbol(let name): return "Icon: \(name)"
+        case .original: return "This application's own icon, kept even though the module uses macOS's pictures"
         case .file(let path):
             return NSImage(contentsOfFile: path) == nil
                 ? "This image is missing — the default icon will be used instead"
                 : "Icon: \((path as NSString).lastPathComponent)"
-        case nil: return "This notification's own icon — click to choose a different one"
+        case nil:
+            return systemImage == nil
+                ? "This notification's own icon — click to choose a different one"
+                : "macOS's own picture of this device — click to choose a different one"
         }
     }
 
     // MARK: - Choosing
 
     private func chooseFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.prompt = "Use as Icon"
-        panel.message = "Choose an image for this notification."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        store.setOverride(.file(url.path), for: event, in: category)
+        CustomIconChooser.choose(for: event, in: category, store: store)
     }
 
     // MARK: - Suggestions
@@ -159,13 +186,16 @@ struct EventIconPicker: View {
 /// offer without anyone having to click the icon to find out. Both act on the same stored
 /// override, so whichever route somebody takes, the other reflects it immediately.
 ///
-/// "System" and "Custom" are the original's words, and they draw the line where it actually
-/// falls: a symbol that macOS draws and scales at any size, or a picture from a file that
-/// stays whatever it is.
+/// "Symbol" and "Custom" draw the line where it actually falls: a symbol that macOS draws
+/// and scales at any size, or a picture from a file that stays whatever it is. Not
+/// "System", which the module-wide choice above uses for macOS's own device pictures.
 struct EventIconButtons: View {
     let event: String
     let category: NotificationCategory
     @Bindable var store: IconOverrideStore
+    /// Whether, with nothing chosen, this icon would be macOS's picture — the only case
+    /// where asking for the app's own picture changes anything.
+    var systemWouldApply: Bool = false
 
     @State private var isAskingForSymbol = false
 
@@ -173,10 +203,14 @@ struct EventIconButtons: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            Button("App") { store.setOverride(.original, for: event, in: category) }
+                .disabled(current == .original || (current == nil && !systemWouldApply))
+                .help("Keep this application's own icon here, even with the module set to System")
+
             Button("Custom", action: chooseFile)
                 .help("Use a picture from a file")
 
-            Button("System") { isAskingForSymbol = true }
+            Button("Symbol") { isAskingForSymbol = true }
                 .help("Browse the system's own symbols, or type one by name")
                 .popover(isPresented: $isAskingForSymbol, arrowEdge: .bottom) {
                     SFSymbolBrowser(
@@ -193,20 +227,13 @@ struct EventIconButtons: View {
                 // Nothing to undo when the icon is already the one the module ships with,
                 // and a button that does nothing is worse than one that is plainly unavailable.
                 .disabled(current == nil)
-                .help("Back to this notification's own icon")
+                .help("Back to whatever the module's App/System setting gives this notification")
         }
         .controlSize(.small)
         .buttonStyle(.bordered)
     }
 
     private func chooseFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.prompt = "Use as Icon"
-        panel.message = "Choose an image for this notification."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        store.setOverride(.file(url.path), for: event, in: category)
+        CustomIconChooser.choose(for: event, in: category, store: store)
     }
 }

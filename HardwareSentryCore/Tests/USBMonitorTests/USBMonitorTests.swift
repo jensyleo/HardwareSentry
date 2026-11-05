@@ -89,6 +89,28 @@ struct USBMonitorTests {
         #expect(events.first?.title == "USB Device Disconnected")
     }
 
+    @Test("arriving and leaving say what the icon depicts and which way it went")
+    func iconKindAndBadge() async {
+        let hub = USBDevice(name: "Hub", isHub: true)
+        let events = await run([.attached(hub), .detached(hub)])
+
+        #expect(events.map(\.iconKind) == ["usb.hub", "usb.hub"])
+        #expect(events.map(\.iconBadge) == [.positive, .negative])
+    }
+
+    @Test("a device's vendor and product ID are carried as its model")
+    func model() async {
+        let device = USBDevice(name: "Receiver", deviceClass: 0x09, detail: USBDeviceDetail(vendorID: 0x046D, productID: 0xC52B))
+        let events = await run([.attached(device), .detached(device)])
+        #expect(events.map(\.iconModel) == ["046d:c52b", "046d:c52b"])
+    }
+
+    @Test("a device that never said what it is is filed as a generic one")
+    func genericIconKind() async {
+        let events = await run([.attached(USBDevice(name: "Thing"))])
+        #expect(events.first?.iconKind == "usb.generic")
+    }
+
     // Asked for directly, once independent USB notices for Camera and Audio made one
     // physical connect produce up to three separate banners: a way to fold this
     // module's own generic one away for whichever kinds another monitor already speaks
@@ -464,7 +486,10 @@ struct USBClassNameTests {
     }
 }
 
-@Suite("USB device detail")
+// Serialized: several of these switch `USBWirelessDetectionSettings.shared` off and back
+// on, and that is one setting for the whole process. Run side by side, one test turning
+// Wi-Fi detection off made another's Wi-Fi dongle read as something else.
+@Suite("USB device detail", .serialized)
 struct USBDeviceDetailTests {
     @Test("the vendor and product IDs read as the hex pair everyone quotes")
     func vidPidIsHex() {

@@ -1,4 +1,5 @@
 import Foundation
+import SentryContract
 
 /// What kind of thing a network interface actually is, as far as a person cares.
 ///
@@ -13,6 +14,12 @@ public enum NetworkInterfaceKind: String, Sendable, Equatable, CaseIterable {
     /// neither Wi-Fi nor plain Ethernet — worth reporting, just not with either of those
     /// two icons.
     case other
+
+    /// What this kind's icon depicts, for swapping in another picture of the same thing.
+    /// Wired and "other" share artwork, so they share a kind.
+    public var iconKind: DeviceIconKind {
+        self == .wifi ? DeviceIconKind("network", "wifi") : DeviceIconKind("network", "wired")
+    }
 
     var label: String {
         switch self {

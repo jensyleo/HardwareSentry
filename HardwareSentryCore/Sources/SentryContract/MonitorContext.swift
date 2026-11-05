@@ -91,6 +91,9 @@ public struct MonitorContext: Sendable {
         title: String,
         body: String,
         icon: NotificationIcon = .none,
+        iconKind: DeviceIconKind? = nil,
+        iconModel: String? = nil,
+        iconBadge: IconBadge? = nil,
         priority: NotificationEvent.Priority = .normal,
         onInteraction: NotificationInteractionHandler? = nil
     ) async {
@@ -102,6 +105,9 @@ public struct MonitorContext: Sendable {
                 title: title,
                 body: body,
                 icon: icon,
+                iconKind: iconKind?.rawValue,
+                iconModel: iconModel,
+                iconBadge: iconBadge,
                 priority: priority,
                 onInteraction: onInteraction
             )

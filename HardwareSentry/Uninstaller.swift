@@ -68,6 +68,10 @@ enum Uninstaller {
         // (backticks, `$`, `;`, double quotes) cannot escape from.
         var script = "sleep 1\n"
         script += "defaults delete \(shellQuoted(bundleID)) >/dev/null 2>&1\n"
+        // Named outright, not only matched by the search below: this folder holds the
+        // notification history and every picture somebody chose as an icon, and is the
+        // one place this application keeps files of its own.
+        script += "rm -rf \(shellQuoted("\(home)/Library/Application Support/HardwareSentry")) >/dev/null 2>&1\n"
         for directory in searchDirectories {
             let path = "\(home)/\(directory)"
             script += "find \(shellQuoted(path)) -maxdepth 1 -iname \(shellQuoted("*\(bundleID)*")) -exec rm -rf {} + >/dev/null 2>&1\n"

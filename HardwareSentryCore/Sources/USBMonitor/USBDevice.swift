@@ -1,4 +1,5 @@
 import Foundation
+import SentryContract
 
 /// A USB device, as much of one as is worth telling someone about.
 public struct USBDevice: Sendable, Equatable {
@@ -330,6 +331,12 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         else { return nil }
         self = kind
     }
+
+    /// What this kind's icon depicts, for swapping in another picture of the same thing.
+    public var iconKind: DeviceIconKind { DeviceIconKind("usb", rawValue) }
+
+    /// A device that never said what it is.
+    public static let genericIconKind = DeviceIconKind("usb", "generic")
 
     public var iconBaseName: String {
         switch self {

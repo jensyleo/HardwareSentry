@@ -6,7 +6,7 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** pre-release, version 0.2.0. Every module below is ported and covered by the
+**Status:** pre-release, version 0.3.0. Every module below is ported and covered by the
 parity audit; see `CHANGELOG.md` for what has landed so far and `KNOWN-ISSUES.md` for what
 is understood, small, and not yet worth holding a release for.
 
@@ -22,7 +22,10 @@ Wi-Fi, displays, volumes, power, thermal state, audio devices, cameras, printers
 controllers, and network scanners.
 
 Each raises notifications you can switch on and off individually, and each message can
-carry extra detail lines you choose. `Help ▸ HardwareSentry Help` documents every module,
+carry extra detail lines you choose. Notification icons are macOS's own picture of each
+device by default — the exact model, for Apple's accessories — with a small mark for
+connected, disconnected or needing attention; any module, or any single notification, can
+use this application's own artwork, an SF Symbol or a picture of your own instead. `Help ▸ HardwareSentry Help` documents every module,
 notification and setting; that reference is generated from the modules themselves, so it
 describes what the build in front of you actually does.
 

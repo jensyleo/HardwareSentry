@@ -77,6 +77,10 @@ public struct MonitorEventDescription: Sendable, Hashable {
     /// ordinary case, which is what somebody scanning the list needs in order to recognise
     /// the row they came to change.
     public let icon: NotificationIcon
+    /// What `icon` depicts, when it is a device — so preferences can show the same row
+    /// with another picture of that device. Nil for an icon that depicts an idea, and for
+    /// an event whose device is only known once something connects. See `DeviceIconKind`.
+    public let iconKind: DeviceIconKind?
     /// Which heading this row sits under in preferences.
     ///
     /// Nil for a monitor whose events are few enough to read as one list, which is most of
@@ -94,12 +98,14 @@ public struct MonitorEventDescription: Sendable, Hashable {
         title: String,
         enabledByDefault: Bool = true,
         icon: NotificationIcon = .none,
+        iconKind: DeviceIconKind? = nil,
         group: String? = nil
     ) {
         self.name = name
         self.title = title
         self.enabledByDefault = enabledByDefault
         self.icon = icon
+        self.iconKind = iconKind
         self.group = group
     }
 

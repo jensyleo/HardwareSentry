@@ -8,7 +8,8 @@ let package = Package(
     ],
     products: [
         .library(name: "MonitorRegistry", targets: ["MonitorRegistry"]),
-        .library(name: "SentryContract", targets: ["SentryContract"])
+        .library(name: "SentryContract", targets: ["SentryContract"]),
+        .library(name: "SystemIcons", targets: ["SystemIcons"])
     ],
     dependencies: [
         .package(path: "../../SignalCore")
@@ -121,6 +122,14 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
 
+        // The operating system's own pictures of devices, read at run time. No artwork of
+        // Apple's is part of this package; only the paths to where macOS keeps it.
+        .target(
+            name: "SystemIcons",
+            dependencies: [.product(name: "SignalCore", package: "SignalCore")],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+
         // The only place that knows the whole list.
         .target(
             name: "MonitorRegistry",
@@ -199,6 +208,16 @@ let package = Package(
         .testTarget(
             name: "PowerMonitorTests",
             dependencies: ["PowerMonitor", "SentryTestSupport"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "SystemIconsTests",
+            dependencies: ["SystemIcons", .product(name: "SignalCore", package: "SignalCore")],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "MonitorRegistryTests",
+            dependencies: ["MonitorRegistry", "SentryContract", "SystemIcons"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
