@@ -19,6 +19,54 @@ public struct UnreadablePartition: Sendable, Equatable {
         self.displayName = displayName
         self.isInternal = isInternal
     }
+
+    /// The same partition, described under another name.
+    func named(_ name: String) -> UnreadablePartition {
+        UnreadablePartition(bsdName: bsdName, wholeDiskName: wholeDiskName, displayName: name, isInternal: isInternal)
+    }
+}
+
+/// What to call an unreadable disk, and which of its partitions can be unreadable at all.
+public enum UnreadableDiskNaming {
+    /// What somebody would call the device they plugged in: its maker and model —
+    /// "KINGSTON DT 100 G2" — or failing that the name its media reports, without the
+    /// " Media" the system appends to it. Nil when the disk says nothing usable.
+    ///
+    /// The *disk's* name rather than a partition's: a partition's media name is whatever
+    /// the partitioning scheme called it, and for an Apple Partition Map that is the single
+    /// word "Apple" — which read as "Apple could not be read".
+    public static func deviceName(vendor: String?, model: String?, mediaName: String?) -> String? {
+        let vendor = clean(vendor), model = clean(model)
+        switch (vendor, model) {
+        case let (vendor?, model?):
+            // Some devices repeat their maker at the start of the model already.
+            return model.lowercased().hasPrefix(vendor.lowercased()) ? model : "\(vendor) \(model)"
+        case let (nil, model?): return model
+        case let (vendor?, nil): return vendor
+        case (nil, nil): break
+        }
+        guard var name = clean(mediaName) else { return nil }
+        if name.lowercased().hasSuffix(" media") {
+            let shortened = clean(String(name.dropLast(" media".count)))
+            if let shortened { name = shortened }
+        }
+        return name
+    }
+
+    /// Whether a partition of this content type is one that never holds a filesystem — a
+    /// partition map, a driver, free space. Those cannot be "read", so failing to mount
+    /// them is not a fault, and reporting it would call a healthy disk damaged.
+    public static func holdsNoFilesystem(contentType: String?) -> Bool {
+        guard let contentType else { return false }
+        if contentType.hasPrefix("Apple_Driver") { return true }
+        return ["Apple_partition_map", "Apple_Free", "Apple_Void", "Apple_Scratch", "Apple_Patches"]
+            .contains(contentType)
+    }
+
+    private static func clean(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
 }
 
 /// Decides when to say a disk could not be read, and how to word it.

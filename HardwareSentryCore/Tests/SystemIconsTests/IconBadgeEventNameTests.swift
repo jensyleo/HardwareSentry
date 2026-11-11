@@ -6,7 +6,8 @@ import Testing
 struct IconBadgeEventNameTests {
     @Test("arrivals are positive", arguments: [
         "USBConnectedKeyboard", "VolumeMountedNAS", "ScannerFound", "AudioMIDIDeviceAdded",
-        "NetworkAdapterAttaching", "NetworkLinkUp", "BluetoothPaired", "WifiRadioOn", "DisplayConnected"
+        "NetworkAdapterAttaching", "NetworkLinkUp", "BluetoothPaired", "WifiRadioOn", "DisplayConnected",
+        "VolumeResponding"
     ])
     func positive(_ name: String) {
         #expect(IconBadge.representative(forEventName: name) == .positive)
@@ -21,7 +22,8 @@ struct IconBadgeEventNameTests {
     }
 
     @Test("trouble is a warning", arguments: [
-        "VolumeLowSpaceNAS", "VolumeNotReadable", "VolumeUnsafeEject", "AudioDeviceStoppedResponding", "ThermalCritical"
+        "VolumeLowSpaceNAS", "VolumeNotReadable", "VolumeUnsafeEject", "AudioDeviceStoppedResponding", "ThermalCritical",
+        "VolumeNotResponding"
     ])
     func warning(_ name: String) {
         #expect(IconBadge.representative(forEventName: name) == .warning)

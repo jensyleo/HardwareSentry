@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Network
 import SentryContract
 import SignalCore
 
@@ -48,7 +49,11 @@ public actor VolumeMonitor: Monitor {
         .init(name: VolumeEvent.mounted.rawValue, title: "Mounted (generic)", icon: .asset("DisksVolumes-Mounted", in: .module), iconKind: VolumeKind.genericIconKind),
         .init(name: VolumeEvent.unmounted.rawValue, title: "Unmounted (generic)", icon: .asset("DisksVolumes-Eject", in: .module), iconKind: VolumeKind.genericIconKind),
         .init(name: VolumeEvent.unsafeEject.rawValue, title: "Ejected Unsafely", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module), iconKind: VolumeKind.genericIconKind),
-        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module), iconKind: VolumeKind.genericIconKind)
+        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module), iconKind: VolumeKind.genericIconKind),
+        // The network drive's own picture, marked rather than redrawn: it has no "not
+        // answering" version, and the state is what these two are about.
+        .init(name: VolumeEvent.notResponding.rawValue, title: "Network Drive Not Responding", icon: .asset(VolumeKind.nas.iconBaseName, in: .module), iconKind: VolumeKind.nas.iconKind),
+        .init(name: VolumeEvent.responding.rawValue, title: "Network Drive Responding Again", icon: .asset(VolumeKind.nas.iconBaseName, in: .module), iconKind: VolumeKind.nas.iconKind)
     ]
 
     /// Said outright: the first event is now an optical disc, and this module is about
@@ -79,13 +84,52 @@ public actor VolumeMonitor: Monitor {
     /// ask what it was, so the artwork has to come from what was seen on the way in.
     private var kindByPath: [String: VolumeKind] = [:]
 
+    // MARK: - Network drives that stop answering
+
+    /// What is known about one mounted network volume's server.
+    private struct NetworkVolumeState {
+        let endpoint: NetworkVolumeEndpoint
+        let name: String
+        /// Whether the server has ever answered since this was mounted. Until it has, a
+        /// failure is not news — it may be that this application is not allowed to reach
+        /// the local network at all, which looks exactly like a server that is down.
+        var hasResponded = false
+        var failures = 0
+        var isReportedDown = false
+    }
+
+    private let reachabilityProbe: (any NetworkReachabilityProbe)?
+    private let reachabilityInterval: Duration
+    /// How soon to ask again once an answer has failed once, so a real outage is confirmed
+    /// in seconds rather than after a whole interval — and a blip is not mistaken for one.
+    private let reachabilityFollowUp: Duration
+    private let reachabilityTimeout: Duration
+    private let watchesNetworkPath: Bool
+    /// Consecutive failed checks before saying so.
+    private let failuresBeforeReporting = 2
+    private var networkVolumes: [String: NetworkVolumeState] = [:]
+    private var reachabilityTask: Task<Void, Never>?
+    private var reachabilitySleep: Task<Void, Never>?
+    private var pathMonitor: NWPathMonitor?
+    private var lastReachabilityRound: ContinuousClock.Instant?
+
     public init(
         source: any VolumeSource,
         context: MonitorContext,
         unmountWait: Double = 600,
         exclusions: VolumeExclusions = VolumeExclusions(),
-        lowSpaceThresholdPercent: Double = 5
+        lowSpaceThresholdPercent: Double = 5,
+        reachabilityProbe: (any NetworkReachabilityProbe)? = nil,
+        reachabilityInterval: Duration = .seconds(10),
+        reachabilityFollowUp: Duration = .seconds(3),
+        reachabilityTimeout: Duration = .seconds(3),
+        watchesNetworkPath: Bool = false
     ) {
+        self.reachabilityProbe = reachabilityProbe
+        self.reachabilityInterval = reachabilityInterval
+        self.reachabilityFollowUp = reachabilityFollowUp
+        self.reachabilityTimeout = reachabilityTimeout
+        self.watchesNetworkPath = watchesNetworkPath
         self.source = source
         self.context = context
         self.unmountWaitNanoseconds = UInt64(unmountWait * 1_000_000_000)
@@ -140,6 +184,7 @@ public actor VolumeMonitor: Monitor {
                 await self.handle(event)
             }
         }
+        startReachabilityChecks()
     }
 
     public func stop() async {
@@ -147,6 +192,124 @@ public actor VolumeMonitor: Monitor {
         watching = nil
         expectedUnmountExpiries.values.forEach { $0.cancel() }
         expectedUnmountExpiries.removeAll()
+        reachabilityTask?.cancel()
+        reachabilityTask = nil
+        reachabilitySleep?.cancel()
+        reachabilitySleep = nil
+        pathMonitor?.cancel()
+        pathMonitor = nil
+    }
+
+    // MARK: - Reachability
+
+    private func startReachabilityChecks() {
+        guard reachabilityProbe != nil, reachabilityTask == nil else { return }
+        reachabilityTask = Task { await self.reachabilityLoop() }
+
+        guard watchesNetworkPath else { return }
+        // The network changing is when a share is most likely to have just gone, so it
+        // brings the next check forward instead of waiting out the interval.
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] _ in
+            guard let self else { return }
+            Task { await self.checkSoon() }
+        }
+        monitor.start(queue: DispatchQueue(label: "VolumeMonitor.path", qos: .utility))
+        pathMonitor = monitor
+    }
+
+    /// Ends the wait before the next check, so it happens now. Rate-limited: a network
+    /// settling reports several changes in a row, and one check answers all of them.
+    private func checkSoon() {
+        if let last = lastReachabilityRound, ContinuousClock.now - last < .seconds(1) { return }
+        reachabilitySleep?.cancel()
+    }
+
+    private func reachabilityLoop() async {
+        var wait = reachabilityInterval
+        while !Task.isCancelled {
+            // A task of its own, so `checkSoon` can cut the wait short without cancelling
+            // the loop.
+            let pause = wait
+            let sleep = Task<Void, Never> { _ = try? await Task.sleep(for: pause) }
+            reachabilitySleep = sleep
+            await sleep.value
+            guard !Task.isCancelled else { return }
+
+            lastReachabilityRound = .now
+            let suspect = await runReachabilityRound()
+            wait = suspect ? reachabilityFollowUp : reachabilityInterval
+        }
+    }
+
+    /// Asks every mounted network volume's server whether it is answering, all at once.
+    /// - Returns: whether any of them has just failed for the first time and wants asking
+    ///   again soon.
+    private func runReachabilityRound() async -> Bool {
+        guard let probe = reachabilityProbe, !networkVolumes.isEmpty else { return false }
+        let targets = networkVolumes.map { (path: $0.key, endpoint: $0.value.endpoint) }
+        let timeout = reachabilityTimeout
+
+        let answers = await withTaskGroup(of: (String, Bool).self) { group in
+            for target in targets {
+                group.addTask {
+                    (target.path, await probe.isReachable(host: target.endpoint.host, port: target.endpoint.port, timeout: timeout))
+                }
+            }
+            var collected: [(String, Bool)] = []
+            for await answer in group { collected.append(answer) }
+            return collected
+        }
+
+        var wantsAnotherLook = false
+        for (path, reachable) in answers {
+            // Gone while the question was out: nothing left to say about it.
+            guard var state = networkVolumes[path] else { continue }
+            var announcement: VolumeEvent?
+
+            if reachable {
+                state.hasResponded = true
+                state.failures = 0
+                if state.isReportedDown {
+                    state.isReportedDown = false
+                    announcement = .responding
+                }
+            } else if state.hasResponded {
+                state.failures += 1
+                if state.failures >= failuresBeforeReporting {
+                    if !state.isReportedDown {
+                        state.isReportedDown = true
+                        announcement = .notResponding
+                    }
+                } else {
+                    wantsAnotherLook = true
+                }
+            }
+            // Written back before anything is awaited: another event can run while a
+            // notification is being delivered.
+            networkVolumes[path] = state
+
+            if let announcement { await announce(announcement, path: path, state: state) }
+        }
+        return wantsAnotherLook
+    }
+
+    private func announce(_ event: VolumeEvent, path: String, state: NetworkVolumeState) async {
+        let isDown = event == .notResponding
+        await context.notify(
+            event.rawValue,
+            subject: path,
+            title: isDown ? "\(state.name) Not Responding" : "\(state.name) Responding Again",
+            body: await context.body([
+                .always(isDown
+                    ? "The server \(state.endpoint.host) is not answering. The drive is still mounted, but its files may not open until the network or the server is back."
+                    : "The server \(state.endpoint.host) is answering again.")
+            ]),
+            icon: .asset(VolumeKind.nas.iconBaseName, in: .module),
+            iconKind: VolumeKind.nas.iconKind,
+            iconBadge: isDown ? .warning : .positive,
+            showsIconBadge: true
+        )
     }
 
     private func handle(_ event: VolumeSourceEvent) async {
@@ -198,6 +361,14 @@ public actor VolumeMonitor: Monitor {
                 }
             )
             if let kind = detail.kind { kindByPath[path] = kind }
+            // Only a network drive has a server to ask, and only while this is checking.
+            if reachabilityProbe != nil, detail.kind == .nas,
+               let endpoint = NetworkVolumeEndpoint.parse(mountSource: detail.mountSource, fileSystemType: detail.fileSystemType) {
+                networkVolumes[path] = NetworkVolumeState(endpoint: endpoint, name: name)
+                // Asked now rather than after an interval, so the baseline — "this server
+                // does answer" — exists before it matters.
+                checkSoon()
+            }
             // Remembered from the mount, because the low-space poll reads percentages
             // rather than re-reading each volume's resource values every five minutes.
             if let purgeable = detail.purgeableAwareFreeLabel { purgeableAwareFreeByPath[path] = purgeable }
@@ -239,6 +410,7 @@ public actor VolumeMonitor: Monitor {
             expectedUnmountExpiries.removeValue(forKey: path)?.cancel()
             let wasExpected = pathsExpectingUnmount.remove(path) != nil
             let kind = kindByPath.removeValue(forKey: path)
+            networkVolumes.removeValue(forKey: path)
             pathsBelowSpaceThreshold.remove(path)
             purgeableAwareFreeByPath.removeValue(forKey: path)
             if !wasExpected {

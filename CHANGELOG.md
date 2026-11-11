@@ -5,6 +5,53 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.1.0] - 2026-11-11
+
+Found by plugging real hardware in: a Magic Mouse and keyboard, two USB drives, a USB hub,
+and a network drive.
+
+### Added
+
+- **A network drive that stops answering is reported.** macOS keeps an SMB, AFP, NFS, WebDAV
+  or FTP share mounted when its server disappears — the Wi-Fi drops, the NAS is switched off,
+  a cable comes out — and never says so, so nothing was reported. Volume Monitor now asks each
+  mounted network drive's server whether it is answering, and raises *Network Drive Not
+  Responding* when it stops and *Network Drive Responding Again* when it is back. The check is
+  one connection to the server's own port (445 for SMB), so nothing is read from the drive and
+  nothing hangs on a dead share. A first failed answer is checked again a few seconds later and
+  only two in a row are reported, so a blip is not an outage; a change in the network brings
+  the next check forward, which in practice reports a lost connection within about five
+  seconds. A server is only reported once it has been seen answering, so refusing the
+  permission below leaves the feature quiet rather than wrong. How often it checks (5 – 60 s,
+  ten by default) is in Settings → Volume.
+- **A microphone is drawn as a microphone.** A device that can only listen — a USB or
+  line-in microphone — is announced with the microphone artwork instead of a speaker, with the
+  connected or disconnected mark on it.
+- **Local Network permission text.** Checking a network drive is a connection to another
+  machine on the local network, which macOS gates behind its Local Network permission; the
+  prompt now explains why. The README's permissions section says so.
+
+### Changed
+
+- **A NAS keeps this application's own picture.** The closest thing macOS has is a disk with a
+  Wi-Fi symbol, which reads as a wireless drive rather than a network share. Headphones and
+  headsets also keep this application's pictures: macOS's are black and all but vanish on a
+  dark banner.
+- **The USB module keeps its own icon in the module list.** With macOS's pictures it showed the
+  same yellow disk as Volume, so the two could not be told apart.
+- The Icons tab says *App icon — no macOS equivalent* beside the rows that keep this
+  application's artwork.
+
+### Fixed
+
+- **"Disk Not Readable" named the wrong thing.** For a drive with an old Apple partition
+  layout it read "Apple could not be read": it used the name of a partition inside the disk —
+  the partition map is called "Apple" — instead of the disk. It now names the device the way
+  somebody would, by maker and model.
+- **A healthy drive with that layout could be reported as damaged.** A partition map, a driver
+  or free space can never mount, so failing to mount one is not a fault; they are no longer
+  counted as unreadable.
+
 ## [1.0.0] - 2026-11-05
 
 The first stable release.

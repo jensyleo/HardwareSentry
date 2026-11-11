@@ -270,7 +270,13 @@ public actor AudioMonitor: Monitor {
                 subject: id,
                 title: "Audio Device Connected",
                 body: await context.body(Self.detailLines(for: device)),
-                icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: .positive
+                icon: Self.connectionIcon(for: device.detail, connected: true),
+                iconKind: Self.connectionIconKind(for: device.detail),
+                iconBadge: .positive,
+                // The microphone artwork has no "gone" version to paint the state into,
+                // so the state is marked on it instead — the same way it is on a picture
+                // from macOS.
+                showsIconBadge: device.detail.isInputOnly
             )
         }
         for id in knownIDs.subtracting(currentIDs) {
@@ -284,10 +290,36 @@ public actor AudioMonitor: Monitor {
             } ?? false
             guard wasReported, !suppressedNow else { continue }
             let name = knownDevices[id]?.name ?? "Audio Device"
-            await context.notify(AudioEvent.disconnected.rawValue, subject: id, title: "Audio Device Disconnected", body: name, icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: .negative)
+            let detail = knownDevices[id]?.detail
+            await context.notify(
+                AudioEvent.disconnected.rawValue, subject: id, title: "Audio Device Disconnected", body: name,
+                icon: Self.connectionIcon(for: detail, connected: false),
+                iconKind: Self.connectionIconKind(for: detail),
+                iconBadge: .negative,
+                showsIconBadge: detail?.isInputOnly ?? false
+            )
         }
 
         knownDevices = current
+    }
+
+    /// A microphone for something that only listens, a speaker for everything else.
+    ///
+    /// The plain microphone, not "MicIdle": that one is drawn crossed out because it means
+    /// "nothing is using the microphone", and a crossed-out microphone beside a green tick
+    /// for one that has just been plugged in would contradict itself. A microphone has no
+    /// separate "gone" artwork, so its state is marked on it instead.
+    static func connectionIconName(for detail: AudioDeviceDetail?, connected: Bool) -> String {
+        if detail?.isInputOnly == true { return "AudioMonitor-Icon-MicInUse" }
+        return connected ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off"
+    }
+
+    static func connectionIcon(for detail: AudioDeviceDetail?, connected: Bool) -> NotificationIcon {
+        .asset(connectionIconName(for: detail, connected: connected), in: .module)
+    }
+
+    static func connectionIconKind(for detail: AudioDeviceDetail?) -> DeviceIconKind {
+        detail?.isInputOnly == true ? DeviceIconKind("audio", "microphone") : DeviceIconKind("audio", "speaker")
     }
 
     private enum DefaultKind { case output, input }

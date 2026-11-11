@@ -10,6 +10,10 @@ public enum VolumeEvent: String, NotificationEventKey, CaseIterable {
     case unsafeEject = "VolumeUnsafeEject"
     case notReadable = "VolumeNotReadable"
     case lowSpace = "VolumeLowSpace"
+    /// A network volume whose server has stopped answering while it is still mounted — which
+    /// is not an unmount, and so is something macOS never says on its own.
+    case notResponding = "VolumeNotResponding"
+    case responding = "VolumeResponding"
     // Three rows per kind of drive, as the original has it.
     case mountedOptical = "VolumeMountedOptical"
     case unmountedOptical = "VolumeUnmountedOptical"

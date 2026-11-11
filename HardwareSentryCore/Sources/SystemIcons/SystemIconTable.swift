@@ -27,8 +27,6 @@ public extension SystemIconCatalog {
             for: "usb.keyboard", "bluetooth.keyboard", "bluetooth.combo")
         set([Path.bluetoothUI + "/A125-White.icns", Path.bluetoothUI + "/Generic-Mouse.icns", Path.ioBluetoothUI + "/MightyMouse.icns"],
             for: "usb.mouse", "bluetooth.mouse")
-        set([Path.bluetoothUI + "/Generic-Headphones.png"],
-            for: "bluetooth.headphones", "bluetooth.headset", "audio.headphones")
         set([Path.bluetoothUI + "/Generic-Speakers.png", Path.coreTypes + "/GenericSpeaker.icns"],
             for: "bluetooth.speaker")
         set([Path.coreTypes + "/GenericSpeaker.icns", Path.bluetoothUI + "/Generic-Speakers.png"],
@@ -53,8 +51,6 @@ public extension SystemIconCatalog {
             for: "usb.sdCardReader", "volume.sdCard")
         set([Path.cd + "/CD.icns", Path.coreTypes + "/CDAudioVolumeIcon.icns"],
             for: "volume.optical")
-        set([Path.coreTypes + "/GenericAirDiskIcon.icns", Path.coreTypes + "/GenericNetworkIcon.icns"],
-            for: "volume.nas")
         set([Path.ioBluetoothUI + "/Bluetooth.icns", Path.bluetoothUI + "/Bluetooth.icns"],
             for: "bluetooth.generic", "usb.bluetoothAdapter")
         set([Path.coreTypes + "/GenericNetworkIcon.icns"],
@@ -66,9 +62,11 @@ public extension SystemIconCatalog {
     /// list of modules and as the module's own icon. A module missing here (Thunderbolt,
     /// Camera, and the ones that draw ideas) keeps its own artwork: macOS has nothing that
     /// says "Thunderbolt" or "camera" in general.
-    static let moduleKinds: [String: String] = [
-        "USB": "usb.massStorage",
-        "Bluetooth": "bluetooth.generic",
+    ///
+    /// USB is left out on purpose: its notifications for a drive use the same yellow disk
+    /// as Volume's, so the two modules would sit in the list with identical pictures, and
+    /// the application's USB symbol is the one that says which module is which.
+    static let moduleKinds: [String: String] = [        "Bluetooth": "bluetooth.generic",
         "Volume": "volume.externalDisk",
         "Display": "display.monitor",
         "Printer": "printer.printer",
@@ -78,9 +76,18 @@ public extension SystemIconCatalog {
         "Network": "network.wired"
     ]
 
-    /// Kinds macOS has no picture of. Listed rather than merely absent, so that leaving
-    /// one out of the table above is a decision someone made and not a kind nobody noticed.
+    /// Kinds that keep this application's artwork. Listed rather than merely absent, so that
+    /// leaving one out of the table above is a decision someone made and not a kind nobody
+    /// noticed.
+    ///
+    /// Mostly kinds macOS has no picture of. `volume.nas` is the exception, on purpose: the
+    /// closest thing macOS ships is a disk with a Wi-Fi symbol on it — the old AirPort disk
+    /// — which reads as a wireless drive rather than a network share, so a NAS keeps this
+    /// application's own picture of one. The headphones are the other: macOS's are black, and
+    /// on a dark banner they all but vanish, while this application's are coloured.
     static let withoutSystemImage: Set<String> = [
+        "volume.nas",
+        "bluetooth.headphones", "bluetooth.headset", "audio.headphones",
         "usb.hub", "usb.hid", "usb.webcam", "usb.smartCard", "usb.healthcare", "usb.audioVideo",
         "usb.typeCBridge", "usb.wireless", "usb.communications", "usb.serialAdapter",
         "usb.wifiAdapter", "usb.remoteControl", "usb.graphicsTablet", "usb.generic",

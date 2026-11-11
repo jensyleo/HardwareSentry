@@ -58,6 +58,7 @@ final class MonitorTuningModel {
             Self.bluetoothBLESecondsKey: 30.0,
             Self.printerSecondsKey: 8.0,
             Self.volumeFreeSpaceSecondsKey: 300.0,
+            Self.volumeReachabilitySecondsKey: 10.0,
             Self.connectionNamingKey: ConnectionNaming.mediumAndType.rawValue
         ])
 
@@ -101,6 +102,7 @@ final class MonitorTuningModel {
         bluetoothBLESeconds = defaults.double(forKey: Self.bluetoothBLESecondsKey)
         printerSeconds = defaults.double(forKey: Self.printerSecondsKey)
         volumeFreeSpaceSeconds = defaults.double(forKey: Self.volumeFreeSpaceSecondsKey)
+        volumeReachabilitySeconds = defaults.double(forKey: Self.volumeReachabilitySecondsKey)
         ignoredDrives = defaults.stringArray(forKey: Self.ignoredDrivesKey) ?? []
         namesReportingModule = defaults.bool(forKey: Self.namesReportingModuleKey)
         ignoresSystemManagedVolumes = defaults.object(forKey: Self.systemManagedVolumesKey) as? Bool ?? true
@@ -399,12 +401,23 @@ final class MonitorTuningModel {
         didSet { defaults.set(volumeFreeSpaceSeconds, forKey: Self.volumeFreeSpaceSecondsKey) }
     }
 
+    /// How often a mounted network drive's server is asked whether it is still there.
+    ///
+    /// Cheap — one connection to the server's port, nothing read from the drive — so this
+    /// can be much tighter than the free-space poll. Ten seconds is Kubernetes' default for
+    /// the same job, and with a second confirming look a few seconds later an outage is
+    /// reported in roughly a quarter of a minute.
+    var volumeReachabilitySeconds: Double {
+        didSet { defaults.set(volumeReachabilitySeconds, forKey: Self.volumeReachabilitySecondsKey) }
+    }
+
     var wifiRadioPollInterval: TimeInterval { max(5, wifiRadioSeconds) }
     var bluetoothPairedPollInterval: Duration { .seconds(max(1, Int(bluetoothPairedSeconds))) }
     var bluetoothSignalPollInterval: Duration { .seconds(max(1, Int(bluetoothSignalSeconds))) }
     var bluetoothBLEPollInterval: Duration { .seconds(max(1, Int(bluetoothBLESeconds))) }
     var printerPollInterval: Duration { .seconds(max(1, Int(printerSeconds))) }
     var volumeFreeSpacePollInterval: Duration { .seconds(max(1, Int(volumeFreeSpaceSeconds))) }
+    var volumeReachabilityInterval: Duration { .seconds(max(5, Int(volumeReachabilitySeconds))) }
 
     /// When the battery was last looked at, for the line under the "Check Now" button.
     /// Read fresh each time rather than observed: it changes once a week.
@@ -479,6 +492,7 @@ final class MonitorTuningModel {
     private static let bluetoothBLESecondsKey = "Bluetooth.BLEPollSeconds"
     private static let printerSecondsKey = "Printer.PollSeconds"
     private static let volumeFreeSpaceSecondsKey = "Volume.FreeSpacePollSeconds"
+    private static let volumeReachabilitySecondsKey = "Volume.ReachabilitySeconds"
     private static let connectionNamingKey = "HardwareSentry.ConnectionNaming"
     private static let namesReportingModuleKey = "HardwareSentry.NamesReportingModule"
     private static let systemManagedVolumesKey = "Volume.IgnoresSystemManaged"

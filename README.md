@@ -6,7 +6,7 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** version 1.0.0, the first stable release. Every module below is ported and
+**Status:** version 1.1.0. Every module below is ported and
 covered by the parity audit; see `CHANGELOG.md` for what has changed and `KNOWN-ISSUES.md`
 for what is understood, small, and not yet worth holding a release for.
 
@@ -22,7 +22,9 @@ Wi-Fi, displays, volumes, power, thermal state, audio devices, cameras, printers
 controllers, and network scanners.
 
 Each raises notifications you can switch on and off individually, and each message can
-carry extra detail lines you choose. Notification icons are macOS's own picture of each
+carry extra detail lines you choose. A mounted network drive whose server stops answering —
+which macOS never reports, since it keeps the share mounted — is reported too, and so is its
+return. Notification icons are macOS's own picture of each
 device by default — the exact model, for Apple's accessories — with a small mark for
 connected, disconnected or needing attention; any module, or any single notification, can
 use this application's own artwork, an SF Symbol or a picture of your own instead. `Help ▸ HardwareSentry Help` documents every module,
@@ -47,7 +49,10 @@ anything else:
   treats a network name as a location. The actual location is never read.
 
 The Scanner module also triggers the Local Network prompt, which is why it ships switched
-off.
+off. So does Volume while a network drive (SMB, AFP, NFS, WebDAV or FTP) is mounted: it
+checks that the drive's server is still answering, by opening one connection to it — nothing
+is read from the drive. If that permission is refused the check simply stays quiet; it never
+reports a server as down that it has not first seen answer.
 
 ## Building
 

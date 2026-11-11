@@ -13,9 +13,9 @@ public extension IconBadge {
     /// The negatives and warnings are checked first because the positives hide inside
     /// them: "Disconnected" contains "Connected", "Unmounted" contains "Mounted".
     static func representative(forEventName name: String) -> IconBadge? {
-        let warnings = ["LowSpace", "Critical", "NotReadable", "UnsafeEject", "StoppedResponding", "SupplyLow", "Error"]
+        let warnings = ["LowSpace", "Critical", "NotReadable", "NotResponding", "UnsafeEject", "StoppedResponding", "SupplyLow", "Error"]
         let negatives = ["Disconnected", "Unmounted", "Lost", "Removed", "Detaching", "LinkDown", "Unpaired", "RadioOff", "Off"]
-        let positives = ["Connected", "Mounted", "Found", "Added", "Attaching", "LinkUp", "Paired", "RadioOn", "On"]
+        let positives = ["Connected", "Mounted", "Found", "Added", "Attaching", "LinkUp", "Paired", "RadioOn", "Responding", "On"]
         if warnings.contains(where: name.contains) { return .warning }
         if negatives.contains(where: { name.contains($0) && !(($0 == "Off") && !name.hasSuffix("Off")) }) { return .negative }
         if positives.contains(where: { name.contains($0) && !(($0 == "On") && !name.hasSuffix("On")) }) { return .positive }

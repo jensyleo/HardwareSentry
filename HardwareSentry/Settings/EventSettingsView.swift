@@ -345,6 +345,15 @@ private struct ModuleDetail: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Network drives") {
+                    slider(
+                        "Check that the server answers every",
+                        value: $tuning.volumeReachabilitySeconds,
+                        range: 5...60,
+                        caption: "macOS keeps a network drive mounted when its server disappears, so it never says so itself. Each mounted network drive's server is asked on this schedule (5 – 60 s); after one failed answer it is asked again a few seconds later, and only two in a row are reported — \u{201C}Not Responding\u{201D}, and \u{201C}Responding Again\u{201D} when it comes back. A change in the network brings the next check forward. It is one connection to the server's own port, so nothing is read from the drive. Takes effect the next time the application starts."
+                    )
+                }
+
                 Section("Free-space polling") {
                     slider(
                         "Re-check every",
@@ -787,7 +796,7 @@ private struct ModuleDetail: View {
                             )
                             Text(event.title)
                             if keepsAppIconUnderSystem(event) {
-                                Text("App icon — macOS has none")
+                                Text("App icon — no macOS equivalent")
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }

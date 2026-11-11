@@ -425,3 +425,254 @@ struct VolumeKindRowTests {
         #expect(VolumeMonitor.icon != VolumeMonitor.events.first?.icon)
     }
 }
+
+@Suite("UnreadableDiskNaming")
+struct UnreadableDiskNamingTests {
+    @Test("a disk is named by its maker and model — the real Kingston stick that read as 'Apple'")
+    func makerAndModel() {
+        #expect(UnreadableDiskNaming.deviceName(vendor: "KINGSTON", model: "DT 100 G2", mediaName: "DT 100 G2") == "KINGSTON DT 100 G2")
+        #expect(UnreadableDiskNaming.deviceName(vendor: "  Kingston ", model: " DT 100 G2 ", mediaName: nil) == "Kingston DT 100 G2")
+    }
+
+    @Test("a model that already starts with its maker is not repeated")
+    func noRepeatedMaker() {
+        #expect(UnreadableDiskNaming.deviceName(vendor: "SanDisk", model: "SanDisk Ultra", mediaName: nil) == "SanDisk Ultra")
+    }
+
+    @Test("with only half the pair, the half there is — and with neither, the media name without its ' Media'")
+    func fallbacks() {
+        #expect(UnreadableDiskNaming.deviceName(vendor: nil, model: "DT 100 G2", mediaName: nil) == "DT 100 G2")
+        #expect(UnreadableDiskNaming.deviceName(vendor: "Generic", model: "", mediaName: nil) == "Generic")
+        #expect(UnreadableDiskNaming.deviceName(vendor: nil, model: nil, mediaName: "KINGSTON DT 100 G2 Media") == "KINGSTON DT 100 G2")
+        #expect(UnreadableDiskNaming.deviceName(vendor: "", model: "  ", mediaName: "Card Reader") == "Card Reader")
+    }
+
+    @Test("a disk that says nothing usable gives no name, so the caller keeps its own")
+    func nothing() {
+        #expect(UnreadableDiskNaming.deviceName(vendor: nil, model: nil, mediaName: nil) == nil)
+        #expect(UnreadableDiskNaming.deviceName(vendor: " ", model: "", mediaName: "  ") == nil)
+        #expect(UnreadableDiskNaming.deviceName(vendor: nil, model: nil, mediaName: " Media") == "Media")
+    }
+
+    @Test("partition maps, drivers and free space can never be unreadable")
+    func nonDataPartitions() {
+        for type in ["Apple_partition_map", "Apple_Driver43", "Apple_Driver_ATA", "Apple_Free", "Apple_Void", "Apple_Scratch", "Apple_Patches"] {
+            #expect(UnreadableDiskNaming.holdsNoFilesystem(contentType: type), "\(type)")
+        }
+    }
+
+    @Test("a data partition, or one whose type is unknown, still counts")
+    func dataPartitions() {
+        for type in ["Apple_HFS", "Apple_APFS", "Microsoft Basic Data", "Windows_NTFS", "Linux Filesystem", "EFI", ""] {
+            #expect(!UnreadableDiskNaming.holdsNoFilesystem(contentType: type), "\(type)")
+        }
+        #expect(!UnreadableDiskNaming.holdsNoFilesystem(contentType: nil))
+    }
+
+    @Test("a partition can be re-described under the disk's name without losing anything else")
+    func renamed() {
+        let part = UnreadablePartition(bsdName: "disk4s1", wholeDiskName: "disk4", displayName: "Apple", isInternal: false)
+        let renamed = part.named("KINGSTON DT 100 G2")
+        #expect(renamed.displayName == "KINGSTON DT 100 G2")
+        #expect(renamed.bsdName == "disk4s1")
+        #expect(renamed.wholeDiskName == "disk4")
+        #expect(!renamed.isInternal)
+
+        var tracker = UnreadableDiskTracker()
+        let report = tracker.consider(unreadable: [renamed], readableWholeDisks: [])
+        #expect(report.first?.message == "KINGSTON DT 100 G2 could not be read. It may be unformatted or use an unsupported file system.")
+    }
+}
+
+@Suite("NetworkVolumeEndpoint")
+struct NetworkVolumeEndpointTests {
+    private func parse(_ source: String?, _ type: String?) -> NetworkVolumeEndpoint? {
+        NetworkVolumeEndpoint.parse(mountSource: source, fileSystemType: type)
+    }
+
+    @Test("an SMB share is found at its server's SMB port — the real mount of a NAS called nas")
+    func smb() {
+        #expect(parse("//Admin@nas/LEO", "smbfs") == NetworkVolumeEndpoint(host: "nas", port: 445))
+        #expect(parse("//GUEST:@192.168.1.5/share", "smbfs") == NetworkVolumeEndpoint(host: "192.168.1.5", port: 445))
+        #expect(parse("//nas/share", "smbfs") == NetworkVolumeEndpoint(host: "nas", port: 445))
+    }
+
+    @Test("a password with awkward characters does not leak into the host")
+    func smbCredentials() {
+        #expect(parse("//user:p%40ss@host.local/share", "smbfs")?.host == "host.local")
+        #expect(parse("//a:b@c@nas/share", "smbfs")?.host == "nas")
+    }
+
+    @Test("an explicit port is honoured, with or without the brackets an IPv6 address needs")
+    func ports() {
+        #expect(parse("//nas:4455/x", "smbfs") == NetworkVolumeEndpoint(host: "nas", port: 4455))
+        #expect(parse("//user@[fe80::1]:4455/x", "smbfs") == NetworkVolumeEndpoint(host: "fe80::1", port: 4455))
+        #expect(parse("//user@[fe80::1]/x", "smbfs") == NetworkVolumeEndpoint(host: "fe80::1", port: 445))
+        #expect(parse("//user@fe80::1/x", "smbfs")?.host == "fe80::1")
+    }
+
+    @Test("a share found through Bonjour is turned back into a name that can be looked up")
+    func bonjour() {
+        #expect(parse("//user@Leo-NAS._smb._tcp.local/Share", "smbfs")?.host == "Leo-NAS.local")
+        #expect(parse("afp_0TrHMlKS00Chj0CHf0Hm@Server._afpovertcp._tcp.local/Share", "afpfs") == NetworkVolumeEndpoint(host: "Server.local", port: 548))
+    }
+
+    @Test("NFS, WebDAV and FTP are found at their own ports")
+    func otherProtocols() {
+        #expect(parse("nas:/export/media", "nfs") == NetworkVolumeEndpoint(host: "nas", port: 2049))
+        #expect(parse("http://dav.example.com/path", "webdav") == NetworkVolumeEndpoint(host: "dav.example.com", port: 80))
+        #expect(parse("https://dav.example.com/path", "webdav") == NetworkVolumeEndpoint(host: "dav.example.com", port: 443))
+        #expect(parse("https://dav.example.com:8443/path", "webdav") == NetworkVolumeEndpoint(host: "dav.example.com", port: 8443))
+        #expect(parse("ftp://ftp.example.com/pub", "ftp") == NetworkVolumeEndpoint(host: "ftp.example.com", port: 21))
+    }
+
+    @Test("anything that is not a network share, or names no host, gives nothing")
+    func refusals() {
+        #expect(parse(nil, "smbfs") == nil)
+        #expect(parse("", "smbfs") == nil)
+        #expect(parse("//nas/x", nil) == nil)
+        #expect(parse("/dev/disk3s1", "apfs") == nil)
+        #expect(parse("//@/share", "smbfs") == nil)
+        #expect(parse("nocolon", "nfs") == nil)
+        #expect(parse(":/export", "nfs") == nil)
+    }
+}
+
+/// Answers a network drive's "are you there?" from a script, repeating the last answer.
+actor ScriptedProbe: NetworkReachabilityProbe {
+    private var answers: [Bool]
+    private var last = true
+    private(set) var asked = 0
+
+    init(_ answers: [Bool]) { self.answers = answers }
+
+    func isReachable(host: String, port: UInt16, timeout: Duration) async -> Bool {
+        asked += 1
+        if !answers.isEmpty { last = answers.removeFirst() }
+        return last
+    }
+}
+
+final class LiveVolumeSource: VolumeSource, @unchecked Sendable {
+    private let stream: AsyncStream<VolumeSourceEvent>
+    private let continuation: AsyncStream<VolumeSourceEvent>.Continuation
+
+    init() {
+        var escaped: AsyncStream<VolumeSourceEvent>.Continuation!
+        stream = AsyncStream { escaped = $0 }
+        continuation = escaped
+    }
+
+    func changes() -> AsyncStream<VolumeSourceEvent> { stream }
+    func send(_ event: VolumeSourceEvent) { continuation.yield(event) }
+}
+
+@Suite("VolumeMonitor · network drive stops answering")
+struct NetworkDriveReachabilityTests {
+    private static let nas = VolumeDetail(fileSystemType: "smbfs", kind: .nas, mountSource: "//Admin@nas/LEO")
+
+    private func make(
+        _ source: any VolumeSource, probe: ScriptedProbe, interval: Duration = .milliseconds(20)
+    ) -> (VolumeMonitor, CollectingDelivery) {
+        let delivery = CollectingDelivery()
+        let monitor = VolumeMonitor(
+            source: source,
+            context: MonitorContext(dispatcher: NotificationDispatcher(delivery: delivery), category: VolumeMonitor.category),
+            reachabilityProbe: probe,
+            reachabilityInterval: interval,
+            reachabilityFollowUp: interval / 2,
+            reachabilityTimeout: .milliseconds(5)
+        )
+        return (monitor, delivery)
+    }
+
+    private func names(_ delivery: CollectingDelivery) async -> [String] {
+        await delivery.events.map(\.name).filter { $0 == "VolumeNotResponding" || $0 == "VolumeResponding" }
+    }
+
+    private func run(_ answers: [Bool], until done: @escaping @Sendable ([String]) -> Bool) async -> (names: [String], asked: Int, events: [NotificationEvent]) {
+        let probe = ScriptedProbe(answers)
+        let (monitor, delivery) = make(ScriptedVolumeSource(script: [.mounted(path: "/Volumes/LEO", name: "LEO", detail: Self.nas)]), probe: probe)
+        await monitor.start()
+        await waitUntil { done(await names(delivery)) }
+        await settle()
+        await monitor.stop()
+        return (await names(delivery), await probe.asked, await delivery.events)
+    }
+
+    @Test("a server that was answering and then twice is not, is reported — once, however long it stays down")
+    func goesDown() async {
+        let result = await run([true, false, false]) { $0.contains("VolumeNotResponding") }
+        #expect(result.names == ["VolumeNotResponding"])
+        #expect(result.asked >= 4)
+    }
+
+    @Test("what is said names the drive and the server, and marks the picture rather than redrawing it")
+    func announcement() async {
+        let result = await run([true, false, false]) { !$0.isEmpty }
+        let event = result.events.first { $0.name == "VolumeNotResponding" }
+        #expect(event?.title == "LEO Not Responding")
+        #expect(event?.body.contains("nas") == true)
+        #expect(event?.iconKind == "volume.nas")
+        #expect(event?.iconBadge == .warning)
+        #expect(event?.showsIconBadge == true)
+        #expect(event?.subject == "/Volumes/LEO")
+    }
+
+    @Test("one failed answer is a blip, not an outage")
+    func blip() async {
+        let result = await run([true, false, true]) { _ in false } // runs to the settle
+        #expect(result.names.isEmpty)
+    }
+
+    @Test("coming back is announced, after going away was")
+    func comesBack() async {
+        let result = await run([true, false, false, true]) { $0.count >= 2 }
+        #expect(result.names == ["VolumeNotResponding", "VolumeResponding"])
+        let back = result.events.first { $0.name == "VolumeResponding" }
+        #expect(back?.title == "LEO Responding Again")
+        #expect(back?.iconBadge == .positive)
+    }
+
+    @Test("a server that has never answered is not reported: that may be this application not being allowed to look")
+    func neverAnswered() async {
+        let result = await run([false]) { _ in false }
+        #expect(result.names.isEmpty)
+        #expect(result.asked >= 3)
+    }
+
+    @Test("only a network drive is checked")
+    func localDrivesAreNotChecked() async {
+        let probe = ScriptedProbe([false])
+        let local = VolumeDetail(fileSystemType: "msdos", kind: .usbDrive, mountSource: "/dev/disk4s1")
+        let (monitor, delivery) = make(ScriptedVolumeSource(script: [.mounted(path: "/Volumes/ANDREA", name: "ANDREA", detail: local)]), probe: probe)
+        await monitor.start()
+        await waitUntil { await delivery.events.count >= 1 }
+        await settle()
+        await monitor.stop()
+        #expect(await probe.asked == 0)
+    }
+
+    @Test("unmounting the drive ends the checking, so nothing is said about a share that is gone")
+    func unmountEndsChecking() async {
+        let probe = ScriptedProbe([true, false])
+        let source = LiveVolumeSource()
+        let (monitor, delivery) = make(source, probe: probe, interval: .milliseconds(200))
+        await monitor.start()
+        source.send(.mounted(path: "/Volumes/LEO", name: "LEO", detail: Self.nas))
+        await waitUntil { await probe.asked >= 1 }
+        source.send(.unmounted(path: "/Volumes/LEO", name: "LEO"))
+        try? await Task.sleep(for: .milliseconds(700))
+        await monitor.stop()
+
+        #expect(await names(delivery).isEmpty)
+        #expect(await probe.asked <= 2)
+    }
+
+    @Test("a drive that stops answering is declared for preferences to find")
+    func declared() {
+        let names = VolumeMonitor.events.map(\.name)
+        #expect(names.contains("VolumeNotResponding"))
+        #expect(names.contains("VolumeResponding"))
+    }
+}

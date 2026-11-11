@@ -122,6 +122,10 @@ private final class Watcher: @unchecked Sendable {
             return value.isEmpty ? nil : value
         }
         let total = UInt64(info.f_blocks) * UInt64(info.f_bsize)
+        let mountSource = withUnsafeBytes(of: info.f_mntfromname) { raw -> String? in
+            let value = Self.nulTerminatedString(raw)
+            return value.isEmpty ? nil : value
+        }
 
         let url = URL(fileURLWithPath: path)
         let values = try? url.resourceValues(forKeys: [
@@ -153,7 +157,8 @@ private final class Watcher: @unchecked Sendable {
             sectorSize: (arbitration?[kDADiskDescriptionMediaBlockSizeKey as String] as? NSNumber)?.intValue,
             interfaceDescription: Self.describeInterface(arbitration),
             purgeableAwareFreeBytes: values?.volumeAvailableCapacityForImportantUsage
-                .flatMap { $0 >= 0 ? UInt64($0) : nil }
+                .flatMap { $0 >= 0 ? UInt64($0) : nil },
+            mountSource: mountSource
         )
     }
 

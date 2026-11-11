@@ -129,6 +129,12 @@ public struct AudioDeviceDetail: Sendable, Equatable {
         self.latencyFrames = latencyFrames
     }
 
+    /// Something that only listens — a microphone, a line input — with no way to play
+    /// anything back. Pictured as a microphone rather than a speaker.
+    var isInputOnly: Bool {
+        (inputChannels ?? 0) > 0 && (outputChannels ?? 0) == 0
+    }
+
     var outputChannelsNote: String? { outputChannels.map(String.init) }
     var inputChannelsNote: String? { inputChannels.map(String.init) }
     var sampleRateNote: String? { sampleRate.map { String(format: "%.0f Hz", $0) } }

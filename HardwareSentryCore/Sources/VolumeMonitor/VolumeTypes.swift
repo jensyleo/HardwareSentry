@@ -6,6 +6,9 @@ import SentryContract
 /// Read then and not later: an unmounted path has no live filesystem left to ask.
 public struct VolumeDetail: Sendable, Equatable {
     public let fileSystemType: String?
+    /// What it was mounted from — `//Admin@nas/LEO` for a share — the only record of which
+    /// server a network volume belongs to once the volume itself can no longer be asked.
+    public let mountSource: String?
     public let totalBytes: UInt64?
     public let isReadOnly: Bool
     public let kind: VolumeKind?
@@ -49,8 +52,10 @@ public struct VolumeDetail: Sendable, Equatable {
         busName: String? = nil,
         sectorSize: Int? = nil,
         interfaceDescription: String? = nil,
-        purgeableAwareFreeBytes: UInt64? = nil
+        purgeableAwareFreeBytes: UInt64? = nil,
+        mountSource: String? = nil
     ) {
+        self.mountSource = mountSource
         self.fileSystemType = fileSystemType
         self.totalBytes = totalBytes
         self.isReadOnly = isReadOnly
