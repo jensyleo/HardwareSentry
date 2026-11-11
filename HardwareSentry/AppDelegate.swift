@@ -213,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bluetoothBLEPollInterval: tuning.bluetoothBLEPollInterval,
             printerPollInterval: tuning.printerPollInterval,
             volumeFreeSpacePollInterval: tuning.volumeFreeSpacePollInterval,
+            volumeReachabilityInterval: tuning.volumeReachabilityInterval,
             massStorageDetectionEnabled: tuning.massStorageDetectionEnabled,
             massStoragePollInterval: tuning.massStoragePollMilliseconds / 1000,
             massStorageTimeout: tuning.massStorageTimeoutSeconds

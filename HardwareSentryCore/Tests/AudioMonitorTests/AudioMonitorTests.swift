@@ -68,6 +68,36 @@ struct AudioMonitorTests {
         return await delivery.events
     }
 
+    @Test("something that only listens is pictured as a microphone, arriving and leaving, with its state marked")
+    func inputOnlyIsAMicrophone() async {
+        let mic = AudioDeviceSnapshot(id: "m", name: "USB Mic", transport: .usb, isInputCapable: true,
+                                      detail: AudioDeviceDetail(outputChannels: nil, inputChannels: 1))
+        let events = await run([.deviceSnapshot([]), .deviceSnapshot([mic]), .deviceSnapshot([])], expecting: 2)
+
+        #expect(events.map(\.iconKind) == ["audio.microphone", "audio.microphone"])
+        #expect(events.map(\.iconBadge) == [.positive, .negative])
+        #expect(events.map(\.showsIconBadge) == [true, true])
+    }
+
+    @Test("a microphone that is plugged in is never drawn crossed out")
+    func microphoneIsNotCrossedOut() {
+        let mic = AudioDeviceDetail(outputChannels: nil, inputChannels: 1)
+        for connected in [true, false] {
+            #expect(AudioMonitor.connectionIconName(for: mic, connected: connected) == "AudioMonitor-Icon-MicInUse")
+        }
+        #expect(AudioMonitor.connectionIconName(for: nil, connected: true) == "AudioMonitor-Icon")
+        #expect(AudioMonitor.connectionIconName(for: nil, connected: false) == "AudioMonitor-Icon-Off")
+    }
+
+    @Test("something that plays is a speaker, whose own artwork already shows its state")
+    func outputIsASpeaker() async {
+        let speaker = AudioDeviceSnapshot(id: "s", name: "DAC", transport: .usb, isInputCapable: false,
+                                          detail: AudioDeviceDetail(outputChannels: 2, inputChannels: 1))
+        let events = await run([.deviceSnapshot([]), .deviceSnapshot([speaker])], expecting: 1)
+        #expect(events.first?.iconKind == "audio.speaker")
+        #expect(events.first?.showsIconBadge == false)
+    }
+
     @Test("the first device snapshot is a silent baseline")
     func deviceBaselineIsSilent() async {
         let events = await run([.deviceSnapshot([device("1", transport: .hdmi)])], expecting: 0)

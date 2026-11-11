@@ -18,6 +18,9 @@ final class UnreadableDiskWatcher: @unchecked Sendable {
     private var seen: [String: UnreadablePartition] = [:]
     /// Whole disks with at least one partition that mounted fine.
     private var readableWholeDisks: Set<String> = []
+    /// What each whole disk is called — its maker and model — so a message can name the
+    /// thing somebody plugged in rather than one of the partitions inside it.
+    private var wholeDiskNames: [String: String] = [:]
     /// Whole disks the system has told us about but not yet finished probing.
     private var settleTask: Task<Void, Never>?
 
@@ -65,11 +68,23 @@ final class UnreadableDiskWatcher: @unchecked Sendable {
         let isWhole = description[kDADiskDescriptionMediaWholeKey as String] as? Bool ?? false
         let wholeDiskName = Self.wholeDiskName(of: bsdName)
 
+        if isWhole, let name = UnreadableDiskNaming.deviceName(
+            vendor: description[kDADiskDescriptionDeviceVendorKey as String] as? String,
+            model: description[kDADiskDescriptionDeviceModelKey as String] as? String,
+            mediaName: description[kDADiskDescriptionMediaNameKey as String] as? String
+        ) {
+            wholeDiskNames[bsdName] = name
+        }
+
         // A partition with a recognised filesystem is readable whether or not it happens
         // to be mounted right now — an ejected-but-formatted card is not a fault.
         if description[kDADiskDescriptionVolumeKindKey as String] != nil {
             readableWholeDisks.insert(wholeDiskName)
-        } else if !isWhole {
+        } else if !isWhole,
+                  // A partition map, a driver or free space was never going to mount.
+                  !UnreadableDiskNaming.holdsNoFilesystem(
+                    contentType: description[kDADiskDescriptionMediaContentKey as String] as? String
+                  ) {
             seen[bsdName] = UnreadablePartition(
                 bsdName: bsdName,
                 wholeDiskName: wholeDiskName,
@@ -94,6 +109,7 @@ final class UnreadableDiskWatcher: @unchecked Sendable {
         let anyLeft = seen.keys.contains { Self.wholeDiskName(of: $0) == wholeDiskName }
         guard !anyLeft else { return }
         readableWholeDisks.remove(wholeDiskName)
+        wholeDiskNames.removeValue(forKey: wholeDiskName)
         continuation.yield(.wholeDiskDisappeared(wholeDiskName))
     }
 
@@ -110,8 +126,13 @@ final class UnreadableDiskWatcher: @unchecked Sendable {
 
     private func emitSettled() {
         guard !seen.isEmpty else { return }
+        // Named after the disk they sit on wherever it said what it is; their own media
+        // name only when it did not.
+        let named = seen.values.map { partition in
+            wholeDiskNames[partition.wholeDiskName].map(partition.named) ?? partition
+        }
         continuation.yield(.unreadable(
-            partitions: Array(seen.values),
+            partitions: named,
             readableWholeDisks: readableWholeDisks
         ))
     }

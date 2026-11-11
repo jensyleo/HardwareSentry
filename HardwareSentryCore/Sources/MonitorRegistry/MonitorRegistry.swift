@@ -75,6 +75,7 @@ public actor MonitorRegistry {
     private let bluetoothBLEPollInterval: Duration
     private let printerPollInterval: Duration
     private let volumeFreeSpacePollInterval: Duration
+    private let volumeReachabilityInterval: Duration
     /// How often, and for how long, USB Monitor re-checks an unresolved Mass Storage
     /// device's disk description — see `IOKitUSBDeviceSource.init`. Read only when
     /// `IOKitUSBDeviceSource` is built in `assemble()`, so a change takes effect the next
@@ -121,6 +122,7 @@ public actor MonitorRegistry {
         bluetoothBLEPollInterval: Duration = .seconds(30),
         printerPollInterval: Duration = .seconds(8),
         volumeFreeSpacePollInterval: Duration = .seconds(300),
+        volumeReachabilityInterval: Duration = .seconds(10),
         massStorageDetectionEnabled: Bool = true,
         massStoragePollInterval: TimeInterval = 0.25,
         massStorageTimeout: TimeInterval = 8.0
@@ -155,6 +157,7 @@ public actor MonitorRegistry {
         self.bluetoothBLEPollInterval = bluetoothBLEPollInterval
         self.printerPollInterval = printerPollInterval
         self.volumeFreeSpacePollInterval = volumeFreeSpacePollInterval
+        self.volumeReachabilityInterval = volumeReachabilityInterval
         self.massStorageDetectionEnabled = massStorageDetectionEnabled
         self.massStoragePollInterval = massStoragePollInterval
         self.massStorageTimeout = massStorageTimeout
@@ -334,7 +337,10 @@ public actor MonitorRegistry {
                 source: NSWorkspaceVolumeSource(freeSpacePollInterval: volumeFreeSpacePollInterval),
                 context: MonitorContext(dispatcher: dispatcher, category: VolumeMonitor.category, preferences: preferences, announcesWhatIsAlreadyThere: announcesWhatIsAlreadyThere, connectionNaming: connectionNaming, namesReportingModule: namesReportingModule),
                 exclusions: volumeExclusions,
-                lowSpaceThresholdPercent: volumeLowSpacePercent
+                lowSpaceThresholdPercent: volumeLowSpacePercent,
+                reachabilityProbe: TCPReachabilityProbe(),
+                reachabilityInterval: volumeReachabilityInterval,
+                watchesNetworkPath: true
             ),
             PowerMonitor(
                 source: IOPSPowerSource(),
