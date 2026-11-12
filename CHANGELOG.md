@@ -5,6 +5,20 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.2.1] - 2026-11-12
+
+### Changed
+
+- **The icons are redrawn again, to a higher standard of detail.** Brushed-metal bodies, glass
+  with reflections, lit indicators and proper shading, across every module that ships its own
+  pictures: USB (keyboard, mouse, hub, printer, scanner, audio, game controller, tablet, card
+  reader, serial port, remote, and the rest), Bluetooth (camera, laptop, display, phone, watch,
+  access point, barcode scanner, microphone, headphones and the module and signal icons),
+  Thunderbolt, Volume (drives, optical disc, SD card, USB stick, network drive), Audio, Camera,
+  Display, Power, Thermal, Network, Printer, Scanner and Gamepad.
+- **The Thunderbolt mark is larger and centred** in its dark circle.
+- **Critical disk notices still carry the radiation mark**, now drawn on the new disks.
+
 ## [1.2.0] - 2026-11-12
 
 ### Added
