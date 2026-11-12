@@ -17,7 +17,7 @@ public actor AudioMonitor: Monitor {
         .init(name: AudioEvent.connected.rawValue, title: "Connected", icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
         .init(name: AudioEvent.disconnected.rawValue, title: "Disconnected/Muted", icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
         .init(name: AudioEvent.defaultOutputChanged.rawValue, title: "Default Output Changed", icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
-        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default Input Changed", icon: .asset("AudioMonitor-Icon-MicIdle", in: .module), iconKind: DeviceIconKind("audio", "microphone")),
+        .init(name: AudioEvent.defaultInputChanged.rawValue, title: "Default Input Changed", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module), iconKind: DeviceIconKind("audio", "microphone")),
         .init(name: AudioEvent.micInUseChanged.rawValue, title: "Microphone In Use / Idle", icon: .asset("AudioMonitor-Icon-MicInUse", in: .module), iconKind: DeviceIconKind("audio", "microphone")),
         .init(name: AudioEvent.sampleRateChanged.rawValue, title: "Sample Rate Changed", icon: .asset("AudioMonitor-Icon-SampleRate", in: .module)),
         .init(name: AudioEvent.volumeCritical.rawValue, title: "Volume Critical", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)),
@@ -314,6 +314,14 @@ public actor AudioMonitor: Monitor {
         return connected ? "AudioMonitor-Icon" : "AudioMonitor-Icon-Off"
     }
 
+    /// The picture for "the default device changed". A plain microphone for an input change,
+    /// not "MicIdle": that one is drawn crossed out because it means "nothing is using the
+    /// microphone", and here the microphone that has just become the default is the one in
+    /// use — in either direction, whichever device it moved to.
+    static func defaultChangeIconName(isOutput: Bool) -> String {
+        isOutput ? "AudioMonitor-Icon" : "AudioMonitor-Icon-MicInUse"
+    }
+
     static func connectionIcon(for detail: AudioDeviceDetail?, connected: Bool) -> NotificationIcon {
         .asset(connectionIconName(for: detail, connected: connected), in: .module)
     }
@@ -345,7 +353,7 @@ public actor AudioMonitor: Monitor {
             ] + (knownDevices[id].map(Self.detailLines(for:)) ?? [])),
             // An input change should not show a speaker: this is the microphone's own
             // notification, and the artwork is half of what makes it recognisable.
-            icon: .asset(kind == .output ? "AudioMonitor-Icon" : "AudioMonitor-Icon-MicIdle", in: .module),
+            icon: .asset(Self.defaultChangeIconName(isOutput: kind == .output), in: .module),
             iconKind: kind == .output ? DeviceIconKind("audio", "speaker") : DeviceIconKind("audio", "microphone")
         )
     }
