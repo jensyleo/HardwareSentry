@@ -16,7 +16,7 @@ public actor PrinterMonitor: Monitor {
         .init(name: PrinterEvent.rejectingJobs.rawValue, title: "Rejecting/accepting jobs", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         // Supply warnings are on: running out of toner is precisely the thing somebody
         // wants told, it fires rarely, and the hysteresis below stops it repeating.
-        .init(name: PrinterEvent.supplyLow.rawValue, title: "Toner/ink running low", icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.supplyLow.rawValue, title: "Toner/ink running low", icon: .asset("PrinterMonitor-Icon-SupplyLow", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         // The job events are off. Somebody who has just pressed Print knows they pressed
         // Print, and on a busy queue this is one notification per document.
         .init(name: PrinterEvent.jobStarted.rawValue, title: "Print job started", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
@@ -116,7 +116,7 @@ public actor PrinterMonitor: Monitor {
                             .field(PrinterField.location.rawValue, "Location", printer.location),
                             .field(PrinterField.model.rawValue, "Model", printer.makeAndModel)
                         ]),
-                        icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .warning
+                        icon: .asset("PrinterMonitor-Icon-SupplyLow", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .warning
                     )
                 } else if wasLow, supply.hasRecovered(fallbackThreshold: supplyThreshold, margin: supplyRecoveryMargin) {
                     // Replaced. Forgotten rather than announced: a fresh cartridge is not
