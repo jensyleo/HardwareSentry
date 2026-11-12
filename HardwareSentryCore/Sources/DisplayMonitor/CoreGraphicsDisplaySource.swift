@@ -38,6 +38,15 @@ public struct CoreGraphicsDisplaySource: DisplaySource {
 private final class Watcher: @unchecked Sendable {
     private let continuation: AsyncStream<DisplaySourceEvent>.Continuation
     private var colorProfileToken: NSObjectProtocol?
+    /// Display sleep and wake. A display going to sleep is a power state, not a change of
+    /// configuration, so the reconfiguration callback below never fires for it — which is why
+    /// "Display slept / woke" was never reported until these were watched.
+    private var sleepTokens: [NSObjectProtocol] = []
+    /// Whether macOS has said the displays are asleep. Taken from the announcement itself
+    /// rather than left to `CGDisplayIsAsleep`: the announcement arrives a moment before that
+    /// flag changes, so reading it then says "awake" — and by the time it has changed the
+    /// Mac has often gone on to sleep altogether and nobody is reading anything.
+    private var screensAsleep = false
     private let videoLinkPolling: Duration?
     private var videoLinkTask: Task<Void, Never>?
     /// The last name each display had while macOS would give one, for when it stops — a
@@ -69,6 +78,13 @@ private final class Watcher: @unchecked Sendable {
         // global var, not a `let`) even though its value never actually changes at runtime.
         startVideoLinkPoll()
 
+        sleepTokens = [NSWorkspace.screensDidSleepNotification, NSWorkspace.screensDidWakeNotification].map { name in
+            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                self?.screensAsleep = note.name == NSWorkspace.screensDidSleepNotification
+                self?.emitSnapshot()
+            }
+        }
+
         colorProfileToken = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.ColorSync.DisplayProfileNotification"),
             object: nil, queue: nil
@@ -80,6 +96,8 @@ private final class Watcher: @unchecked Sendable {
     func stop() {
         videoLinkTask?.cancel()
         if let colorProfileToken { DistributedNotificationCenter.default().removeObserver(colorProfileToken) }
+        sleepTokens.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
+        sleepTokens = []
         continuation.finish()
     }
 
@@ -145,7 +163,7 @@ private final class Watcher: @unchecked Sendable {
                 refreshHz: mode.map { $0.refreshRate } ?? 0,
                 rotation: CGDisplayRotation(id),
                 role: CGDisplayIsMain(id) != 0 ? .main : (CGDisplayIsInMirrorSet(id) != 0 ? .mirrored : .extended),
-                isAsleep: CGDisplayIsAsleep(id) != 0,
+                isAsleep: screensAsleep || CGDisplayIsAsleep(id) != 0,
                 detail: DisplayDetail(id: id, screen: screen, mode: mode, nameOfDisplay: nameOfDisplay)
             )
         }
