@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.2.3] - 2026-11-12
+
+### Fixed
+
+- **Symbol icons were drawn black in the Icons pane of the Notifications tab.** Webcam,
+  Continuity Camera and Desk View use macOS symbols, which came out black and were invisible on a
+  dark window. They now use the text colour, as they already do in the Preview tab.
+
 ## [1.2.2] - 2026-11-12
 
 ### Changed
