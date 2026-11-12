@@ -22,6 +22,7 @@
 		80046909DBF1CE41414BDB05 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F12EAA9A55261D9EE07357 /* HistoryView.swift */; };
 		8441BABB8C95DEC53E88037E /* EventSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1BDA4E86A0AAAC0295A280 /* EventSettingsModel.swift */; };
 		94289CC2EC8D9F2557E38560 /* EventSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */; };
+		9920E88068A04C2DCD4CA1BA /* NotificationPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F59B9A5F1192D9A82ED7EAF /* NotificationPreviewView.swift */; };
 		ADCDC842A05DC72901A62F13 /* CustomIconChooser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 092F7266B7149DC0CA7086D2 /* CustomIconChooser.swift */; };
 		B46EA15B0547902EF7D1086A /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0F1E3F48F27D6A0B52004A /* GeneralSettingsView.swift */; };
 		BB98EC1CDD359930915A1A69 /* SettingsProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71B3698948C459922312CF56 /* SettingsProfile.swift */; };
@@ -36,6 +37,7 @@
 		08BEC7F4386F0DD115E0EAF9 /* EventIconPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventIconPicker.swift; sourceTree = "<group>"; };
 		092F7266B7149DC0CA7086D2 /* CustomIconChooser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomIconChooser.swift; sourceTree = "<group>"; };
 		0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsView.swift; sourceTree = "<group>"; };
+		0F59B9A5F1192D9A82ED7EAF /* NotificationPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreviewView.swift; sourceTree = "<group>"; };
 		19F12EAA9A55261D9EE07357 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		6359397D73BFB64775C78C3F /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		6D0F1E3F48F27D6A0B52004A /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 				E3A3D9FFAF198126999257DA /* IconSourceModel.swift */,
 				7CEEF201C3A9269347A3F351 /* MonitorTuningModel.swift */,
 				CFC1B545BA624C0C87B53E10 /* NotificationHistoryStore.swift */,
+				0F59B9A5F1192D9A82ED7EAF /* NotificationPreviewView.swift */,
 				71B3698948C459922312CF56 /* SettingsProfile.swift */,
 				6D3BB57E267D9097497B67D5 /* SettingsView.swift */,
 				B354C2715438FE9B05F3F376 /* SFSymbolBrowser.swift */,
@@ -242,6 +245,7 @@
 				439E6EC4E3051E9F54E3971D /* IconSourceModel.swift in Sources */,
 				48247C77EEC05F77535966EE /* MonitorTuningModel.swift in Sources */,
 				206249E64AE5E24BD10116B4 /* NotificationHistoryStore.swift in Sources */,
+				9920E88068A04C2DCD4CA1BA /* NotificationPreviewView.swift in Sources */,
 				0869A4227B9226648974BEA0 /* SFSymbolBrowser.swift in Sources */,
 				BB98EC1CDD359930915A1A69 /* SettingsProfile.swift in Sources */,
 				6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */,
@@ -324,7 +328,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.3;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
 				PRODUCT_NAME = HardwareSentry;
 				SDKROOT = macosx;
@@ -412,7 +416,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.3;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
 				PRODUCT_NAME = HardwareSentry;
 				SDKROOT = macosx;

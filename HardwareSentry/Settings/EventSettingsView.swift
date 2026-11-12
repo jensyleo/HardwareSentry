@@ -29,14 +29,15 @@ struct EventSettingsView: View {
     /// Checks the serial-adapter vendor list now, rather than waiting for the schedule.
     let checkSerialVendorUpdateNow: () -> Void
 
-    @State private var selection: String?
+    /// Owned by the settings window, so another tab can send somebody here.
+    @Binding var selection: String?
     /// Which of the selected module's tabs is showing, by name.
     ///
     /// Held here rather than inside the panel so it survives switching module: somebody
     /// working through the icons of one module after another should not be dropped back
     /// onto the first tab every time they change module. A name that the next module does
     /// not have falls back to its first tab.
-    @State private var pane: String = ModulePane.iconsTitle
+    @Binding var pane: String
 
     var body: some View {
         VStack(spacing: 0) {

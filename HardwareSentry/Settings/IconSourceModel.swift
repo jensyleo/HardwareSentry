@@ -57,6 +57,11 @@ final class IconSourceModel {
         await load(kinds: Array(SystemIconCatalog.moduleKinds.values))
     }
 
+    /// macOS's picture for a kind, whatever the module's saved choice.
+    func image(forKind kind: String?) -> NSImage? {
+        kind.flatMap { images[$0] }
+    }
+
     /// The picture a row should preview when its module is on `.system`, or nil when it
     /// keeps the application's own.
     func previewImage(forKind kind: String?, in category: NotificationCategory) -> NSImage? {
