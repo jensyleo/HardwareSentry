@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.1.1] - 2026-11-12
+
+### Fixed
+
+- **A display mirroring another was announced as "External Display".** When the MacBook's own
+  screen mirrors an external one, macOS stops listing it among the screens it names, and the
+  name fell back to "External Display" — so the built-in screen was reported under the opposite
+  description. A display now keeps the last name it was given, and the built-in one is never
+  called external.
+
 ## [1.1.0] - 2026-11-11
 
 Found by plugging real hardware in: a Magic Mouse and keyboard, two USB drives, a USB hub,

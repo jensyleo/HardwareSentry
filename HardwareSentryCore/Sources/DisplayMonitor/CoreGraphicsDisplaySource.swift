@@ -40,6 +40,9 @@ private final class Watcher: @unchecked Sendable {
     private var colorProfileToken: NSObjectProtocol?
     private let videoLinkPolling: Duration?
     private var videoLinkTask: Task<Void, Never>?
+    /// The last name each display had while macOS would give one, for when it stops — a
+    /// display in Mirror mode is not an `NSScreen` and so has no name to read.
+    private var namesByID: [CGDirectDisplayID: String] = [:]
 
     init(continuation: AsyncStream<DisplaySourceEvent>.Continuation, videoLinkPolling: Duration?) {
         self.continuation = continuation
@@ -127,7 +130,12 @@ private final class Watcher: @unchecked Sendable {
 
         let snapshots = ids.map { id -> DisplaySnapshot in
             let screen = screensByID[id]
-            let name = screen?.localizedName ?? "External Display"
+            let name = DisplayNaming.name(
+                screenName: screen?.localizedName,
+                remembered: namesByID[id],
+                isBuiltIn: CGDisplayIsBuiltin(id) != 0
+            )
+            if let given = screen?.localizedName, !given.isEmpty { namesByID[id] = given }
             let mode = CGDisplayCopyDisplayMode(id)
             return DisplaySnapshot(
                 id: String(id),
@@ -141,6 +149,8 @@ private final class Watcher: @unchecked Sendable {
                 detail: DisplayDetail(id: id, screen: screen, mode: mode, nameOfDisplay: nameOfDisplay)
             )
         }
+        // Only the displays that are still there: an ID can be handed to a different one.
+        namesByID = namesByID.filter { ids.contains($0.key) }
         continuation.yield(.snapshot(snapshots))
     }
 }

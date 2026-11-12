@@ -425,3 +425,23 @@ struct DisplayFieldTests {
         #expect(connected.first?.body == "External Display\nResolution:\t3840×2160\nRefresh rate:\t60 Hz\nRole:\tExtended")
     }
 }
+
+@Suite("DisplayNaming")
+struct DisplayNamingTests {
+    @Test("the name macOS gives wins")
+    func givenName() {
+        #expect(DisplayNaming.name(screenName: "SAMSUNG", remembered: "Old", isBuiltIn: false) == "SAMSUNG")
+    }
+
+    @Test("a display in Mirror mode, which macOS no longer names, keeps the name it had — not 'External Display'")
+    func mirroredKeepsItsName() {
+        #expect(DisplayNaming.name(screenName: nil, remembered: "Built-in Retina Display", isBuiltIn: true) == "Built-in Retina Display")
+        #expect(DisplayNaming.name(screenName: "", remembered: "SAMSUNG", isBuiltIn: false) == "SAMSUNG")
+    }
+
+    @Test("never seen with a name: the MacBook's own screen is not called external, and the other way round")
+    func neverNamed() {
+        #expect(DisplayNaming.name(screenName: nil, remembered: nil, isBuiltIn: true) == "Built-in Display")
+        #expect(DisplayNaming.name(screenName: nil, remembered: nil, isBuiltIn: false) == "External Display")
+    }
+}
