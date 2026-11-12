@@ -5,6 +5,19 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.1.2] - 2026-11-12
+
+### Fixed
+
+- **"Display Slept" and "Display Woke" were never reported.** Display Monitor re-read the
+  displays only when macOS announced a configuration change, and a display going to sleep is not
+  one. It now also listens for macOS's announcements that the displays slept and woke, and takes
+  them as the truth: the announcement arrives a moment before the system's own sleep flag
+  changes, so reading the flag at that moment still said "awake" — and by the time it had
+  changed the Mac had often gone on to sleep altogether. One notice per display, alongside
+  Power Monitor's *Display(s) Went to Sleep*, which is a separate module; both are on by
+  default.
+
 ## [1.1.1] - 2026-11-12
 
 ### Fixed
