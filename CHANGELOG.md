@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.1.3] - 2026-11-12
+
+### Fixed
+
+- **"Default Audio Input Changed" was drawn with a crossed-out microphone.** That picture means
+  "nothing is using the microphone", which is the opposite of what the notice says: the
+  microphone that has just become the default is the one in use. It showed in both directions —
+  a headset's microphone taking over, and the built-in one coming back. The notice, and its row
+  in Settings, now use the plain microphone. *Microphone In Use / Idle* keeps the crossed-out
+  one, where it is what the notice means.
+
 ## [1.1.2] - 2026-11-12
 
 ### Fixed

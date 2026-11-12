@@ -79,6 +79,13 @@ struct AudioMonitorTests {
         #expect(events.map(\.showsIconBadge) == [true, true])
     }
 
+    @Test("changing the default input is never drawn with the crossed-out 'idle' microphone")
+    func defaultInputChangeIsNotCrossedOut() {
+        #expect(AudioMonitor.defaultChangeIconName(isOutput: false) == "AudioMonitor-Icon-MicInUse")
+        #expect(AudioMonitor.defaultChangeIconName(isOutput: true) == "AudioMonitor-Icon")
+        #expect(!AudioMonitor.events.contains { $0.name == "AudioDefaultInputChanged" && $0.iconKind == nil })
+    }
+
     @Test("a microphone that is plugged in is never drawn crossed out")
     func microphoneIsNotCrossedOut() {
         let mic = AudioDeviceDetail(outputChannels: nil, inputChannels: 1)
