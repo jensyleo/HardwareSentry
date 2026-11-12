@@ -29,7 +29,7 @@ public actor PowerMonitor: Monitor {
         .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) Sleep", icon: .asset("Power-LowPowerMode", in: .module)),
         .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) Wake", icon: .asset("Power-AdapterChanged", in: .module)),
         // Two of this application's own, which the original does not have as rows.
-        .init(name: PowerEvent.sourceChanged.rawValue, title: "Power source changed", icon: .asset("Power-Plugged", in: .module)),
+        .init(name: PowerEvent.sourceChanged.rawValue, title: "Power source changed", icon: .asset("Power-SourceChanged", in: .module)),
         .init(name: PowerEvent.fullyCharged.rawValue, title: "Battery fully charged", icon: .asset("Power-100", in: .module)),
         .init(name: PowerEvent.lowBatteryWarning.rawValue, title: "Battery low", icon: .asset("Power-10", in: .module)),
         .init(name: PowerEvent.batteryHealth.rawValue, title: "Battery health report", icon: .asset("Power-BatteryFailure", in: .module))

@@ -5,6 +5,27 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.2.2] - 2026-11-12
+
+### Changed
+
+- **The power plug is slimmer and its cable is thicker and blue**, so the cable reads at small
+  sizes. "Power source changed" has its own picture — a battery and a plug with a swap mark —
+  instead of reusing the plug.
+- **The scanner is redrawn**: raised lid with a glass bed, a document on it, a scan bar and a
+  front panel.
+
+### Fixed
+
+- **Mass Storage, USB Drive and Network Adapter (USB) still showed the old pictures.** They now
+  use the redrawn ones; Network Adapter is a USB stick with an Ethernet port.
+- **"Toner/ink running low" used the disconnected-printer picture.** It now uses the ink-drop one,
+  in Settings and in the notification.
+- **The "(Critical)" rows of Volume showed macOS's disk** while the real notice carries the
+  radiation mark. They now match.
+- **Symbol icons were drawn black in the Preview tab**, invisible on a dark window. They now use
+  the text colour.
+
 ## [1.2.1] - 2026-11-12
 
 ### Changed

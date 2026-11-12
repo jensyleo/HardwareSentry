@@ -40,8 +40,9 @@ public actor VolumeMonitor: Monitor {
                 name: kind.lowSpaceEvent.rawValue,
                 title: "\(kind.settingsTitle) (Critical)",
                 enabledByDefault: false,
-                icon: .asset("\(kind.iconBaseName)-Critical", in: .module),
-                iconKind: kind.iconKind
+                // No `iconKind`: the radiation mark is the application's own signal, so
+                // macOS's plain disk never replaces it (see the live notices below).
+                icon: .asset("\(kind.iconBaseName)-Critical", in: .module)
             )
         ]
     } + [

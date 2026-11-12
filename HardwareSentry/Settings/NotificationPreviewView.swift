@@ -87,8 +87,19 @@ struct NotificationPreviewView: View {
     @ViewBuilder
     private func row(for event: MonitorEventDescription, in category: NotificationCategory) -> some View {
         HStack(spacing: 10) {
-            Image(nsImage: picture(for: event, in: category))
-                .frame(width: 36, height: 36)
+            // A symbol is drawn in the text colour: scaled into a bitmap it would come out
+            // black, which cannot be seen on a dark window.
+            if case .symbol(let name) = event.icon,
+               !(source(in: category) == .system && iconSources.image(forKind: event.iconKind?.rawValue) != nil) {
+                Image(systemName: name)
+                    .resizable().aspectRatio(contentMode: .fit)
+                    .foregroundStyle(.secondary)
+                    .padding(4)
+                    .frame(width: 36, height: 36)
+            } else {
+                Image(nsImage: picture(for: event, in: category))
+                    .frame(width: 36, height: 36)
+            }
             Text(event.title)
             Spacer()
             if event.iconKind != nil {
