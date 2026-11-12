@@ -21,7 +21,7 @@ struct NotificationPreviewView: View {
     let show: (MonitorEventDescription, NotificationCategory, IconBadge?, IconSource) -> Void
 
     /// Sends somebody to the Notifications tab, on this module's icons.
-    let editIcons: (String) -> Void
+    let editIcons: (String, String?) -> Void
 
     @State private var selection: String?
     /// Chosen here, only for looking: the module's saved choice is left alone. Nil follows it.
@@ -54,7 +54,7 @@ struct NotificationPreviewView: View {
                 }
                 Spacer()
                 if let module {
-                    Button { editIcons(module.id) } label: {
+                    Button { editIcons(module.id, nil) } label: {
                         Label("Edit icons in Notifications", systemImage: "pencil")
                     }
                     .controlSize(.small)
@@ -101,6 +101,11 @@ struct NotificationPreviewView: View {
                     .frame(width: 36, height: 36)
             }
             Text(event.title)
+            Button { editIcons(model.modules.first { $0.category == category }?.id ?? "", event.name) } label: {
+                Image(systemName: "pencil")
+            }
+            .buttonStyle(.borderless)
+            .help("Edit this notification's icon")
             Spacer()
             if event.iconKind != nil {
                 // A device has three things that can be said about it.

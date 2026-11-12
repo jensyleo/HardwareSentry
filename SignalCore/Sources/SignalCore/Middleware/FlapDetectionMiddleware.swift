@@ -131,13 +131,25 @@ public actor FlapDetectionMiddleware: NotificationMiddleware {
         lastReported = lastReported.filter { instant.timeIntervalSince($0.value) < reportCooldown }
     }
 
+    /// What to call the subject in a sentence for a person.
+    ///
+    /// A subject is a key, and some are not words: a display's is its number, which read as
+    /// "1 changed state 4 times". Where it is only digits, the first line of the event that
+    /// tipped it over — which is where a monitor puts the thing's name — says it better.
+    static func spokenName(for report: FlapReport) -> String {
+        guard !report.subject.isEmpty, report.subject.allSatisfy(\.isNumber) else { return report.subject }
+        let firstLine = report.triggeringEvent.body.split(separator: "\n").first.map(String.init) ?? ""
+        let name = firstLine.split(separator: ":", maxSplits: 1).last.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        return name.isEmpty ? report.subject : name
+    }
+
     public static let defaultReport: FlapReportBuilder = { report in
         NotificationEvent(
             name: "FlapDetected",
             subject: report.subject,
             category: report.category,
             title: "Unstable",
-            body: "\(report.subject) changed state \(report.occurrences) times "
+            body: "\(spokenName(for: report)) changed state \(report.occurrences) times "
                 + "within \(Int(report.window)) seconds.",
             icon: report.triggeringEvent.icon,
             iconKind: report.triggeringEvent.iconKind,

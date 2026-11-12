@@ -163,3 +163,29 @@ struct FlapDetectionAcrossCategoriesTests {
         #expect(decision?.deliveredEvent?.subject == "Joy-Con (R)")
     }
 }
+
+@Suite("Flap report · naming the subject")
+struct FlapReportNamingTests {
+    private func report(subject: String, body: String) -> FlapReport {
+        FlapReport(subject: subject, category: .init(rawValue: "Display"), occurrences: 4, window: 20,
+                   triggeringEvent: NotificationEvent(name: "X", subject: subject, category: .init(rawValue: "Display"), title: "t", body: body))
+    }
+
+    @Test("a subject that is only a number is replaced by the name on the first line of the event")
+    func numberedSubject() {
+        let r = report(subject: "1", body: "SAMSUNG\nResolution: 3840 x 2160")
+        #expect(FlapDetectionMiddleware.spokenName(for: r) == "SAMSUNG")
+        let labelled = report(subject: "3", body: "Name: LG UltraFine\nRole: Extended")
+        #expect(FlapDetectionMiddleware.spokenName(for: labelled) == "LG UltraFine")
+    }
+
+    @Test("a subject that is already a name is left alone")
+    func namedSubject() {
+        #expect(FlapDetectionMiddleware.spokenName(for: report(subject: "Magic Mouse", body: "x")) == "Magic Mouse")
+    }
+
+    @Test("a numbered subject with nothing better to say stays as it is")
+    func nothingBetter() {
+        #expect(FlapDetectionMiddleware.spokenName(for: report(subject: "2", body: "")) == "2")
+    }
+}
