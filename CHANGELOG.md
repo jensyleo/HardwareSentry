@@ -5,6 +5,31 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.2.0] - 2026-11-12
+
+### Added
+
+- **A Preview tab in Settings.** Every notification of every module can be shown on demand, as
+  a real banner, with a button for each state it can be in: connected, gone, unstable and needs
+  attention. Nothing changes on the Mac, nothing is added to the history, and a notification that
+  is switched off still shows. A selector chooses which pictures to preview — *Configured* (what
+  is set now, including icons chosen by hand), *App* or *System* — without touching the saved
+  setting. *Edit icons in Notifications* jumps to the module's icons.
+- **An "Unstable" banner that looks like the device.** The notice for a device that keeps
+  connecting and disconnecting now uses the device's own picture, with the attention mark.
+
+### Changed
+
+- **Every icon the application ships has been redrawn**, in full colour, in the style of macOS's
+  own pictures: USB, Bluetooth, Thunderbolt, Volume, Audio, Camera, Display, Power, Thermal,
+  Network, Printer, Scanner and Gamepad. The Bluetooth headset is now a complete headset.
+  Disconnected variants are the same picture, faded, with a red cross.
+- **The attention mark is a yellow warning triangle**, the colour the warning always had.
+- **Wi-Fi levels keep their colours** (grey, red, orange, yellow, blue) on the new artwork.
+- **Critical disk notices keep the radiation mark, also with macOS pictures.** Disk Not
+  Readable, Volume Ejected Unsafely and critical free space are the application's own signal for
+  a disk in serious trouble, so macOS's plain disk no longer replaces it.
+
 ## [1.1.3] - 2026-11-12
 
 ### Fixed

@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var bannerDelivery: BannerDelivery!
     private var iconOverrideMiddleware: IconOverrideMiddleware!
     private var systemIconMiddleware: SystemIconMiddleware!
+    private var systemIconCatalog: SystemIconCatalog!
 
     /// Everything is built here rather than in `applicationDidFinishLaunching`, because
     /// the settings scene may be asked for its content before that runs — and a delegate
@@ -136,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // One catalogue for the notifications and the settings preview alike, so a picture
         // read for one is already there for the other.
         let systemIcons = SystemIconCatalog()
+        systemIconCatalog = systemIcons
         systemIconMiddleware = SystemIconMiddleware(choices: iconSources.choices, catalog: systemIcons)
         iconSourceModel = IconSourceModel(store: iconSources, catalog: systemIcons)
 
@@ -285,6 +287,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     icon: event.icon
                 )
             )
+        }
+    }
+
+    /// Puts a real banner on screen for the Preview tab.
+    ///
+    /// Through the two icon stages only, then straight to the screen: the choices that decide
+    /// how the picture looks (a picture chosen for this notification, macOS's own for the
+    /// module) apply exactly as they do to a live one, while the stages that decide *whether*
+    /// something is said — switched off, a duplicate, unstable — are skipped, so a preview
+    /// always shows. Nor does it reach the history: nothing happened.
+    func previewNotification(_ event: MonitorEventDescription, category: NotificationCategory, badge: IconBadge?, source: IconSource) {
+        Task {
+            var notification = NotificationEvent(
+                name: event.name,
+                category: category,
+                title: event.title,
+                body: "Preview — nothing on this Mac actually changed.",
+                icon: event.icon,
+                iconKind: event.iconKind?.rawValue,
+                iconBadge: badge,
+                showsIconBadge: badge != nil
+            )
+            let context = DispatchContext(phase: .steady, firedAt: Date())
+            // The picture source is the one chosen on the Preview tab, not the saved one, so
+            // either can be judged without changing a setting.
+            var choices = IconSourceChoices()
+            choices[category] = source
+            let stages: [any NotificationMiddleware] = [
+                iconOverrideMiddleware, SystemIconMiddleware(choices: choices, catalog: systemIconCatalog)
+            ]
+            for stage in stages {
+                guard case .deliver(let next) = await stage.process(notification, context: context) else { return }
+                notification = next
+            }
+            _ = await bannerDelivery.present(notification, context: context)
         }
     }
 

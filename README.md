@@ -6,7 +6,7 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** version 1.1.3. Every module below is ported and
+**Status:** version 1.2.0. Every module below is ported and
 covered by the parity audit; see `CHANGELOG.md` for what has changed and `KNOWN-ISSUES.md`
 for what is understood, small, and not yet worth holding a release for.
 

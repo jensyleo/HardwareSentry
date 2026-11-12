@@ -23,9 +23,17 @@ public struct IconBadgeView: View {
             .resizable()
             .aspectRatio(contentMode: .fit)
             .symbolRenderingMode(.palette)
-            .foregroundStyle(.white, Self.color(for: badge))
+            .foregroundStyle(badge == .warning ? Color.black.opacity(0.85) : .white, Self.color(for: badge))
             .frame(width: side, height: side)
-            .background(Circle().fill(.white).padding(-1.5))
+            // A circle is ringed in white; the warning triangle keeps its own outline.
+            .background {
+                if badge == .warning {
+                    Image(systemName: "triangle.fill").resizable().aspectRatio(contentMode: .fit)
+                        .foregroundStyle(.white).scaleEffect(1.12)
+                } else {
+                    Circle().fill(.white).padding(-1.5)
+                }
+            }
             .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
             // Pulled slightly past the corner, as macOS's own badges sit, so it covers
             // less of the picture it is marking.
@@ -37,7 +45,7 @@ public struct IconBadgeView: View {
         switch badge {
         case .positive: "checkmark.circle.fill"
         case .negative: "xmark.circle.fill"
-        case .warning: "exclamationmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
         }
     }
 
@@ -45,7 +53,7 @@ public struct IconBadgeView: View {
         switch badge {
         case .positive: .green
         case .negative: .red
-        case .warning: .orange
+        case .warning: .yellow
         }
     }
 

@@ -1,6 +1,7 @@
 import SentryContract
 import SignalCore
 import SwiftUI
+import SystemIcons
 import ThermalMonitor
 
 /// The settings window: how notifications look, and which ones arrive.
@@ -20,19 +21,36 @@ struct SettingsView: View {
     let checkSerialVendorUpdateNow: () -> Void
     let simulateThermal: (ThermalState, ThermalState) -> Void
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
+    let previewNotification: (MonitorEventDescription, NotificationCategory, IconBadge?, IconSource) -> Void
+
+    @State private var tab = "general"
+    /// The module and pane the Notifications tab shows; set by "Edit icon" on the Preview tab.
+    @State private var notificationsModule: String?
+    @State private var notificationsPane = ModulePane.iconsTitle
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             // First, and in this order, because it is the one tab about the application
             // itself rather than about the notifications it sends.
             GeneralSettingsView(model: general, tuning: tuning)
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag("general")
 
             BannerAppearanceView(store: appearance)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
+                .tag("appearance")
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, selection: $notificationsModule, pane: $notificationsPane)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
+                .tag("notifications")
+
+            NotificationPreviewView(model: events, iconSources: iconSources, show: previewNotification, editIcons: { moduleID in
+                notificationsModule = moduleID
+                notificationsPane = ModulePane.iconsTitle
+                tab = "notifications"
+            })
+                .tabItem { Label("Preview", systemImage: "eye") }
+                .tag("preview")
 
             HistoryView(
                 store: history,
@@ -40,6 +58,7 @@ struct SettingsView: View {
                 isModuleEnabled: { events.isEnabled($0) }
             )
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
+                .tag("history")
         }
         // Every dimension is a minimum and a preference, never a fixed value: a fixed one
         // makes the settings window refuse to resize, and the appearance tab is already

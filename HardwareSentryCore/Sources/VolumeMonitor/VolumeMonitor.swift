@@ -45,11 +45,11 @@ public actor VolumeMonitor: Monitor {
             )
         ]
     } + [
-        .init(name: VolumeEvent.lowSpace.rawValue, title: "Critical (generic)", enabledByDefault: false, icon: .asset("Device-Critical", in: .module), iconKind: VolumeKind.genericIconKind),
+        .init(name: VolumeEvent.lowSpace.rawValue, title: "Critical (generic)", enabledByDefault: false, icon: .asset("Device-Critical", in: .module)),
         .init(name: VolumeEvent.mounted.rawValue, title: "Mounted (generic)", icon: .asset("DisksVolumes-Mounted", in: .module), iconKind: VolumeKind.genericIconKind),
         .init(name: VolumeEvent.unmounted.rawValue, title: "Unmounted (generic)", icon: .asset("DisksVolumes-Eject", in: .module), iconKind: VolumeKind.genericIconKind),
         .init(name: VolumeEvent.unsafeEject.rawValue, title: "Ejected Unsafely", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module), iconKind: VolumeKind.genericIconKind),
-        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module), iconKind: VolumeKind.genericIconKind),
+        .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module)),
         // The network drive's own picture, marked rather than redrawn: it has no "not
         // answering" version, and the state is what these two are about.
         .init(name: VolumeEvent.notResponding.rawValue, title: "Network Drive Not Responding", icon: .asset(VolumeKind.nas.iconBaseName, in: .module), iconKind: VolumeKind.nas.iconKind),
@@ -385,7 +385,8 @@ public actor VolumeMonitor: Monitor {
                     title: "Disk Not Readable",
                     body: report.message,
                     icon: .asset(kindByPath[report.wholeDiskName].map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module),
-                    iconKind: kindByPath[report.wholeDiskName]?.iconKind ?? VolumeKind.genericIconKind,
+                    // No `iconKind`: the radiation mark is this application's own signal for a
+                    // disk in serious trouble, and macOS's plain disk would swap it away.
                     iconBadge: .warning
                 )
             }
@@ -420,7 +421,6 @@ public actor VolumeMonitor: Monitor {
                     title: "Volume Ejected Unsafely",
                     body: "\(name) disappeared without being ejected first.",
                     icon: .asset(kind.map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module),
-                    iconKind: kind?.iconKind ?? VolumeKind.genericIconKind,
                     iconBadge: .warning
                 )
             }
@@ -460,7 +460,6 @@ public actor VolumeMonitor: Monitor {
                         )
                     ]),
                     icon: .asset("Device-Critical", in: .module),
-                    iconKind: kindByPath[path]?.iconKind ?? VolumeKind.genericIconKind,
                     iconBadge: .warning
                 )
             } else if wasBelow, freePercent >= lowSpaceRecoverPercent {

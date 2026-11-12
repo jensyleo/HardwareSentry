@@ -140,6 +140,10 @@ public actor FlapDetectionMiddleware: NotificationMiddleware {
             body: "\(report.subject) changed state \(report.occurrences) times "
                 + "within \(Int(report.window)) seconds.",
             icon: report.triggeringEvent.icon,
+            iconKind: report.triggeringEvent.iconKind,
+            iconModel: report.triggeringEvent.iconModel,
+            iconBadge: .warning,
+            showsIconBadge: true,
             priority: .high
         )
     }
