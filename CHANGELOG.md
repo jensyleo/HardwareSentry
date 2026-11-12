@@ -5,6 +5,28 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.3.0] - 2026-11-12
+
+### Added
+
+- **A pencil beside every notification in the Preview tab.** It opens the Notifications tab on
+  that module's icons, scrolls to the row and flashes it, so a picture that does not look right
+  can be changed in two clicks.
+
+### Changed
+
+- **The last pictures are redrawn to the same standard**: webcam (USB and Camera), Continuity
+  Camera, Desk View, the Bluetooth headset, the generic critical disk and the Thunderbolt
+  bolts. Camera no longer uses macOS symbols as pictures; each has a disconnected variant.
+- **The "Unstable" notice names the device** — "SAMSUNG changed state 4 times" — instead of its
+  internal number.
+
+### Fixed
+
+- **A USB stick that macOS cannot name waited eight seconds before being reported.** The wait
+  was for a description that had already arrived but classified nothing. Once the disk is
+  described, the notice is raised at once.
+
 ## [1.2.3] - 2026-11-12
 
 ### Fixed

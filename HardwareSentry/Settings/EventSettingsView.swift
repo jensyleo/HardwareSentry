@@ -38,6 +38,8 @@ struct EventSettingsView: View {
     /// onto the first tab every time they change module. A name that the next module does
     /// not have falls back to its first tab.
     @Binding var pane: String
+    /// An event to scroll to and flash when this tab is opened from the Preview tab.
+    @Binding var highlightedEvent: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -80,7 +82,7 @@ struct EventSettingsView: View {
     @ViewBuilder
     private var detail: some View {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, pane: $pane)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, pane: $pane, highlightedEvent: $highlightedEvent)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -217,6 +219,7 @@ private struct ModuleDetail: View {
     let checkBatteryHealthNow: () -> Void
     let checkSerialVendorUpdateNow: () -> Void
     @Binding var pane: String
+    @Binding var highlightedEvent: String?
 
     private var titles: [String] { ModulePane.titles(for: module) }
 
@@ -746,6 +749,20 @@ private struct ModuleDetail: View {
     ]
 
     private var iconsPane: some View {
+        ScrollViewReader { proxy in
+            iconsForm
+                .task(id: highlightedEvent) {
+                    guard let name = highlightedEvent else { return }
+                    // After the rows exist: the pane has only just been switched to.
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    withAnimation { proxy.scrollTo(name, anchor: .center) }
+                    try? await Task.sleep(nanoseconds: 2_200_000_000)
+                    if highlightedEvent == name { withAnimation { highlightedEvent = nil } }
+                }
+        }
+    }
+
+    private var iconsForm: some View {
         Form {
             notificationIconSourceSection
 
@@ -816,6 +833,12 @@ private struct ModuleDetail: View {
                                 .toggleStyle(.checkbox)
                                 .disabled(!model.isEnabled(module.category))
                         }
+                        .id(event.name)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.accentColor.opacity(highlightedEvent == event.name ? 0.25 : 0))
+                        )
                     }
                 }
             }

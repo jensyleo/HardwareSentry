@@ -20,12 +20,12 @@ public actor CameraMonitor: Monitor {
         // offers in Settings, so replacing them later touches only these lines.
         .init(name: CameraEvent.connected.rawValue, title: "Camera connected", icon: .asset("CameraMonitor-Icon", in: .module), iconKind: DeviceIconKind("camera", "camera")),
         .init(name: CameraEvent.disconnected.rawValue, title: "Camera disconnected", icon: .asset("CameraMonitor-Icon", in: .module), iconKind: DeviceIconKind("camera", "camera")),
-        .init(name: CameraEvent.webcamConnected.rawValue, title: "Webcam connected", icon: .symbol("web.camera"), iconKind: DeviceIconKind("camera", "webcam")),
-        .init(name: CameraEvent.webcamDisconnected.rawValue, title: "Webcam disconnected", icon: .symbol("web.camera"), iconKind: DeviceIconKind("camera", "webcam")),
-        .init(name: CameraEvent.continuityConnected.rawValue, title: "Continuity Camera connected", icon: .symbol("iphone.radiowaves.left.and.right"), iconKind: DeviceIconKind("camera", "continuity")),
-        .init(name: CameraEvent.continuityDisconnected.rawValue, title: "Continuity Camera disconnected", icon: .symbol("iphone.radiowaves.left.and.right"), iconKind: DeviceIconKind("camera", "continuity")),
-        .init(name: CameraEvent.deskViewConnected.rawValue, title: "Desk View connected", icon: .symbol("table.furniture"), iconKind: DeviceIconKind("camera", "deskView")),
-        .init(name: CameraEvent.deskViewDisconnected.rawValue, title: "Desk View disconnected", icon: .symbol("table.furniture"), iconKind: DeviceIconKind("camera", "deskView")),
+        .init(name: CameraEvent.webcamConnected.rawValue, title: "Webcam connected", icon: .asset("CameraMonitor-Icon-Webcam", in: .module), iconKind: DeviceIconKind("camera", "webcam")),
+        .init(name: CameraEvent.webcamDisconnected.rawValue, title: "Webcam disconnected", icon: .asset("CameraMonitor-Icon-Webcam-Disconnected", in: .module), iconKind: DeviceIconKind("camera", "webcam")),
+        .init(name: CameraEvent.continuityConnected.rawValue, title: "Continuity Camera connected", icon: .asset("CameraMonitor-Icon-Continuity", in: .module), iconKind: DeviceIconKind("camera", "continuity")),
+        .init(name: CameraEvent.continuityDisconnected.rawValue, title: "Continuity Camera disconnected", icon: .asset("CameraMonitor-Icon-Continuity-Disconnected", in: .module), iconKind: DeviceIconKind("camera", "continuity")),
+        .init(name: CameraEvent.deskViewConnected.rawValue, title: "Desk View connected", icon: .asset("CameraMonitor-Icon-DeskView", in: .module), iconKind: DeviceIconKind("camera", "deskView")),
+        .init(name: CameraEvent.deskViewDisconnected.rawValue, title: "Desk View disconnected", icon: .asset("CameraMonitor-Icon-DeskView-Disconnected", in: .module), iconKind: DeviceIconKind("camera", "deskView")),
         .init(name: CameraEvent.inUseChanged.rawValue, title: "Camera started/stopped being used", icon: .asset("CameraMonitor-Icon-InUse", in: .module)),
         .init(name: CameraEvent.portraitEffectChanged.rawValue, title: "Portrait Effect changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
         .init(name: CameraEvent.studioLightChanged.rawValue, title: "Studio Light changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
@@ -130,9 +130,9 @@ public actor CameraMonitor: Monitor {
     /// mismatch would read as one or the other being wrong. SF Symbol placeholders for the
     /// kinds that do not have artwork of their own yet.
     private static func icon(transport: String?, isDeskViewCamera: Bool, isContinuityCamera: Bool) -> NotificationIcon {
-        if isDeskViewCamera { return .symbol("table.furniture") }
-        if isContinuityCamera { return .symbol("iphone.radiowaves.left.and.right") }
-        if isUSB(transport) { return .symbol("web.camera") }
+        if isDeskViewCamera { return .asset("CameraMonitor-Icon-DeskView", in: .module) }
+        if isContinuityCamera { return .asset("CameraMonitor-Icon-Continuity", in: .module) }
+        if isUSB(transport) { return .asset("CameraMonitor-Icon-Webcam", in: .module) }
         return .asset("CameraMonitor-Icon", in: .module)
     }
 

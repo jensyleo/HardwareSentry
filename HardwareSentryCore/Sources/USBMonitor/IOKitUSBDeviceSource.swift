@@ -629,15 +629,19 @@ private final class RegistryWatcher: @unchecked Sendable {
         timeout: TimeInterval
     ) async -> USBMassStorageHint? {
         guard vendorID != nil || productID != nil || locationID != nil else { return nil }
-        guard pollInterval > 0 else { return matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) }
+        func answer() -> USBMassStorageHint?? {
+            if case .described(let hint) = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) { return .some(hint) }
+            return nil
+        }
+        guard pollInterval > 0 else { return answer() ?? nil }
 
         for wait in MassStoragePollSchedule.backoff(pollInterval: pollInterval, timeout: timeout) {
-            if let hint = matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID) {
-                return hint
-            }
+            // Described is final, even when the description classifies nothing: waiting on
+            // cannot make an unnamed drive say more, it only delays its notice.
+            if let described = answer() { return described }
             try? await Task.sleep(nanoseconds: UInt64(max(0, wait) * 1_000_000_000))
         }
-        return matchingMassStorageHint(vendorID: vendorID, productID: productID, locationID: locationID)
+        return answer() ?? nil
     }
 
     /// A fresh, one-shot scan of every currently published device of this class, for the
@@ -648,10 +652,10 @@ private final class RegistryWatcher: @unchecked Sendable {
         vendorID: UInt16?,
         productID: UInt16?,
         locationID: UInt32?
-    ) -> USBMassStorageHint? {
+    ) -> MassStorageResolution {
         var iterator: io_iterator_t = 0
         guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(Self.deviceClass), &iterator) == KERN_SUCCESS else {
-            return nil
+            return .pending
         }
         defer { IOObjectRelease(iterator) }
 
@@ -661,9 +665,9 @@ private final class RegistryWatcher: @unchecked Sendable {
             let candidateProduct = uint16(candidate, "idProduct")
             let candidateLocation = uint32(candidate, "locationID")
             guard candidateVendor == vendorID, candidateProduct == productID, candidateLocation == locationID else { continue }
-            return Self.massStorageHint(candidate)
+            return Self.massStorageResolution(candidate)
         }
-        return nil
+        return .pending
     }
 
     /// A fresh, one-shot scan for the HID Usage Page/Usage of the device matching this
@@ -921,18 +925,34 @@ private final class RegistryWatcher: @unchecked Sendable {
     ///
     /// Independently reimplemented, not imported — see `USBMassStorageHint`'s own doc
     /// comment for why a monitor cannot reuse another monitor's types.
+    /// Where a Mass Storage device's disk description stands.
+    ///
+    /// Told apart because "no answer yet" and "answered, and it says nothing useful" both used
+    /// to come back as nil, and the first is worth waiting for while the second never changes:
+    /// an unnamed pendrive is described within a moment and simply cannot be classified, yet it
+    /// was polled for the whole eight seconds in case it might.
+    enum MassStorageResolution {
+        case pending
+        case described(USBMassStorageHint?)
+    }
+
     private static func massStorageHint(_ service: io_service_t) -> USBMassStorageHint? {
-        guard let bsdName = storageMedium(service).bsdName else { return nil }
-        guard let session = DASessionCreate(kCFAllocatorDefault) else { return nil }
-        guard let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsdName) else { return nil }
-        guard let description = DADiskCopyDescription(disk) as? [String: Any] else { return nil }
+        if case .described(let hint) = massStorageResolution(service) { return hint }
+        return nil
+    }
+
+    private static func massStorageResolution(_ service: io_service_t) -> MassStorageResolution {
+        guard let bsdName = storageMedium(service).bsdName else { return .pending }
+        guard let session = DASessionCreate(kCFAllocatorDefault) else { return .pending }
+        guard let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsdName) else { return .pending }
+        guard let description = DADiskCopyDescription(disk) as? [String: Any] else { return .pending }
         let protocolName = description[kDADiskDescriptionDeviceProtocolKey as String] as? String
         let mediaName = [
             description[kDADiskDescriptionMediaNameKey as String] as? String,
             description[kDADiskDescriptionDeviceModelKey as String] as? String
         ].compactMap { $0 }.joined(separator: " ")
         let sizeBytes = (description[kDADiskDescriptionMediaSizeKey as String] as? NSNumber)?.uint64Value
-        return USBMassStorageHint.infer(protocolName: protocolName, mediaName: mediaName, sizeBytes: sizeBytes)
+        return .described(USBMassStorageHint.infer(protocolName: protocolName, mediaName: mediaName, sizeBytes: sizeBytes))
     }
 
     /// A property that lives on the *port* rather than on the device, so the walk goes up.

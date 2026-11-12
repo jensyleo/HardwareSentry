@@ -27,6 +27,7 @@ struct SettingsView: View {
     /// The module and pane the Notifications tab shows; set by "Edit icon" on the Preview tab.
     @State private var notificationsModule: String?
     @State private var notificationsPane = ModulePane.iconsTitle
+    @State private var notificationsHighlight: String?
 
     var body: some View {
         TabView(selection: $tab) {
@@ -40,12 +41,13 @@ struct SettingsView: View {
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
                 .tag("appearance")
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, selection: $notificationsModule, pane: $notificationsPane)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, selection: $notificationsModule, pane: $notificationsPane, highlightedEvent: $notificationsHighlight)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
                 .tag("notifications")
 
-            NotificationPreviewView(model: events, iconSources: iconSources, show: previewNotification, editIcons: { moduleID in
+            NotificationPreviewView(model: events, iconSources: iconSources, show: previewNotification, editIcons: { moduleID, eventName in
                 notificationsModule = moduleID
+                notificationsHighlight = eventName
                 notificationsPane = ModulePane.iconsTitle
                 tab = "notifications"
             })
