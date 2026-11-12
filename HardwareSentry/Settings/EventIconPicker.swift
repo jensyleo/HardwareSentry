@@ -101,8 +101,29 @@ struct EventIconPicker: View {
     /// wants all the room there is and the icon fills the window. The same thing HG4MAC
     /// does with a 32pt-constrained `NSImageView`.
     private var preview: some View {
-        Image(nsImage: resolvedImage)
-            .frame(width: Self.side, height: Self.side)
+        Group {
+            if let name = shownSymbolName {
+                // Drawn as a symbol, in the text colour: scaled into a bitmap it comes out
+                // black, which cannot be seen on a dark window.
+                Image(systemName: name).resizable().aspectRatio(contentMode: .fit)
+                    .foregroundStyle(.secondary).padding(3)
+            } else {
+                Image(nsImage: resolvedImage)
+            }
+        }
+        .frame(width: Self.side, height: Self.side)
+    }
+
+    /// The symbol being shown, when what is shown is a symbol at all.
+    private var shownSymbolName: String? {
+        switch current {
+        case .symbol(let name): return NSImage(systemSymbolName: name, accessibilityDescription: nil) == nil ? nil : name
+        case .original: if case .symbol(let n) = defaultIcon { return n } else { return nil }
+        case nil:
+            if systemImage != nil { return nil }
+            if case .symbol(let n) = defaultIcon { return n } else { return nil }
+        default: return nil
+        }
     }
 
     private var resolvedImage: NSImage {
