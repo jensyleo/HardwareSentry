@@ -5,6 +5,42 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.5.0] - 2026-11-13
+
+### Added
+
+- **Critical is its own level, apart from needing attention.** A disk that cannot be read, a
+  volume out of space, an unsafe eject, a severe thermal state and a failing battery carry the
+  radiation mark; a tick, a cross and a warning triangle stay for the rest. It has its own style
+  in Appearance → "By kind of notice".
+- **"Only what changed" for notices that used to repeat what was already known**, each a checkbox:
+  *IP Addresses Updated* lists only the interfaces that changed (and any released),
+  *Proxy configuration changed* names the settings that moved, and Audio's default-device and
+  Power's source-change notices can leave out the device or battery details.
+- **Pictures for states that had none:** a warning picture for a printer that needs attention, a
+  speaker that stopped responding and a network drive that is not answering; a sleeping display
+  (a moon, not a cross); a plain "gone" version for cameras and game controllers; a drive in
+  trouble in the picture of its own kind.
+- **A Preview tab that shows what a notification can really be**, including the three states of
+  a battery health report and the two of a scanner's document feeder.
+
+### Changed
+
+- Modules are listed alphabetically everywhere.
+- **Redrawn pictures:** the speaker and its variants, the Thunderbolt "disconnected" bolt (now
+  with a cross), the proxy (the globe with PROXY, like DNS), and Volume's unmounted pictures
+  (now with the cross used elsewhere).
+- Notices that were told with one picture in Settings and another when they fired now use the same
+  one (Battery Fully Charged, Link Aggregation Member, Ejected Unsafely, low space by kind).
+- An "Unstable" notice uses the device's plain picture, not a "gone" version with a cross.
+- Bluetooth's disconnected, BLE-disconnected and unpaired notices no longer share the radio-off
+  picture.
+
+### Fixed
+
+- Preview drew a state mark over pictures that already carried it (the warning over the radiation
+  mark, the cross over a crossed-out drive). It now draws a mark only where a live notice would.
+
 ## [1.4.0] - 2026-11-13
 
 ### Added

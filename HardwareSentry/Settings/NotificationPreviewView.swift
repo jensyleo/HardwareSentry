@@ -18,7 +18,7 @@ import SystemIcons
 struct NotificationPreviewView: View {
     @Bindable var model: EventSettingsModel
     @Bindable var iconSources: IconSourceModel
-    let show: (MonitorEventDescription, NotificationCategory, IconBadge?, IconSource) -> Void
+    let show: (MonitorEventDescription, NotificationCategory, IconBadge?, IconSource, Bool) -> Void
 
     /// Sends somebody to the Notifications tab, on this module's icons.
     let editIcons: (String, String?) -> Void
@@ -111,10 +111,11 @@ struct NotificationPreviewView: View {
                 // This notification says only these things, so only these are offered: a
                 // banner the real notification can never produce is not worth previewing.
                 ForEach(Array(offered.enumerated()), id: \.offset) { _, state in
+                    let shown = Self.event(event, showing: state.picture)
                     if let badge = state.badge {
-                        stateButton(state.label, systemImage: Self.symbol(for: badge), tint: Self.tint(for: badge), event, category, badge)
+                        stateButton(state.label, systemImage: Self.symbol(for: badge), tint: Self.tint(for: badge), shown, category, badge, artIsTheState: state.artIsTheState)
                     } else {
-                        Button(state.label) { show(event, category, nil, source(in: category)) }.controlSize(.small)
+                        Button(state.label) { show(event, category, nil, source(in: category), true) }.controlSize(.small)
                     }
                 }
             } else if event.iconKind != nil {
@@ -128,13 +129,21 @@ struct NotificationPreviewView: View {
                 .help("Show the notice for a device that keeps connecting and disconnecting")
                 stateButton("Attention", systemImage: "exclamationmark.triangle.fill", tint: .yellow, event, category, .warning)
             } else {
-                Button("Show") { show(event, category, nil, source(in: category)) }
+                Button("Show") { show(event, category, nil, source(in: category), true) }
                     .controlSize(.small)
             }
         }
     }
 
-    private struct OfferedState { let label: String; let badge: IconBadge? }
+    private struct OfferedState {
+        let label: String
+        let badge: IconBadge?
+        /// Whether the row's own picture already says this state. Not for a row that covers
+        /// both ordinary news and trouble under one picture.
+        var artIsTheState = true
+        /// A picture of this state under another name in the same bundle.
+        var picture: String?
+    }
 
     private static func symbol(for badge: IconBadge) -> String {
         switch badge {
@@ -144,6 +153,7 @@ struct NotificationPreviewView: View {
         case .favorite: "star.circle.fill"
         case .blocked: "minus.circle.fill"
         case .ink: "drop.circle.fill"
+        case .critical: "exclamationmark.octagon.fill"
         }
     }
 
@@ -154,12 +164,13 @@ struct NotificationPreviewView: View {
         case .warning: .yellow
         case .favorite: .yellow
         case .blocked, .ink: .red
+        case .critical: .orange
         }
     }
 
     /// Notifications that say two particular things, whatever their name suggests.
     private static let twoStates: [String: [OfferedState]] = [
-        "DisplaySleepChanged": [.init(label: "Slept", badge: .negative), .init(label: "Woke", badge: .positive)],
+        "DisplaySleepChanged": [.init(label: "Slept", badge: nil), .init(label: "Woke", badge: .positive)],
         "PrinterError": [.init(label: "Needs attention", badge: .warning), .init(label: "OK again", badge: .positive)],
         "PrinterRejectingJobs": [.init(label: "Rejecting", badge: .blocked), .init(label: "Accepting", badge: .positive)],
         "PrinterSupplyLow": [.init(label: "Running low", badge: .ink)],
@@ -167,6 +178,12 @@ struct NotificationPreviewView: View {
         "PrintJobCanceled": [.init(label: "Cancelled", badge: .blocked)],
         "PrintJobFinished": [.init(label: "Finished", badge: .positive)],
         "WifiHostAPModeChanged": [.init(label: "Started", badge: .positive), .init(label: "Stopped", badge: .negative)],
+        "ScannerAdfStateChanged": [.init(label: "Loaded / empty", badge: nil), .init(label: "Jam / door open", badge: .warning, artIsTheState: false)],
+        "PowerBatteryHealth": [
+            .init(label: "Healthy", badge: .positive),
+            .init(label: "Service / fault", badge: .warning, picture: "Power-BatteryFailure"),
+            .init(label: "Failing", badge: .critical, picture: "Power-BatteryFailure"),
+        ],
         "LowPowerMode": [.init(label: "On", badge: .positive), .init(label: "Off", badge: .negative)],
     ]
 
@@ -180,6 +197,7 @@ struct NotificationPreviewView: View {
     private func offeredStates(for event: MonitorEventDescription, in category: NotificationCategory) -> [OfferedState]? {
         if let two = Self.twoStates[event.name] { return two }
         let state = IconBadge.representative(forEventName: event.name)
+        if state == .critical { return [.init(label: "Critical", badge: .critical)] }
         if state == .warning { return [.init(label: "Attention", badge: .warning)] }
 
         let names = Set((model.modules.first { $0.category == category }?.events ?? []).map(\.name))
@@ -207,16 +225,23 @@ struct NotificationPreviewView: View {
         return nil
     }
 
+    /// `event` drawn with another picture from its own bundle, when one is named and exists.
+    private static func event(_ event: MonitorEventDescription, showing picture: String?) -> MonitorEventDescription {
+        guard let picture, let icon = AssetOrigin.sibling(of: event.icon, named: picture) else { return event }
+        return MonitorEventDescription(name: event.name, title: event.title, enabledByDefault: event.enabledByDefault, icon: icon, iconKind: event.iconKind, group: event.group)
+    }
+
     private func showUnstable(_ event: MonitorEventDescription, _ category: NotificationCategory) {
         show(MonitorEventDescription(name: "FlapDetected", title: "Unstable", icon: event.icon, iconKind: event.iconKind),
-             category, .warning, source(in: category))
+             category, .warning, source(in: category), false)
     }
 
     private func stateButton(
         _ title: String, systemImage: String, tint: Color,
-        _ event: MonitorEventDescription, _ category: NotificationCategory, _ badge: IconBadge
+        _ event: MonitorEventDescription, _ category: NotificationCategory, _ badge: IconBadge,
+        artIsTheState: Bool = false
     ) -> some View {
-        Button { show(event, category, badge, source(in: category)) } label: {
+        Button { show(event, category, badge, source(in: category), artIsTheState) } label: {
             Label(title, systemImage: systemImage).foregroundStyle(tint)
         }
         .controlSize(.small)

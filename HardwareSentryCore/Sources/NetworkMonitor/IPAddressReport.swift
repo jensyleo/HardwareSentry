@@ -124,6 +124,10 @@ public struct IPAddressReport: Sendable, Equatable {
         public var searchDomains = false
         /// The address an interface used to hold, when it has just changed.
         public var previousAddress = false
+        /// Say only what changed: the interfaces whose addresses are not what they were, and
+        /// any that have gone. Without it, the whole machine is listed every time, so one
+        /// address appearing is buried among a dozen that did not move.
+        public var onlyChanged = false
         public var dhcpLease = false
         public var baudrate = false
         public var decodedType = false
@@ -131,11 +135,29 @@ public struct IPAddressReport: Sendable, Equatable {
         public init() {}
     }
 
+    /// Whether any interface holds different addresses than in `previous`, or one that held
+    /// some no longer does. A first report, with nothing before it, always counts.
+    public func hasChanges(since previous: IPAddressReport?) -> Bool {
+        guard let previous else { return true }
+        let names = Set(interfaces.map(\.bsdName)).union(previous.interfaces.map(\.bsdName))
+        return names.contains { name in
+            let now = interfaces.first { $0.bsdName == name }
+            let then = previous.interfaces.first { $0.bsdName == name }
+            return Set(now?.ipv4 ?? []) != Set(then?.ipv4 ?? []) || Set(now?.ipv6 ?? []) != Set(then?.ipv6 ?? [])
+        }
+    }
+
     public func body(detail: Detail = Detail(), previous: IPAddressReport? = nil) -> String {
         var lines: [String] = []
 
+        // Nothing to compare with — the first report, after launch — is all news.
+        let comparing = detail.onlyChanged && previous != nil
         for interface in interfaces.sorted(by: { $0.bsdName < $1.bsdName }) {
             let before = previous?.interfaces.first { $0.bsdName == interface.bsdName }
+            if comparing, let before,
+               Set(before.ipv4) == Set(interface.ipv4), Set(before.ipv6) == Set(interface.ipv6) {
+                continue
+            }
             let name = detail.friendlyNames ? interface.displayName : interface.bsdName
 
             for address in interface.ipv4.sorted() where detail.ipv4 {
@@ -185,6 +207,18 @@ public struct IPAddressReport: Sendable, Equatable {
             // worse than one.
             if detail.baudrate, let baudrate = interface.baudrate, interface.decodedType != "Ethernet" {
                 lines.append("Baudrate:\t\(baudrate) bps")
+            }
+        }
+
+        if comparing, let previous {
+            // An interface that held an address and now does not is as much news as one that
+            // gained it, and would otherwise be told only by its absence.
+            for before in previous.interfaces.sorted(by: { $0.bsdName < $1.bsdName })
+            where !(before.ipv4.isEmpty && before.ipv6.isEmpty)
+                && !(interfaces.contains { $0.bsdName == before.bsdName && !($0.ipv4.isEmpty && $0.ipv6.isEmpty) }) {
+                let name = detail.friendlyNames ? before.displayName : before.bsdName
+                let gone = (before.ipv4 + before.ipv6).sorted().joined(separator: ", ")
+                lines.append("\(name) — released:\t\(gone)")
             }
         }
 

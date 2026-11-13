@@ -77,6 +77,9 @@ public enum PowerField: String, CaseIterable {
     case batteryInternalFailure = "BatteryInternalFailure"
     /// The "AC Power → Battery Power" line on a source change.
     case sourceChangeArrow = "SourceChangeArrow"
+    /// The battery and adapter details after the line saying the source changed. Off, the
+    /// notice says only which source it moved to.
+    case detailsOnSourceChange = "DetailsOnSourceChange"
 
     /// How the line is named in Settings → Events, under "Include in the message".
     var settingsTitle: String {
@@ -97,6 +100,7 @@ public enum PowerField: String, CaseIterable {
         case .batteryFailureModes: return "Named battery faults"
         case .batteryInternalFailure: return "Internal failure warning"
         case .sourceChangeArrow: return "Show which source it changed from"
+        case .detailsOnSourceChange: return "Include the battery and adapter details when the source changes"
         }
     }
 
@@ -117,7 +121,7 @@ public enum PowerField: String, CaseIterable {
              // nothing when everything is fine. They used to be unswitchable, which was
              // the wrong call: it is not this application's place to decide that somebody
              // may not turn a line off.
-             .batteryFailureModes, .batteryInternalFailure, .sourceChangeArrow:
+             .batteryFailureModes, .batteryInternalFailure, .sourceChangeArrow, .detailsOnSourceChange:
             return true
         case .diagnostics, .adapterIdentity, .batteryErrorMargin:
             return false

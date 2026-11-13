@@ -23,7 +23,7 @@ struct SettingsView: View {
     let checkSerialVendorUpdateNow: () -> Void
     let simulateThermal: (ThermalState, ThermalState) -> Void
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
-    let previewNotification: (MonitorEventDescription, NotificationCategory, IconBadge?, IconSource) -> Void
+    let previewNotification: (MonitorEventDescription, NotificationCategory, IconBadge?, IconSource, Bool) -> Void
 
     @State private var tab = "general"
     /// The module and pane the Notifications tab shows; set by "Edit icon" on the Preview tab.

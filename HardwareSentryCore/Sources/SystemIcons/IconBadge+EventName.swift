@@ -13,12 +13,16 @@ public extension IconBadge {
     /// The negatives and warnings are checked first because the positives hide inside
     /// them: "Disconnected" contains "Connected", "Unmounted" contains "Mounted".
     static func representative(forEventName name: String) -> IconBadge? {
+        // Serious trouble has a mark of its own, apart from needing attention.
+        let criticals = ["LowSpace", "NotReadable", "UnsafeEject", "ThermalCritical", "ThermalDarkWake"]
+        if criticals.contains(where: name.contains) { return .critical }
         // Particular marks first: they are warnings or changes by name, but have a picture of
         // their own.
         if name.contains("SupplyLow") { return .ink }
         if name.contains("DefaultChanged") && name.hasPrefix("Printer") { return .favorite }
         if name.contains("RejectingJobs") || name.contains("JobCanceled") { return .blocked }
-        let warnings = ["LowSpace", "Critical", "NotReadable", "NotResponding", "UnsafeEject", "StoppedResponding", "SupplyLow", "Error"]
+        // "Volume Critical" is a speaker turned up too far: a warning, not a failing disk.
+        let warnings = ["NotResponding", "StoppedResponding", "SupplyLow", "Error", "AudioVolumeCritical", "PowerWarning", "ThermalSerious"]
         let negatives = ["Disconnected", "Unmounted", "Lost", "Removed", "Detaching", "LinkDown", "Unpaired", "RadioOff", "Off"]
         let positives = ["Connected", "Mounted", "Found", "Added", "Attaching", "LinkUp", "Paired", "RadioOn", "Responding", "On"]
         if warnings.contains(where: name.contains) { return .warning }

@@ -32,7 +32,7 @@ public actor PowerMonitor: Monitor {
         .init(name: PowerEvent.sourceChanged.rawValue, title: "Power source changed", icon: .asset("Power-SourceChanged", in: .module)),
         .init(name: PowerEvent.fullyCharged.rawValue, title: "Battery fully charged", icon: .asset("Power-100", in: .module)),
         .init(name: PowerEvent.lowBatteryWarning.rawValue, title: "Battery low", icon: .asset("Power-10", in: .module)),
-        .init(name: PowerEvent.batteryHealth.rawValue, title: "Battery health report", icon: .asset("Power-BatteryFailure", in: .module))
+        .init(name: PowerEvent.batteryHealth.rawValue, title: "Battery health report", icon: .asset("Power-100", in: .module))
     ]
 
     /// Said outright: the first row is the adapter, and this module is about more.
@@ -235,6 +235,11 @@ public actor PowerMonitor: Monitor {
                 .field(PowerField.batteryInternalFailure.rawValue, "Warning", health.internalFailureNote)
             ]),
             icon: .asset(Self.healthIconName(for: health), in: .module),
+            // Failing is serious; wanting service or reporting a fault needs a look; a healthy
+            // report is just good news.
+            iconBadge: health.hasInternalFailure ? .critical
+                : (!health.failureModes.isEmpty || health.condition?.localizedCaseInsensitiveContains("service") == true) ? .warning
+                : .positive,
             priority: health.hasInternalFailure || !health.failureModes.isEmpty ? .high : .normal
         )
     }
@@ -384,7 +389,7 @@ public actor PowerMonitor: Monitor {
                 subject: "Battery",
                 title: "Battery Fully Charged",
                 body: await body(for: snapshot),
-                icon: .asset("Power-Plugged", in: .module)
+                icon: .asset("Power-100", in: .module)
             )
         } else if !isFull {
             announcedFullyCharged = false
@@ -404,21 +409,25 @@ public actor PowerMonitor: Monitor {
                     for: snapshot,
                     leading: [.always("Find a charger soon — the battery is running out.")]
                 ),
-                icon: .asset(Self.iconName(for: snapshot), in: .module)
+                icon: .asset(Self.iconName(for: snapshot), in: .module),
+                iconBadge: .warning
             )
         } else if changedKind {
             await context.notify(
                 PowerEvent.sourceChanged.rawValue,
                 subject: "Source",
                 title: "On \(Self.localizedName(for: snapshot.kind))",
-                body: await body(
-                    for: snapshot,
-                    leading: [.field(
+                body: await {
+                    let arrow = BodyLine.field(
                         PowerField.sourceChangeArrow.rawValue,
                         "Source",
                         "\(Self.localizedName(for: previousKind)) → \(Self.localizedName(for: snapshot.kind))"
-                    )]
-                ),
+                    )
+                    if !(await context.isFieldEnabled(PowerField.detailsOnSourceChange.rawValue)) {
+                        return await context.body([arrow])
+                    }
+                    return await body(for: snapshot, leading: [arrow])
+                }(),
                 icon: .asset(Self.iconName(for: snapshot), in: .module)
             )
         }

@@ -28,6 +28,7 @@
 		BB98EC1CDD359930915A1A69 /* SettingsProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71B3698948C459922312CF56 /* SettingsProfile.swift */; };
 		C404E1596BB93FC30C5CF4F7 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755E1866AF9BA9C190E95BA5 /* AppDelegate.swift */; };
 		C470F37DE4AE2B7C9FC2F509 /* HardwareSentryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */; };
+		E020CA74178D86DF2B9FAB7F /* UnstableBaseIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408785E96D895E9FE9F2420C /* UnstableBaseIcon.swift */; };
 		E086FA44D05E71273AF317A2 /* SystemIcons in Frameworks */ = {isa = PBXBuildFile; productRef = DA9B411E614207C84D4C8765 /* SystemIcons */; };
 		F32FA0A3099738191D9A130A /* GeneralSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5DC8CD288921DCD9C2C5E49 /* GeneralSettingsModel.swift */; };
 		F76A1D28924864D7762D5C35 /* MonitorRegistry in Frameworks */ = {isa = PBXBuildFile; productRef = 04A73023C9FE09C7DEB77BBC /* MonitorRegistry */; };
@@ -39,6 +40,7 @@
 		0DCDCC13275ED8ECA160AACF /* EventSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSettingsView.swift; sourceTree = "<group>"; };
 		0F59B9A5F1192D9A82ED7EAF /* NotificationPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreviewView.swift; sourceTree = "<group>"; };
 		19F12EAA9A55261D9EE07357 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		408785E96D895E9FE9F2420C /* UnstableBaseIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnstableBaseIcon.swift; sourceTree = "<group>"; };
 		6359397D73BFB64775C78C3F /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		6D0F1E3F48F27D6A0B52004A /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		6D3BB57E267D9097497B67D5 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -81,6 +83,7 @@
 				AE5148A390E8113CC28AE94E /* HardwareSentryApp.swift */,
 				9760C652282756CC6EBD17A6 /* Info.plist */,
 				9410D5CCDC897BFCFE943753 /* Uninstaller.swift */,
+				408785E96D895E9FE9F2420C /* UnstableBaseIcon.swift */,
 				968319D5CBD5928CDE60F0E3 /* Help */,
 				3758C393170A3699012E2882 /* Resources */,
 				3DFF1199ACCAFC0EEAC825CA /* Settings */,
@@ -250,6 +253,7 @@
 				BB98EC1CDD359930915A1A69 /* SettingsProfile.swift in Sources */,
 				6A1FE50C569D25922B34B8B4 /* SettingsView.swift in Sources */,
 				52CC5F3DA62E3A5180F38C5D /* Uninstaller.swift in Sources */,
+				E020CA74178D86DF2B9FAB7F /* UnstableBaseIcon.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -328,7 +332,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
 				PRODUCT_NAME = HardwareSentry;
 				SDKROOT = macosx;
@@ -416,7 +420,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jensyleo.hardwaresentry;
 				PRODUCT_NAME = HardwareSentry;
 				SDKROOT = macosx;

@@ -13,7 +13,7 @@ public actor DisplayMonitor: Monitor {
         .init(name: DisplayEvent.disconnected.rawValue, title: "Display disconnected", icon: .asset("Display-Off", in: .module), iconKind: DeviceIconKind("display", "monitor")),
         .init(name: DisplayEvent.modeChanged.rawValue, title: "Resolution/refresh rate/rotation changed", icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")),
         .init(name: DisplayEvent.roleChanged.rawValue, title: "Role changed (Main/Extended/Mirrored)", icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")),
-        .init(name: DisplayEvent.sleepChanged.rawValue, title: "Display slept/woke", icon: .asset("Display-Off", in: .module), iconKind: DeviceIconKind("display", "monitor")),
+        .init(name: DisplayEvent.sleepChanged.rawValue, title: "Display slept/woke", icon: .asset("Display-Asleep", in: .module), iconKind: DeviceIconKind("display", "monitor")),
         .init(name: DisplayEvent.colorProfileChanged.rawValue, title: "Color profile changed", enabledByDefault: false, icon: .asset("Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor")),
         // Off by default, and it should stay that way for anybody who does not want it:
         // it reads undocumented kernel log text, only works on Apple Silicon, and has to
@@ -157,7 +157,9 @@ public actor DisplayMonitor: Monitor {
                     subject: id,
                     title: latest.isAsleep ? "Display Slept" : "Display Woke",
                     body: latest.name,
-                    icon: .asset(latest.isAsleep ? "Display-Off" : "Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor"), iconBadge: latest.isAsleep ? .negative : .positive
+                    icon: .asset(latest.isAsleep ? "Display-Asleep" : "Display-On", in: .module), iconKind: DeviceIconKind("display", "monitor"), // Asleep is not gone: the picture of a sleeping display says it, and marking it as
+                    // departed (a cross) would be a different piece of news.
+                    iconBadge: latest.isAsleep ? nil : .positive
                 )
             }
         }

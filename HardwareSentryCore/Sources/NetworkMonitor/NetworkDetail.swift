@@ -206,6 +206,10 @@ public enum NetworkField: String, CaseIterable {
     case macAddress = "MACAddress"
     case dnsSearchDomains = "DNSSearchDomains"
     case previousAddress = "PreviousAddress"
+    /// Only the interfaces whose addresses just changed, not every address the Mac holds.
+    case onlyChangedAddresses = "OnlyChangedAddresses"
+    /// Say which proxy settings moved, not everything that is now in force.
+    case onlyChangedProxy = "OnlyChangedProxy"
     case dhcpLease = "DHCPLease"
     case baudrate = "Baudrate"
     case decodedType = "DecodedType"
@@ -248,6 +252,8 @@ public enum NetworkField: String, CaseIterable {
         case .macAddress: return "Hardware (MAC) address"
         case .dnsSearchDomains: return "DNS search domains"
         case .previousAddress: return "Show the address it replaced"
+        case .onlyChangedAddresses: return "Only the interfaces that changed (not every address)"
+        case .onlyChangedProxy: return "Only the proxy settings that changed (not everything in force)"
         case .dhcpLease: return "DHCP lease detail (start, expiry, server)"
         case .baudrate: return "Line rate (interfaces without Ethernet media)"
         case .decodedType: return "Decoded interface type"
@@ -269,7 +275,7 @@ public enum NetworkField: String, CaseIterable {
         case .pathInterface, .expensive, .constrained, .ipProtocols, .dns,
              .baudrate, .decodedType:
             return NetworkMonitor.Group.internet
-        case .ipv4, .ipv6, .gateway, .ipConfigMethod, .mtu, .macAddress, .previousAddress,
+        case .ipv4, .ipv6, .gateway, .ipConfigMethod, .mtu, .macAddress, .previousAddress, .onlyChangedAddresses, .onlyChangedProxy,
              .dhcpLease, .nonRoutableTag, .friendlyNames, .dnsSearchDomains:
             return NetworkMonitor.Group.addresses
         }
@@ -281,7 +287,7 @@ public enum NetworkField: String, CaseIterable {
     var shownByDefault: Bool {
         [
             // IP — the original's set.
-            .ipv4, .ipv6, .gateway, .nonRoutableTag, .friendlyNames, .previousAddress, .dnsSearchDomains,
+            .ipv4, .ipv6, .gateway, .nonRoutableTag, .friendlyNames, .previousAddress, .onlyChangedAddresses, .onlyChangedProxy, .dnsSearchDomains,
             // Ethernet.
             .linkInterface, .linkSpeed, .linkMode,
             // Wi-Fi. The original has all of its Wi-Fi lines on; the two extra ones here

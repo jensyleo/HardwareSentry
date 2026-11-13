@@ -49,11 +49,11 @@ public actor VolumeMonitor: Monitor {
         .init(name: VolumeEvent.lowSpace.rawValue, title: "Critical (generic)", enabledByDefault: false, icon: .asset("Device-Critical", in: .module)),
         .init(name: VolumeEvent.mounted.rawValue, title: "Mounted (generic)", icon: .asset("DisksVolumes-Mounted", in: .module), iconKind: VolumeKind.genericIconKind),
         .init(name: VolumeEvent.unmounted.rawValue, title: "Unmounted (generic)", icon: .asset("DisksVolumes-Eject", in: .module), iconKind: VolumeKind.genericIconKind),
-        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Ejected Unsafely", enabledByDefault: false, icon: .asset("Device-Unstable", in: .module), iconKind: VolumeKind.genericIconKind),
+        .init(name: VolumeEvent.unsafeEject.rawValue, title: "Ejected Unsafely", enabledByDefault: false, icon: .asset("Device-Critical", in: .module)),
         .init(name: VolumeEvent.notReadable.rawValue, title: "Disk Not Readable", icon: .asset("Device-Critical", in: .module)),
         // The network drive's own picture, marked rather than redrawn: it has no "not
         // answering" version, and the state is what these two are about.
-        .init(name: VolumeEvent.notResponding.rawValue, title: "Network Drive Not Responding", icon: .asset(VolumeKind.nas.iconBaseName, in: .module), iconKind: VolumeKind.nas.iconKind),
+        .init(name: VolumeEvent.notResponding.rawValue, title: "Network Drive Not Responding", icon: .asset("Device-NAS-NotResponding", in: .module), iconKind: VolumeKind.nas.iconKind),
         .init(name: VolumeEvent.responding.rawValue, title: "Network Drive Responding Again", icon: .asset(VolumeKind.nas.iconBaseName, in: .module), iconKind: VolumeKind.nas.iconKind)
     ]
 
@@ -306,10 +306,9 @@ public actor VolumeMonitor: Monitor {
                     ? "The server \(state.endpoint.host) is not answering. The drive is still mounted, but its files may not open until the network or the server is back."
                     : "The server \(state.endpoint.host) is answering again.")
             ]),
-            icon: .asset(VolumeKind.nas.iconBaseName, in: .module),
+            icon: .asset(isDown ? "Device-NAS-NotResponding" : VolumeKind.nas.iconBaseName, in: .module),
             iconKind: VolumeKind.nas.iconKind,
-            iconBadge: isDown ? .warning : .positive,
-            showsIconBadge: true
+            iconBadge: isDown ? .warning : .positive
         )
     }
 
@@ -388,7 +387,7 @@ public actor VolumeMonitor: Monitor {
                     icon: .asset(kindByPath[report.wholeDiskName].map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module),
                     // No `iconKind`: the radiation mark is this application's own signal for a
                     // disk in serious trouble, and macOS's plain disk would swap it away.
-                    iconBadge: .warning
+                    iconBadge: .critical
                 )
             }
 
@@ -422,7 +421,7 @@ public actor VolumeMonitor: Monitor {
                     title: "Volume Ejected Unsafely",
                     body: "\(name) disappeared without being ejected first.",
                     icon: .asset(kind.map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module),
-                    iconBadge: .warning
+                    iconBadge: .critical
                 )
             }
             await context.notify(
@@ -460,8 +459,10 @@ public actor VolumeMonitor: Monitor {
                             purgeable
                         )
                     ]),
-                    icon: .asset("Device-Critical", in: .module),
-                    iconBadge: .warning
+                    // The picture of the kind of drive that is running out, as its own row in
+                    // Settings shows, not always the generic one.
+                    icon: .asset(kindByPath[path].map { "\($0.iconBaseName)-Critical" } ?? "Device-Critical", in: .module),
+                    iconBadge: .critical
                 )
             } else if wasBelow, freePercent >= lowSpaceRecoverPercent {
                 pathsBelowSpaceThreshold.remove(path)

@@ -377,6 +377,7 @@ public struct BannerAppearanceView: View {
         case .connected: return [0.2, 0.75, 0.4]
         case .gone: return [0.9, 0.3, 0.3]
         case .attention: return [0.95, 0.75, 0.15]
+        case .critical: return [0.85, 0.15, 0.15]
         }
     }
 
