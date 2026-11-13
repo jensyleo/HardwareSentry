@@ -25,8 +25,11 @@ public struct BannerContent: Sendable, Equatable {
     public let icon: NotificationIcon
     /// The state to mark on the icon, or nil to draw it as it is.
     public let badge: IconBadge?
+    /// The kind of news this is, whether or not the picture shows its mark.
+    public let severity: BannerSeverity
 
     public init(title: String, lines: [Line], icon: NotificationIcon, badge: IconBadge? = nil) {
+        self.severity = BannerSeverity(badge: badge)
         self.title = title
         self.lines = lines
         self.icon = icon
@@ -44,6 +47,7 @@ public struct BannerContent: Sendable, Equatable {
         self.title = event.title
         self.icon = event.icon
         self.badge = event.showsIconBadge ? event.iconBadge : nil
+        self.severity = BannerSeverity(badge: event.iconBadge)
         self.lines = event.body
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map(String.init)

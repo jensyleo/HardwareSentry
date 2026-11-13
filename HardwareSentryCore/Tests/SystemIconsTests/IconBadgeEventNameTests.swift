@@ -30,9 +30,17 @@ struct IconBadgeEventNameTests {
     }
 
     @Test("a name that says no direction is unmarked — and a word merely ending in 'on' is not 'On'", arguments: [
-        "DisplayModeChanged", "IPAddressChanged", "NetworkLocationChanged", "Connection", "PrinterDefaultChanged"
+        "DisplayModeChanged", "IPAddressChanged", "NetworkLocationChanged", "Connection"
     ])
     func none(_ name: String) {
         #expect(IconBadge.representative(forEventName: name) == nil)
+    }
+
+    @Test("a printer has marks of its own: default, blocked, running low", arguments: [
+        ("PrinterDefaultChanged", IconBadge.favorite), ("PrinterRejectingJobs", .blocked),
+        ("PrintJobCanceled", .blocked), ("PrinterSupplyLow", .ink)
+    ])
+    func printerMarks(_ name: String, _ expected: IconBadge) {
+        #expect(IconBadge.representative(forEventName: name) == expected)
     }
 }

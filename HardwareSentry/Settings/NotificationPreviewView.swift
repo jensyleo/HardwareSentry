@@ -107,8 +107,18 @@ struct NotificationPreviewView: View {
             .buttonStyle(.borderless)
             .help("Edit this notification's icon")
             Spacer()
-            if event.iconKind != nil {
-                // A device has three things that can be said about it.
+            if let offered = offeredStates(for: event, in: category) {
+                // This notification says only these things, so only these are offered: a
+                // banner the real notification can never produce is not worth previewing.
+                ForEach(Array(offered.enumerated()), id: \.offset) { _, state in
+                    if let badge = state.badge {
+                        stateButton(state.label, systemImage: Self.symbol(for: badge), tint: Self.tint(for: badge), event, category, badge)
+                    } else {
+                        Button(state.label) { show(event, category, nil, source(in: category)) }.controlSize(.small)
+                    }
+                }
+            } else if event.iconKind != nil {
+                // A device row covers a device arriving, leaving, flapping and misbehaving.
                 stateButton("Connected", systemImage: "checkmark.circle.fill", tint: .green, event, category, .positive)
                 stateButton("Gone", systemImage: "xmark.circle.fill", tint: .red, event, category, .negative)
                 Button { showUnstable(event, category) } label: {
@@ -122,6 +132,79 @@ struct NotificationPreviewView: View {
                     .controlSize(.small)
             }
         }
+    }
+
+    private struct OfferedState { let label: String; let badge: IconBadge? }
+
+    private static func symbol(for badge: IconBadge) -> String {
+        switch badge {
+        case .positive: "checkmark.circle.fill"
+        case .negative: "xmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .favorite: "star.circle.fill"
+        case .blocked: "minus.circle.fill"
+        case .ink: "drop.circle.fill"
+        }
+    }
+
+    private static func tint(for badge: IconBadge) -> Color {
+        switch badge {
+        case .positive: .green
+        case .negative: .red
+        case .warning: .yellow
+        case .favorite: .yellow
+        case .blocked, .ink: .red
+        }
+    }
+
+    /// Notifications that say two particular things, whatever their name suggests.
+    private static let twoStates: [String: [OfferedState]] = [
+        "DisplaySleepChanged": [.init(label: "Slept", badge: .negative), .init(label: "Woke", badge: .positive)],
+        "PrinterError": [.init(label: "Needs attention", badge: .warning), .init(label: "OK again", badge: .positive)],
+        "PrinterRejectingJobs": [.init(label: "Rejecting", badge: .blocked), .init(label: "Accepting", badge: .positive)],
+        "PrinterSupplyLow": [.init(label: "Running low", badge: .ink)],
+        "PrinterDefaultChanged": [.init(label: "Default", badge: .favorite)],
+        "PrintJobCanceled": [.init(label: "Cancelled", badge: .blocked)],
+        "PrintJobFinished": [.init(label: "Finished", badge: .positive)],
+        "WifiHostAPModeChanged": [.init(label: "Started", badge: .positive), .init(label: "Stopped", badge: .negative)],
+        "LowPowerMode": [.init(label: "On", badge: .positive), .init(label: "Off", badge: .negative)],
+    ]
+
+    /// What this notification can actually be, or nil for a device row that covers arrival,
+    /// departure and trouble alike.
+    ///
+    /// Read from the name, and from whether the module has a separate notification for the
+    /// opposite direction: "Joined a Wi-Fi network" and "Left a Wi-Fi network" each say one
+    /// thing. A change with no direction — a speed, a resolution, a default — says nothing
+    /// about being good or bad, so it is shown plainly.
+    private func offeredStates(for event: MonitorEventDescription, in category: NotificationCategory) -> [OfferedState]? {
+        if let two = Self.twoStates[event.name] { return two }
+        let state = IconBadge.representative(forEventName: event.name)
+        if state == .warning { return [.init(label: "Attention", badge: .warning)] }
+
+        let names = Set((model.modules.first { $0.category == category }?.events ?? []).map(\.name))
+        let pairs: [(String, String)] = [
+            ("Disconnected", "Connected"), ("Unmounted", "Mounted"), ("Lost", "Found"), ("Removed", "Added"),
+            ("Detaching", "Attaching"), ("LinkDown", "LinkUp"), ("Unpaired", "Paired"), ("RadioOff", "RadioOn"),
+            ("NotResponding", "Responding"), ("Off", "On"),
+        ]
+        if let state {
+            for (negative, positive) in pairs {
+                if state == .negative, event.name.contains(negative),
+                   names.contains(event.name.replacingOccurrences(of: negative, with: positive)) {
+                    return [.init(label: "Gone", badge: .negative)]
+                }
+                if state == .positive, event.name.contains(positive), !event.name.contains(negative),
+                   names.contains(event.name.replacingOccurrences(of: positive, with: negative)) {
+                    return [.init(label: "Connected", badge: .positive)]
+                }
+            }
+            return nil
+        }
+        // No direction in the name: a change is shown as it is, unmarked.
+        let neutral = ["Changed", "Renewed", "Detected", "Status", "Started", "Finished", "Canceled", "Sleep", "Wake"]
+        if neutral.contains(where: event.name.contains) { return [.init(label: "Show", badge: nil)] }
+        return nil
     }
 
     private func showUnstable(_ event: MonitorEventDescription, _ category: NotificationCategory) {

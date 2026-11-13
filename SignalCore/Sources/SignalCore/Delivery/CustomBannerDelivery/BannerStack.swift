@@ -90,6 +90,13 @@ public struct BannerStack: Sendable {
     /// How long a banner stays up. A `var` because a person can change it in a settings
     /// window while banners are already on screen.
     public var visibleLifetime: TimeInterval
+    /// A module's own time on screen, by the module's name; a module not named here stays
+    /// for `visibleLifetime`.
+    public var lifetimeByModule: [String: TimeInterval] = [:]
+
+    private func lifetime(of event: NotificationEvent) -> TimeInterval {
+        lifetimeByModule[event.category.rawValue] ?? visibleLifetime
+    }
     /// The most that may be on screen at once, however much room there is. A `var` for
     /// the same reason the lifetime is: it can be changed while banners are already up.
     public var maximumVisible: Int
@@ -193,7 +200,7 @@ public struct BannerStack: Sendable {
         var change = StackChange()
 
         let expired = visible.filter { slot in
-            !slot.event.isSticky && now.timeIntervalSince(slot.revealedAt) >= visibleLifetime
+            !slot.event.isSticky && now.timeIntervalSince(slot.revealedAt) >= lifetime(of: slot.event)
         }
         guard !expired.isEmpty else { return change }
 
@@ -231,7 +238,7 @@ public struct BannerStack: Sendable {
     public func nextExpiry() -> Date? {
         visible
             .filter { !$0.event.isSticky }
-            .map { $0.revealedAt.addingTimeInterval(visibleLifetime) }
+            .map { $0.revealedAt.addingTimeInterval(lifetime(of: $0.event)) }
             .min()
     }
 

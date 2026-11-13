@@ -5,6 +5,42 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.4.0] - 2026-11-13
+
+### Added
+
+- **A much fuller Appearance tab.**
+  - *Themes:* eight to start from (macOS, Glass, Compact, Large, High contrast, Minimal, Ocean,
+    Ember), your own saved under a name, exported and imported as a file, and one chosen for
+    macOS's light mode and another for its dark mode that follow it automatically. A theme is
+    only a look: it never moves a banner, changes how long it stays or turns a sound on.
+  - *Shape:* corner radius, outline, inner spacing, showing or hiding the picture and its size,
+    and how many lines of body text a banner shows.
+  - *By kind of notice:* information, connected, gone and needs-attention can each have an
+    outline colour and a sound of their own, and can stay until closed.
+  - *Quiet hours:* a schedule with days of the week, across midnight if needed, in which banners
+    appear without sound or are not shown at all; notices that need attention can come through.
+  - *By module:* a sound and a time on screen for each module.
+  - A live preview of three banners, and a button that puts a real one on screen.
+- **Printer marks.** A star for the default printer, a red minus for a printer rejecting jobs or a
+  cancelled job, and a drop for low ink, beside the existing tick, cross and warning.
+- **Pictures of its own for things that borrowed one:** Mass Storage, the Bluetooth and Wi-Fi
+  adapters, Wireless, the Network Adapter, the racing wheel, Head-Tracking Headphones and
+  MIDI devices.
+
+### Changed
+
+- **A printer of the application's own**, drawn at a larger size and with more depth, replaces
+  the old one in every state.
+- **The USB stick, external disk and SD card** are redrawn, and so are Mass Storage, Serial
+  Adapter, Network Adapter, Desk View, the racing wheel and the critical-volume speaker.
+- **The Preview tab offers only what a notification can really say.** "Joined a Wi-Fi network"
+  is only ever connected, "Link speed changed" says nothing good or bad, and so on, instead of
+  four buttons on every row.
+- **Unstable notices name the device** — "SAMSUNG changed state 4 times" — and a USB stick macOS
+  cannot name is reported as soon as its disk is described, not after eight seconds.
+- Fixed the globe's edge: continents at the rim were cut with straight lines and tinted dark.
+
 ## [1.3.0] - 2026-11-12
 
 ### Added

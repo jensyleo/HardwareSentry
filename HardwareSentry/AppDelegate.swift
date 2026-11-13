@@ -15,6 +15,7 @@ import USBMonitor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var preferences: NotificationPreferencesStore!
     private(set) var appearance: BannerAppearanceStore!
+    private(set) var bannerThemes: BannerThemeStore!
     private(set) var eventSettings: EventSettingsModel!
     private(set) var history: NotificationHistoryStore!
     private(set) var iconOverrides: IconOverrideStore!
@@ -130,6 +131,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func assemble() {
         preferences = NotificationPreferencesStore(keyPrefix: "HardwareSentry")
         appearance = BannerAppearanceStore(keyPrefix: "HardwareSentry.Appearance")
+        bannerThemes = BannerThemeStore(key: "HardwareSentry.Appearance.Themes")
+        bannerThemes.onAutomaticThemeChange = { [weak self] in self?.applyAutomaticTheme() }
+        // The look follows macOS's light and dark modes when a theme is chosen for them. Only
+        // on a change of mode (and at launch), so a tweak made by hand is not undone by the
+        // next unrelated setting.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
+        ) { [weak self] _ in Task { @MainActor in self?.applyAutomaticTheme() } }
+        applyAutomaticTheme()
         iconOverrides = IconOverrideStore(keyPrefix: "HardwareSentry.IconOverride")
         adoptCustomIconFiles()
         iconOverrideMiddleware = IconOverrideMiddleware(overrides: iconOverrides.overrides)
@@ -287,6 +297,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     icon: event.icon
                 )
             )
+        }
+    }
+
+    private func applyAutomaticTheme() {
+        let isDark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        let updated = bannerThemes.automaticallyApplied(to: appearance.appearance, isDark: isDark)
+        if updated != appearance.appearance { appearance.appearance = updated }
+    }
+
+    /// A real banner, with the look and placement as they stand, for the Appearance tab.
+    func showTestBanner() {
+        Task {
+            let notification = NotificationEvent(
+                name: "AppearanceTest", category: "Preview", title: "This is how a notification looks",
+                body: "Nothing on this Mac changed.\nAdjust the settings and try again.",
+                icon: .symbol("bell.badge"), iconBadge: .positive, showsIconBadge: true
+            )
+            _ = await bannerDelivery.present(notification, context: DispatchContext(phase: .steady, firedAt: Date()))
         }
     }
 

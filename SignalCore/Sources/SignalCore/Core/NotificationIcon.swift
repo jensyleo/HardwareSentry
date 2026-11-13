@@ -23,4 +23,10 @@ public enum IconBadge: String, Sendable, Equatable, CaseIterable {
     case negative
     /// Needs attention: low, failing, too hot, nearly full.
     case warning
+    /// Made the default, or otherwise singled out.
+    case favorite
+    /// Refusing or stopped: a printer rejecting jobs, a job cancelled.
+    case blocked
+    /// Running out of a consumable: ink, toner.
+    case ink
 }

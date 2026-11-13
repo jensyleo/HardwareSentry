@@ -343,7 +343,7 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .hub: return "USB-TypeHub"
         // Mass storage borrows the disk artwork rather than the generic USB glyph: a
         // flash drive is a disk, and that is what somebody expects to see.
-        case .massStorage: return "Device-USBDrive"
+        case .massStorage: return "USB-TypeMassStorage"
         case .hid: return "USB-TypeHID"
         // Every one of this row's own icons is now the USB glyph paired with the
         // device's own silhouette — "USB, and specifically a webcam" reads as this
@@ -368,10 +368,8 @@ public enum USBDeviceKind: String, Sendable, Equatable, CaseIterable {
         case .sdCardReader: return "Device-SDCard"
         case .externalDisk: return "Device-ExternalDisk"
         case .serialAdapter: return "USB-TypeSerial"
-        // Neither has artwork of its own yet — both borrow the same generic wireless
-        // glyph `.wireless` already uses, honest for what it is (a wireless controller of
-        // some kind) even without saying specifically Bluetooth or WiFi in the picture.
-        case .bluetoothAdapter, .wifiAdapter: return "USB-TypeWireless"
+        case .bluetoothAdapter: return "USB-TypeBluetoothAdapter"
+        case .wifiAdapter: return "USB-TypeWifiAdapter"
         // These three borrowed the HID glyph while they had none of their own. That
         // stopped being honest the moment `.keyboard` was split out and took that same
         // glyph as its own picture: the HID artwork *is* a keyboard, so a gamepad, a

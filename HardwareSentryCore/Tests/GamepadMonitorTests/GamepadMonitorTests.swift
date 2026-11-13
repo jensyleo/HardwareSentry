@@ -220,7 +220,7 @@ struct GamepadMonitorFieldTests {
         // original plain glyph.
         #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: "MFi") == "GamepadMonitor-Icon")
         #expect(GamepadMonitor.iconAssetName(for: .controller, productCategory: nil) == "GamepadMonitor-Icon")
-        #expect(GamepadMonitor.iconAssetName(for: .racingWheel, productCategory: "Xbox One") == "GamepadMonitor-Icon")
+        #expect(GamepadMonitor.iconAssetName(for: .racingWheel, productCategory: "Xbox One") == "GamepadMonitor-Icon-RacingWheel")
     }
 
     @Test("every per-brand icon this module can pick actually ships")

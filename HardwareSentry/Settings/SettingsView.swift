@@ -11,6 +11,8 @@ import ThermalMonitor
 /// itself, so every application built on it offers the same screen without rewriting it.
 struct SettingsView: View {
     let appearance: BannerAppearanceStore
+    let bannerThemes: BannerThemeStore
+    let showTestBanner: () -> Void
     let events: EventSettingsModel
     let history: NotificationHistoryStore
     let iconOverrides: IconOverrideStore
@@ -37,7 +39,7 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag("general")
 
-            BannerAppearanceView(store: appearance)
+            BannerAppearanceView(store: appearance, themes: bannerThemes, moduleNames: events.modules.map { $0.category.rawValue }, showTest: showTestBanner)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
                 .tag("appearance")
 

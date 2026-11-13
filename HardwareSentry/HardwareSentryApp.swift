@@ -56,7 +56,7 @@ struct HardwareSentryApp: App {
         // tab permanently cut off — and it grows with every setting added. The menu item
         // and ⌘, are wired by hand below, which is the whole of what `Settings` gave us.
         Window("HardwareSentry Settings", id: Self.settingsWindowID) {
-            SettingsView(appearance: delegate.appearance, events: delegate.eventSettings, history: delegate.history, iconOverrides: delegate.iconOverrides, iconSources: delegate.iconSourceModel, general: delegate.general, tuning: delegate.tuning, checkBatteryHealthNow: { delegate.checkBatteryHealthNow() }, checkSerialVendorUpdateNow: { delegate.checkSerialVendorUpdateNow() }, simulateThermal: { delegate.simulateThermal(from: $0, to: $1) }, simulateEvent: { delegate.simulateEvent($0, category: $1) }, previewNotification: { delegate.previewNotification($0, category: $1, badge: $2, source: $3) })
+            SettingsView(appearance: delegate.appearance, bannerThemes: delegate.bannerThemes, showTestBanner: { delegate.showTestBanner() }, events: delegate.eventSettings, history: delegate.history, iconOverrides: delegate.iconOverrides, iconSources: delegate.iconSourceModel, general: delegate.general, tuning: delegate.tuning, checkBatteryHealthNow: { delegate.checkBatteryHealthNow() }, checkSerialVendorUpdateNow: { delegate.checkSerialVendorUpdateNow() }, simulateThermal: { delegate.simulateThermal(from: $0, to: $1) }, simulateEvent: { delegate.simulateEvent($0, category: $1) }, previewNotification: { delegate.previewNotification($0, category: $1, badge: $2, source: $3) })
                 .onAppear { delegate.general.settingsWindowOpened() }
                 .onDisappear { delegate.general.settingsWindowClosed() }
         }

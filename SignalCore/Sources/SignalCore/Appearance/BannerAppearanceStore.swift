@@ -49,6 +49,7 @@ public final class BannerAppearanceStore {
     private enum Key: String, CaseIterable {
         case corner, width, margin, spacing, visibleLifetime, maximumVisible, revealSpacing, opacity, textScale, material, isAnimated, sound, screen, animationDuration
         case tintIsCustom, tintRed, tintGreen, tintBlue
+        case cornerRadius, borderWidth, iconScale, showsIcon, padding, maximumBodyLines, severityStyles, quietHours, moduleSounds, moduleLifetimes
     }
 
     private func key(_ key: Key) -> String { "\(keyPrefix).\(key.rawValue)" }
@@ -68,6 +69,18 @@ public final class BannerAppearanceStore {
         defaults.set(appearance.sound.rawValue, forKey: key(.sound))
         defaults.set(appearance.screen.rawValue, forKey: key(.screen))
         defaults.set(appearance.animationDuration, forKey: key(.animationDuration))
+        defaults.set(Double(appearance.cornerRadius), forKey: key(.cornerRadius))
+        defaults.set(Double(appearance.borderWidth), forKey: key(.borderWidth))
+        defaults.set(Double(appearance.iconScale), forKey: key(.iconScale))
+        defaults.set(appearance.showsIcon, forKey: key(.showsIcon))
+        defaults.set(Double(appearance.padding), forKey: key(.padding))
+        defaults.set(appearance.maximumBodyLines, forKey: key(.maximumBodyLines))
+        if let data = try? JSONEncoder().encode(appearance.moduleLifetimes) { defaults.set(data, forKey: key(.moduleLifetimes)) }
+        if let data = try? JSONEncoder().encode(appearance.moduleSounds) { defaults.set(data, forKey: key(.moduleSounds)) }
+        if let data = try? JSONEncoder().encode(appearance.quietHours) { defaults.set(data, forKey: key(.quietHours)) }
+        if let data = try? JSONEncoder().encode(appearance.severityStyles.reduce(into: [String: BannerSeverityStyle]()) { $0[$1.key.rawValue] = $1.value }) {
+            defaults.set(data, forKey: key(.severityStyles))
+        }
         switch appearance.tint {
         case .systemMaterial:
             defaults.set(false, forKey: key(.tintIsCustom))
@@ -109,7 +122,21 @@ public final class BannerAppearanceStore {
             isAnimated: defaults.object(forKey: key(.isAnimated)) as? Bool ?? standard.isAnimated,
             sound: (defaults.string(forKey: key(.sound)).flatMap(BannerSound.init(rawValue:))) ?? standard.sound,
             screen: (defaults.string(forKey: key(.screen)).flatMap(BannerScreen.init(rawValue:))) ?? standard.screen,
-            animationDuration: number(.animationDuration, standard.animationDuration)
+            animationDuration: number(.animationDuration, standard.animationDuration),
+            cornerRadius: CGFloat(number(.cornerRadius, Double(standard.cornerRadius))),
+            borderWidth: CGFloat(number(.borderWidth, Double(standard.borderWidth))),
+            iconScale: CGFloat(number(.iconScale, Double(standard.iconScale))),
+            showsIcon: defaults.object(forKey: key(.showsIcon)) as? Bool ?? standard.showsIcon,
+            padding: CGFloat(number(.padding, Double(standard.padding))),
+            maximumBodyLines: defaults.object(forKey: key(.maximumBodyLines)) as? Int ?? standard.maximumBodyLines,
+            severityStyles: (defaults.data(forKey: key(.severityStyles))
+                .flatMap { try? JSONDecoder().decode([String: BannerSeverityStyle].self, from: $0) } ?? [:])
+                .reduce(into: [BannerSeverity: BannerSeverityStyle]()) { result, pair in
+                    if let severity = BannerSeverity(rawValue: pair.key) { result[severity] = pair.value }
+                },
+            quietHours: defaults.data(forKey: key(.quietHours)).flatMap { try? JSONDecoder().decode(QuietHours.self, from: $0) } ?? QuietHours(),
+            moduleSounds: defaults.data(forKey: key(.moduleSounds)).flatMap { try? JSONDecoder().decode([String: BannerSound].self, from: $0) } ?? [:],
+            moduleLifetimes: defaults.data(forKey: key(.moduleLifetimes)).flatMap { try? JSONDecoder().decode([String: Double].self, from: $0) } ?? [:]
         )
     }
 }
