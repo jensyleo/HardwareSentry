@@ -15,7 +15,7 @@ public actor GamepadMonitor: Monitor {
 
     public static let events: [MonitorEventDescription] = [
         .init(name: GamepadEvent.controllerConnected.rawValue, title: "Game controller connected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.controller.iconKind),
-        .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.controller.iconKind),
+        .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected", icon: .asset("GamepadMonitor-Icon-Disconnected", in: .module), iconKind: GamepadDeviceKind.controller.iconKind),
         .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected", icon: .asset("GamepadMonitor-Icon-RacingWheel", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind),
         .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected", icon: .asset("GamepadMonitor-Icon-RacingWheel-Disconnected", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind)
     ]
@@ -71,7 +71,8 @@ public actor GamepadMonitor: Monitor {
         let event = GamepadEvent.forChange(change)
         let (title, headline) = describe(change)
         let detail = change.detail
-        let icon = iconAssetName(for: change.kind, productCategory: detail?.productCategory)
+        // A controller that has left is drawn as one that has left.
+        let icon = iconAssetName(for: change.kind, productCategory: detail?.productCategory) + (change.connected ? "" : "-Disconnected")
         await context.notify(
             event.rawValue,
             subject: change.name ?? String(describing: change.kind),

@@ -21,9 +21,8 @@ struct IconBadgeEventNameTests {
         #expect(IconBadge.representative(forEventName: name) == .negative)
     }
 
-    @Test("trouble is a warning", arguments: [
-        "VolumeLowSpaceNAS", "VolumeNotReadable", "VolumeUnsafeEject", "AudioDeviceStoppedResponding", "ThermalCritical",
-        "VolumeNotResponding"
+    @Test("trouble that needs a look is a warning", arguments: [
+        "AudioDeviceStoppedResponding", "VolumeNotResponding"
     ])
     func warning(_ name: String) {
         #expect(IconBadge.representative(forEventName: name) == .warning)
@@ -42,5 +41,12 @@ struct IconBadgeEventNameTests {
     ])
     func printerMarks(_ name: String, _ expected: IconBadge) {
         #expect(IconBadge.representative(forEventName: name) == expected)
+    }
+
+    @Test("serious trouble is critical, which is not the same as needing attention", arguments: [
+        "VolumeLowSpaceNAS", "VolumeNotReadable", "VolumeUnsafeEject", "ThermalCritical"
+    ])
+    func critical(_ name: String) {
+        #expect(IconBadge.representative(forEventName: name) == .critical)
     }
 }

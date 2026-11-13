@@ -244,6 +244,7 @@ struct BannerSeverityStyleTests {
         #expect(BannerSeverity(badge: .positive) == .connected)
         #expect(BannerSeverity(badge: .negative) == .gone)
         #expect(BannerSeverity(badge: .warning) == .attention)
+        #expect(BannerSeverity(badge: .critical) == .critical)
     }
 
     @Test("a kind with nothing special is left out, so it looks like the rest")

@@ -23,7 +23,7 @@ public actor AudioMonitor: Monitor {
         .init(name: AudioEvent.volumeCritical.rawValue, title: "Volume Critical", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)),
         .init(name: AudioEvent.jackChanged.rawValue, title: "Audio Jack Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
         .init(name: AudioEvent.dataSourceChanged.rawValue, title: "Audio Source Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
-        .init(name: AudioEvent.deviceStoppedResponding.rawValue, title: "Device Stopped Responding", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
+        .init(name: AudioEvent.deviceStoppedResponding.rawValue, title: "Device Stopped Responding", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-StoppedResponding", in: .module), iconKind: DeviceIconKind("audio", "speaker")),
         .init(name: AudioEvent.microphoneModeChanged.rawValue, title: "Microphone Mode Changed", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-MicInUse", in: .module), iconKind: DeviceIconKind("audio", "microphone")),
         .init(name: AudioEvent.headTrackingConnected.rawValue, title: "Head-Tracking Headphones", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-HeadTracking", in: .module), iconKind: DeviceIconKind("audio", "headphones")),
         .init(name: AudioEvent.headTrackingDisconnected.rawValue, title: "Head-Tracking Headphones Gone", enabledByDefault: false, icon: .asset("AudioMonitor-Icon-HeadTracking-Disconnected", in: .module), iconKind: DeviceIconKind("audio", "headphones")),
@@ -133,7 +133,8 @@ public actor AudioMonitor: Monitor {
                 AudioEvent.volumeCritical.rawValue, subject: name,
                 title: "Volume Critically High",
                 body: "\(name):\t\(percent)%",
-                icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module)
+                icon: .asset("AudioMonitor-Icon-VolumeCritical", in: .module),
+                iconBadge: .warning
             )
         } else if percent <= volumeCriticalThreshold - 10 {
             hasWarnedAboutVolume = false
@@ -213,7 +214,7 @@ public actor AudioMonitor: Monitor {
             await context.notify(
                 AudioEvent.deviceStoppedResponding.rawValue, subject: name,
                 title: "Audio Device Stopped Responding", body: name,
-                icon: .asset("AudioMonitor-Icon-Off", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: .warning
+                icon: .asset("AudioMonitor-Icon-StoppedResponding", in: .module), iconKind: DeviceIconKind("audio", "speaker"), iconBadge: .warning
             )
 
         case .microphoneModeChanged(let mode):
@@ -339,6 +340,7 @@ public actor AudioMonitor: Monitor {
 
         let label = kind == .output ? "Default Output" : "Default Input"
         let previousName = knownDevices[lastKnown]?.name
+        let withDetails = await context.isFieldEnabled(AudioField.detailsOnChange.rawValue)
 
         await context.notify(
             kind == .output ? AudioEvent.defaultOutputChanged.rawValue : AudioEvent.defaultInputChanged.rawValue,
@@ -350,7 +352,7 @@ public actor AudioMonitor: Monitor {
                 // list, and "→ Speakers" with nothing before it reads as a fault.
                 .field(AudioField.deviceChangeArrow.rawValue, previousName.map { "\(label):\t\($0) → \(name)" }),
                 .always(previousName == nil ? name : "")
-            ] + (knownDevices[id].map(Self.detailLines(for:)) ?? [])),
+            ] + (withDetails ? (knownDevices[id].map(Self.detailLines(for:)) ?? []) : [])),
             // An input change should not show a speaker: this is the microphone's own
             // notification, and the artwork is half of what makes it recognisable.
             icon: .asset(Self.defaultChangeIconName(isOutput: kind == .output), in: .module),

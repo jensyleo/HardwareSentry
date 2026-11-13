@@ -111,6 +111,8 @@ public enum BannerSeverity: String, Codable, Sendable, CaseIterable, Identifiabl
     case gone
     /// Low, failing, too hot, nearly full.
     case attention
+    /// Serious trouble: a disk that cannot be read, a volume out of space.
+    case critical
 
     public var id: String { rawValue }
 
@@ -120,6 +122,7 @@ public enum BannerSeverity: String, Codable, Sendable, CaseIterable, Identifiabl
         case .connected: return "Connected / back to normal"
         case .gone: return "Gone / switched off"
         case .attention: return "Needs attention"
+        case .critical: return "Critical"
         }
     }
 
@@ -128,6 +131,7 @@ public enum BannerSeverity: String, Codable, Sendable, CaseIterable, Identifiabl
         case .positive: self = .connected
         case .negative: self = .gone
         case .warning, .blocked, .ink: self = .attention
+        case .critical: self = .critical
         case .favorite: self = .connected
         case nil: self = .info
         }

@@ -300,6 +300,8 @@ struct NetworkMonitorFieldTests {
             // IP
             "IPv4", "IPv6", "Gateway", "NonRoutableTag", "FriendlyNames",
             "PreviousAddress", "DNSSearchDomains",
+            // Not the original's, but asked for: say only the interface that changed.
+            "OnlyChangedAddresses", "OnlyChangedProxy",
             // Ethernet
             "LinkInterface", "Speed", "Mode",
             // Wi-Fi
@@ -700,7 +702,7 @@ struct NetworkGlobalStateTests {
         #expect(events.first?.body == "1.1.1.1 → none")
     }
 
-    @Test("a proxy notice names which kinds are in force")
+    @Test("a proxy notice names which settings moved")
     func proxySummaryNamesTheKinds() async {
         let events = await run([
             .globalState(NetworkGlobalState()),
@@ -708,7 +710,7 @@ struct NetworkGlobalStateTests {
         ], expecting: 1)
 
         #expect(events.first?.name == "ProxyConfigChanged")
-        #expect(events.first?.body == "Active: HTTP, SOCKS")
+        #expect(events.first?.body == "HTTP:\toff → on\nSOCKS:\toff → on")
     }
 
     @Test("switching every proxy off says so rather than saying nothing")
@@ -717,7 +719,7 @@ struct NetworkGlobalStateTests {
             .globalState(NetworkGlobalState(proxy: ProxyConfiguration(http: true))),
             .globalState(NetworkGlobalState())
         ], expecting: 1)
-        #expect(events.first?.body == "No proxy configured")
+        #expect(events.first?.body == "HTTP:\ton → off")
     }
 
     @Test("pointing the same proxy kind at a different server is a change")
@@ -2066,5 +2068,55 @@ struct UnnamedNetworkTests {
         // impossible one in dBm, which is what the original labels it.
         #expect(WiFiDetail(transmitPower: 1496).transmitPowerNote == "1496 mW")
         #expect(WiFiDetail(transmitPower: 0).transmitPowerNote == nil)
+    }
+}
+
+@Suite("IP address report · only what changed")
+struct IPAddressOnlyChangedTests {
+    private func report(_ items: [(String, [String])]) -> IPAddressReport {
+        IPAddressReport(interfaces: items.map { InterfaceAddresses(bsdName: $0.0, ipv4: $0.1) })
+    }
+
+    @Test("with the option on, only the interface that changed is told")
+    func onlyTheChanged() {
+        let before = report([("en0", ["192.168.1.5/24"]), ("en5", ["10.0.0.2/24"])])
+        let after = report([("en0", ["192.168.1.9/24"]), ("en5", ["10.0.0.2/24"])])
+        var detail = IPAddressReport.Detail(); detail.onlyChanged = true; detail.friendlyNames = false
+        let body = after.body(detail: detail, previous: before)
+        #expect(body.contains("en0"))
+        #expect(!body.contains("en5"))
+    }
+
+    @Test("with it off, everything is listed, as before")
+    func everything() {
+        let before = report([("en0", ["192.168.1.5/24"]), ("en5", ["10.0.0.2/24"])])
+        let after = report([("en0", ["192.168.1.9/24"]), ("en5", ["10.0.0.2/24"])])
+        var detail = IPAddressReport.Detail(); detail.friendlyNames = false
+        let body = after.body(detail: detail, previous: before)
+        #expect(body.contains("en0") && body.contains("en5"))
+    }
+
+    @Test("an interface that lost its address is told as released, and the first report lists all")
+    func releasedAndFirst() {
+        let before = report([("en0", ["192.168.1.5/24"]), ("en5", ["10.0.0.2/24"])])
+        let after = report([("en0", ["192.168.1.5/24"]), ("en5", [])])
+        var detail = IPAddressReport.Detail(); detail.onlyChanged = true; detail.friendlyNames = false
+        let released = after.body(detail: detail, previous: before)
+        #expect(released.contains("en5 — released"))
+        #expect(!released.contains("en0"))
+        let first = before.body(detail: detail, previous: nil)
+        #expect(first.contains("en0") && first.contains("en5"))
+    }
+}
+
+@Suite("Proxy configuration · what moved")
+struct ProxyChangesTests {
+    @Test("each setting that moved is a line of its own, and a server change is told too")
+    func changes() {
+        let was = ProxyConfiguration(http: true, https: false, socks: false, autoConfig: false, httpHost: "a", autoConfigURL: nil)
+        let now = ProxyConfiguration(http: true, https: true, socks: false, autoConfig: false, httpHost: "b", autoConfigURL: nil)
+        let lines = now.changes(since: was)
+        #expect(lines == ["HTTPS:\toff → on", "HTTP proxy server:\ta → b"])
+        #expect(was.changes(since: was).isEmpty)
     }
 }

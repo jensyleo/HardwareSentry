@@ -607,7 +607,7 @@ struct NetworkDriveReachabilityTests {
         #expect(result.asked >= 4)
     }
 
-    @Test("what is said names the drive and the server, and marks the picture rather than redrawing it")
+    @Test("what is said names the drive and the server, with a picture that already says it is not answering")
     func announcement() async {
         let result = await run([true, false, false]) { !$0.isEmpty }
         let event = result.events.first { $0.name == "VolumeNotResponding" }
@@ -615,7 +615,9 @@ struct NetworkDriveReachabilityTests {
         #expect(event?.body.contains("nas") == true)
         #expect(event?.iconKind == "volume.nas")
         #expect(event?.iconBadge == .warning)
-        #expect(event?.showsIconBadge == true)
+        // The picture carries the state; the icon stages add a mark only to one that does not.
+        #expect(event?.showsIconBadge == false)
+        #expect(event?.icon == .asset("Device-NAS-NotResponding", in: .module))
         #expect(event?.subject == "/Volumes/LEO")
     }
 

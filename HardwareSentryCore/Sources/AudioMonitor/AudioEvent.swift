@@ -38,6 +38,9 @@ public enum AudioField: String, CaseIterable {
     case deviceUID = "DeviceUID"
     case muteState = "MuteState"
     case deviceChangeArrow = "DeviceChangeArrow"
+    /// Everything about the new default device, after the line saying that it changed. Off,
+    /// the notice says only that the default changed, and to what.
+    case detailsOnChange = "DetailsOnChange"
     case bitDepth = "BitDepth"
     case latency = "Latency"
     case clockSource = "ClockSource"
@@ -58,6 +61,7 @@ public enum AudioField: String, CaseIterable {
         case .bitDepth: return "Bit depth"
         case .latency: return "Latency"
         case .deviceChangeArrow: return "Show old → new device when the default changes"
+        case .detailsOnChange: return "Include the device's details when the default changes"
         }
     }
 
@@ -67,7 +71,7 @@ public enum AudioField: String, CaseIterable {
     var shownByDefault: Bool {
         // The original's six: how it is connected, how many channels, at what rate, its
         // stable identity, whether it is muted, and which device it replaced.
-        [.transport, .channels, .sampleRate, .deviceUID, .muteState, .deviceChangeArrow]
+        [.transport, .channels, .sampleRate, .deviceUID, .muteState, .deviceChangeArrow, .detailsOnChange]
             .contains(self)
     }
 }

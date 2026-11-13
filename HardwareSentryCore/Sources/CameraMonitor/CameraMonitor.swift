@@ -19,7 +19,7 @@ public actor CameraMonitor: Monitor {
         // are themselves the "System" default this row's Custom/System/Reset already
         // offers in Settings, so replacing them later touches only these lines.
         .init(name: CameraEvent.connected.rawValue, title: "Camera connected", icon: .asset("CameraMonitor-Icon", in: .module), iconKind: DeviceIconKind("camera", "camera")),
-        .init(name: CameraEvent.disconnected.rawValue, title: "Camera disconnected", icon: .asset("CameraMonitor-Icon", in: .module), iconKind: DeviceIconKind("camera", "camera")),
+        .init(name: CameraEvent.disconnected.rawValue, title: "Camera disconnected", icon: .asset("CameraMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("camera", "camera")),
         .init(name: CameraEvent.webcamConnected.rawValue, title: "Webcam connected", icon: .asset("CameraMonitor-Icon-Webcam", in: .module), iconKind: DeviceIconKind("camera", "webcam")),
         .init(name: CameraEvent.webcamDisconnected.rawValue, title: "Webcam disconnected", icon: .asset("CameraMonitor-Icon-Webcam-Disconnected", in: .module), iconKind: DeviceIconKind("camera", "webcam")),
         .init(name: CameraEvent.continuityConnected.rawValue, title: "Continuity Camera connected", icon: .asset("CameraMonitor-Icon-Continuity", in: .module), iconKind: DeviceIconKind("camera", "continuity")),
@@ -129,11 +129,13 @@ public actor CameraMonitor: Monitor {
     /// chose — kept in step with it deliberately, since the two are shown together and a
     /// mismatch would read as one or the other being wrong. SF Symbol placeholders for the
     /// kinds that do not have artwork of their own yet.
-    private static func icon(transport: String?, isDeskViewCamera: Bool, isContinuityCamera: Bool) -> NotificationIcon {
-        if isDeskViewCamera { return .asset("CameraMonitor-Icon-DeskView", in: .module) }
-        if isContinuityCamera { return .asset("CameraMonitor-Icon-Continuity", in: .module) }
-        if isUSB(transport) { return .asset("CameraMonitor-Icon-Webcam", in: .module) }
-        return .asset("CameraMonitor-Icon", in: .module)
+    private static func icon(transport: String?, isDeskViewCamera: Bool, isContinuityCamera: Bool, gone: Bool = false) -> NotificationIcon {
+        // A camera that has left is drawn as one that has left, in the picture of its own kind.
+        let suffix = gone ? "-Disconnected" : ""
+        if isDeskViewCamera { return .asset("CameraMonitor-Icon-DeskView" + suffix, in: .module) }
+        if isContinuityCamera { return .asset("CameraMonitor-Icon-Continuity" + suffix, in: .module) }
+        if isUSB(transport) { return .asset("CameraMonitor-Icon-Webcam" + suffix, in: .module) }
+        return .asset("CameraMonitor-Icon" + suffix, in: .module)
     }
 
     /// What `icon(transport:isDeskViewCamera:isContinuityCamera:)` depicts, decided the
@@ -231,7 +233,8 @@ public actor CameraMonitor: Monitor {
                 icon: Self.icon(
                     transport: detail?.transport,
                     isDeskViewCamera: detail?.isDeskViewCamera ?? false,
-                    isContinuityCamera: detail?.isContinuityCamera ?? false
+                    isContinuityCamera: detail?.isContinuityCamera ?? false,
+                    gone: true
                 ),
                 iconKind: Self.iconKind(
                     transport: detail?.transport,

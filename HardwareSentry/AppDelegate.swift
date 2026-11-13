@@ -179,6 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // made for one notification — a symbol, a file, or "keep the app's own" —
                 // marks that icon as decided, and the System stage leaves decided icons
                 // alone; so a single choice always beats a module-wide "System".
+                UnstableBaseIconMiddleware(),
                 iconOverrideMiddleware!,
                 systemIconMiddleware!,
                 // Last on purpose: what gets remembered is what a person was actually
@@ -325,7 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// module) apply exactly as they do to a live one, while the stages that decide *whether*
     /// something is said — switched off, a duplicate, unstable — are skipped, so a preview
     /// always shows. Nor does it reach the history: nothing happened.
-    func previewNotification(_ event: MonitorEventDescription, category: NotificationCategory, badge: IconBadge?, source: IconSource) {
+    func previewNotification(_ event: MonitorEventDescription, category: NotificationCategory, badge: IconBadge?, source: IconSource, artIsTheState: Bool) {
         Task {
             var notification = NotificationEvent(
                 name: event.name,
@@ -335,13 +336,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 icon: event.icon,
                 iconKind: event.iconKind?.rawValue,
                 iconBadge: badge,
-                showsIconBadge: badge != nil
+                // Never forced: the picture's own state is part of the artwork for this
+                // application's pictures (a cross through a disconnected drive, the radiation
+                // mark on a critical one), and a mark drawn over that would say it twice. The
+                // icon stages below add the mark exactly where a live notification gets one —
+                // over a macOS or a chosen picture. The unstable notice is the exception: it
+                // always carries its mark, live too.
+                showsIconBadge: event.name == "FlapDetected" && badge != nil
             )
             let context = DispatchContext(phase: .steady, firedAt: Date())
             // The picture source is the one chosen on the Preview tab, not the saved one, so
             // either can be judged without changing a setting.
             var choices = IconSourceChoices()
             choices[category] = source
+            // This application's own pictures say their state in the artwork — a cross through
+            // a gone device, the radiation on a critical one — so what is shown is the picture
+            // of that state, and a mark is drawn only where the artwork has none.
+            if source == .app, let badge, event.name != "FlapDetected", !artIsTheState {
+                switch AssetOrigin.stateArt(for: event.icon, badge: badge) {
+                case .plain: break
+                case .variant(let icon): notification.icon = icon
+                case .missing: notification.showsIconBadge = true
+                }
+            }
             let stages: [any NotificationMiddleware] = [
                 iconOverrideMiddleware, SystemIconMiddleware(choices: choices, catalog: systemIconCatalog)
             ]

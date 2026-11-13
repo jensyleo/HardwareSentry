@@ -157,7 +157,11 @@ public actor ScannerMonitor: Monitor {
                     .always(name),
                     .prose(ScannerField.statusReasons.rawValue, "Reason", status.reasonsNote)
                 ]),
-                icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner"),
+                // A jam or an open door is trouble, and is drawn and marked as such; loaded and
+                // empty are ordinary news and carry nothing.
+                icon: .asset(adf.needsAttention ? "ScannerMonitor-Icon-AdfState-Attention" : "ScannerMonitor-Icon-AdfState", in: .module),
+                iconKind: DeviceIconKind("scanner", "scanner"),
+                iconBadge: adf.needsAttention ? .warning : nil,
                 priority: adf.needsAttention ? .high : .normal
             )
         }

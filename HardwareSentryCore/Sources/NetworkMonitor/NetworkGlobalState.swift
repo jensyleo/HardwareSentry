@@ -60,6 +60,20 @@ public struct ProxyConfiguration: Sendable, Equatable {
     ///
     /// Names the kinds rather than the addresses: a proxy host can be a long internal
     /// name, and which kinds are in force is what a person is checking.
+    /// What moved between two configurations, one line per setting: "HTTPS: off → on". Empty
+    /// when only a host or a URL changed, which `summary` does not say either.
+    public func changes(since previous: ProxyConfiguration) -> [String] {
+        func word(_ on: Bool) -> String { on ? "on" : "off" }
+        var lines: [String] = []
+        if http != previous.http { lines.append("HTTP:\t\(word(previous.http)) → \(word(http))") }
+        if https != previous.https { lines.append("HTTPS:\t\(word(previous.https)) → \(word(https))") }
+        if socks != previous.socks { lines.append("SOCKS:\t\(word(previous.socks)) → \(word(socks))") }
+        if autoConfig != previous.autoConfig { lines.append("Auto-Config (PAC):\t\(word(previous.autoConfig)) → \(word(autoConfig))") }
+        if httpHost != previous.httpHost { lines.append("HTTP proxy server:\t\(previous.httpHost ?? "none") → \(httpHost ?? "none")") }
+        if autoConfigURL != previous.autoConfigURL { lines.append("PAC address:\t\(previous.autoConfigURL ?? "none") → \(autoConfigURL ?? "none")") }
+        return lines
+    }
+
     public var summary: String {
         var active: [String] = []
         if http { active.append("HTTP") }

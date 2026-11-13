@@ -11,7 +11,7 @@ public actor PrinterMonitor: Monitor {
     public static let events: [MonitorEventDescription] = [
         .init(name: PrinterEvent.connected.rawValue, title: "Printer connected", icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         .init(name: PrinterEvent.disconnected.rawValue, title: "Printer disconnected", icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
-        .init(name: PrinterEvent.error.rawValue, title: "Needs attention / OK", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Disconnected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.error.rawValue, title: "Needs attention / OK", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Attention", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         .init(name: PrinterEvent.defaultChanged.rawValue, title: "Default printer changed", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         .init(name: PrinterEvent.rejectingJobs.rawValue, title: "Rejecting/accepting jobs", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         // Supply warnings are on: running out of toner is precisely the thing somebody
@@ -269,7 +269,7 @@ public actor PrinterMonitor: Monitor {
                     body: isProblem
                         ? "\(printer.name)\n\(PrinterStateReasons.friendlyDescription(printer.stateReasons) ?? printer.stateReasons)"
                         : printer.name,
-                    icon: .asset(isProblem ? "PrinterMonitor-Icon-Disconnected" : "PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: isProblem ? .warning : .positive
+                    icon: .asset(isProblem ? "PrinterMonitor-Icon-Attention" : "PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: isProblem ? .warning : .positive
                 )
             }
 

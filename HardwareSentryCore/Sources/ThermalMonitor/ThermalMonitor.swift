@@ -77,7 +77,8 @@ public actor ThermalMonitor: Monitor {
             subject: "State",
             title: "Thermal State Changed",
             body: Self.describeTransition(from: from, to: to),
-            icon: .asset("Thermal-\(to.label)", in: .module)
+            icon: .asset("Thermal-\(to.label)", in: .module),
+            iconBadge: Self.badge(for: to)
         )
     }
 
@@ -101,7 +102,8 @@ public actor ThermalMonitor: Monitor {
                 .field(ThermalField.lowPowerMode.rawValue, lowPowerNote)
             ]),
             // The icon says the severity at a glance, before the text is read.
-            icon: .asset("Thermal-\(state.label)", in: .module)
+            icon: .asset("Thermal-\(state.label)", in: .module),
+            iconBadge: Self.badge(for: state)
         )
     }
 
@@ -111,8 +113,21 @@ public actor ThermalMonitor: Monitor {
             subject: "DarkWakeEmergency",
             title: "Dark Wake Thermal Emergency",
             body: "The Mac overheated during a brief maintenance wake and may sleep again immediately to cool down.",
-            icon: .asset("Thermal-DarkWakeEmergency", in: .module)
+            icon: .asset("Thermal-DarkWakeEmergency", in: .module),
+            iconBadge: .critical
         )
+    }
+
+    /// How the severity reads on a picture that does not draw it: back to normal is good, a
+    /// slightly raised temperature says nothing either way, throttling needs attention, and
+    /// severe throttling is serious.
+    static func badge(for state: ThermalState) -> IconBadge? {
+        switch state.label {
+        case "Nominal": return .positive
+        case "Serious": return .warning
+        case "Critical": return .critical
+        default: return nil
+        }
     }
 
     /// "old → new — what the new level means", plus whether this is improving or worsening.

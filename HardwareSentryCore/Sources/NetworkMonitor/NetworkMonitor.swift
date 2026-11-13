@@ -383,6 +383,7 @@ public actor NetworkMonitor: Monitor {
         detail.macAddress = await context.isFieldEnabled(NetworkField.macAddress.rawValue)
         detail.searchDomains = await context.isFieldEnabled(NetworkField.dnsSearchDomains.rawValue)
         detail.previousAddress = await context.isFieldEnabled(NetworkField.previousAddress.rawValue)
+        detail.onlyChanged = await context.isFieldEnabled(NetworkField.onlyChangedAddresses.rawValue)
         detail.dhcpLease = await context.isFieldEnabled(NetworkField.dhcpLease.rawValue)
         detail.baudrate = await context.isFieldEnabled(NetworkField.baudrate.rawValue)
         detail.decodedType = await context.isFieldEnabled(NetworkField.decodedType.rawValue)
@@ -390,6 +391,9 @@ public actor NetworkMonitor: Monitor {
         let body = report.body(detail: detail, previous: lastIPReport)
         defer { lastIPReport = report }
         let hasAddresses = report.hasAddresses
+        // Saying only what changed means saying nothing when nothing did: the same addresses
+        // read twice are not news, whatever else about them moved.
+        if detail.onlyChanged, hasAddresses, !report.hasChanges(since: lastIPReport) { return }
 
         // A launch with no connection at all, or a release already reported. Either way
         // there is nothing to say and nothing has changed since the last time it was said.
@@ -431,11 +435,16 @@ public actor NetworkMonitor: Monitor {
             )
         }
 
+        let onlyChangedProxy = await context.isFieldEnabled(NetworkField.onlyChangedProxy.rawValue)
         if previous.proxy != state.proxy {
             await context.notify(
                 NetworkEvent.proxyConfigChanged.rawValue, subject: "Proxy",
                 title: "Proxy Configuration Changed",
-                body: state.proxy.summary,
+                // The settings that moved, or everything in force when asked for that instead.
+                body: {
+                    let moved = state.proxy.changes(since: previous.proxy)
+                    return onlyChangedProxy && !moved.isEmpty ? moved.joined(separator: "\n") : state.proxy.summary
+                }(),
                 icon: .asset("Network-Proxy-On", in: .module)
             )
         }
@@ -519,7 +528,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.bondMemberStatusChanged.rawValue, subject: interfaceName,
                 title: "Link Aggregation Member Status Changed",
                 body: "\(interfaceName): \(status.label)",
-                icon: .asset("Network-Interface-On", in: .module), iconKind: DeviceIconKind("network", "adapter")
+                icon: .asset("Network-Ethernet-On", in: .module), iconKind: DeviceIconKind("network", "wired")
             )
         }
     }

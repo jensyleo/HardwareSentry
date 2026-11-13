@@ -41,7 +41,11 @@ final class EventSettingsModel {
     }
 
     func load() async {
-        modules = await registry.describe()
+        // Alphabetical by the name shown, so a module is found by its name rather than by the
+        // order the registry happens to build them in.
+        modules = await registry.describe().sorted {
+            $0.category.rawValue.localizedStandardCompare($1.category.rawValue) == .orderedAscending
+        }
         // The stored choice is put into force here, not only when somebody clicks it.
         //
         // Without this the presets were a label and nothing more: choosing "Minimal
