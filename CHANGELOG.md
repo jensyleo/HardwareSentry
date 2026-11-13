@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.5.1] - 2026-11-13
+
+### Changed
+
+- Help now documents the Critical level, the "By kind of notice" styles, quiet hours and the
+  "only what changed" options.
+
 ## [1.5.0] - 2026-11-13
 
 ### Added
