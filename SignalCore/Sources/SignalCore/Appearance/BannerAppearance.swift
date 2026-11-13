@@ -22,7 +22,7 @@ public enum BannerCorner: String, Sendable, Equatable, CaseIterable {
 }
 
 /// How large a banner's text is drawn, relative to the system's own notification text.
-public enum BannerTextScale: String, Sendable, Equatable, CaseIterable {
+public enum BannerTextScale: String, Codable, Sendable, Equatable, CaseIterable {
     case small
     case medium
     case large
@@ -52,7 +52,7 @@ public enum BannerTextScale: String, Sendable, Equatable, CaseIterable {
 /// one anyway can now have it (`BannerTint.custom`), tinted *over* whichever of these
 /// three still supplies the glass underneath it, rather than replacing it — the tint
 /// colours the light, it does not become the surface.
-public enum BannerMaterial: String, Sendable, Equatable, CaseIterable {
+public enum BannerMaterial: String, Codable, Sendable, Equatable, CaseIterable {
     case popover
     case hud
     case windowBackground
@@ -88,7 +88,7 @@ public enum BannerTint: Sendable, Equatable {
 /// The macOS system sounds rather than anything shipped here: they are what a person
 /// already recognises as their computer speaking, and they follow the sound settings and
 /// output device without this package doing anything about it.
-public enum BannerSound: String, Sendable, Equatable, CaseIterable {
+public enum BannerSound: String, Codable, Sendable, Equatable, CaseIterable {
     case none
     case basso = "Basso", blow = "Blow", bottle = "Bottle", frog = "Frog"
     case funk = "Funk", glass = "Glass", hero = "Hero", morse = "Morse"
@@ -99,6 +99,57 @@ public enum BannerSound: String, Sendable, Equatable, CaseIterable {
 
     /// The name to ask the system for, or nil when silence was chosen.
     public var systemName: String? { self == .none ? nil : rawValue }
+}
+
+/// The kind of news a notification carries, which is what a person tells banners apart by.
+public enum BannerSeverity: String, Codable, Sendable, CaseIterable, Identifiable {
+    /// Nothing is marked: a plain notice.
+    case info
+    /// Arrived, mounted, back to normal.
+    case connected
+    /// Left, unmounted, switched off.
+    case gone
+    /// Low, failing, too hot, nearly full.
+    case attention
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .info: return "Information"
+        case .connected: return "Connected / back to normal"
+        case .gone: return "Gone / switched off"
+        case .attention: return "Needs attention"
+        }
+    }
+
+    public init(badge: IconBadge?) {
+        switch badge {
+        case .positive: self = .connected
+        case .negative: self = .gone
+        case .warning, .blocked, .ink: self = .attention
+        case .favorite: self = .connected
+        case nil: self = .info
+        }
+    }
+}
+
+/// What is different about one kind of banner, on top of the look everyone shares.
+public struct BannerSeverityStyle: Codable, Sendable, Equatable {
+    /// An outline colour, red-green-blue; nil leaves the usual outline.
+    public var accent: [Double]?
+    /// A sound of its own; nil uses the one chosen for every banner.
+    public var sound: BannerSound?
+    /// Stays until it is closed instead of leaving by itself.
+    public var staysUntilDismissed: Bool
+
+    public init(accent: [Double]? = nil, sound: BannerSound? = nil, staysUntilDismissed: Bool = false) {
+        self.accent = accent
+        self.sound = sound
+        self.staysUntilDismissed = staysUntilDismissed
+    }
+
+    public var isDefault: Bool { self == BannerSeverityStyle() }
 }
 
 /// How banners look and where they appear.
@@ -128,6 +179,30 @@ public struct BannerAppearance: Sendable, Equatable {
     public var animationDuration: TimeInterval { didSet { animationDuration = animationDuration.clamped(to: Self.animationDurationRange) } }
     /// Which display banners appear on. Only distinguishable with more than one.
     public var screen: BannerScreen
+    /// How round the banner's corners are, in points.
+    public var cornerRadius: CGFloat { didSet { cornerRadius = cornerRadius.clamped(to: Self.cornerRadiusRange) } }
+    /// The outline drawn round the banner; zero draws none.
+    public var borderWidth: CGFloat { didSet { borderWidth = borderWidth.clamped(to: Self.borderWidthRange) } }
+    /// The picture's size relative to the text, so a picture can be made to read from across
+    /// a room or made small enough to stay out of the way.
+    public var iconScale: CGFloat { didSet { iconScale = iconScale.clamped(to: Self.iconScaleRange) } }
+    /// Whether the picture is drawn at all.
+    public var showsIcon: Bool
+    /// Space between the banner's edge and what is in it.
+    public var padding: CGFloat { didSet { padding = padding.clamped(to: Self.paddingRange) } }
+    /// The most lines of body text a banner shows; zero is as many as there are.
+    public var maximumBodyLines: Int { didSet { maximumBodyLines = maximumBodyLines.clamped(to: Self.bodyLinesRange) } }
+    /// What sets each kind of notice apart; a kind missing here looks like all the others.
+    public var severityStyles: [BannerSeverity: BannerSeverityStyle]
+    public var quietHours: QuietHours
+    /// A sound for everything one module says, by the module's name. Beneath a kind of notice's own, above the shared one.
+    public var moduleSounds: [String: BannerSound]
+    /// How long one module's banners stay, by the module's name, in place of the shared time.
+    public var moduleLifetimes: [String: TimeInterval]
+
+    public func style(for severity: BannerSeverity) -> BannerSeverityStyle {
+        severityStyles[severity] ?? BannerSeverityStyle()
+    }
 
     // Clamped on the way in as well as at construction, so the invariant holds however
     // the value was arrived at — loaded from a store, or set field by field by an editor.
@@ -164,6 +239,11 @@ public struct BannerAppearance: Sendable, Equatable {
     public static let lifetimeRange: ClosedRange<TimeInterval> = 2...30
     public static let opacityRange: ClosedRange<Double> = 0.3...1
     public static let animationDurationRange: ClosedRange<TimeInterval> = 0.1...1
+    public static let cornerRadiusRange: ClosedRange<CGFloat> = 0...28
+    public static let borderWidthRange: ClosedRange<CGFloat> = 0...4
+    public static let iconScaleRange: ClosedRange<CGFloat> = 0.5...1.8
+    public static let paddingRange: ClosedRange<CGFloat> = 4...22
+    public static let bodyLinesRange: ClosedRange<Int> = 0...12
 
     /// What a banner looks like for someone who has never opened the settings — the
     /// behaviour this package had before any of it was configurable.
@@ -184,7 +264,17 @@ public struct BannerAppearance: Sendable, Equatable {
         isAnimated: Bool = true,
         sound: BannerSound = .none,
         screen: BannerScreen = .withPointer,
-        animationDuration: TimeInterval = 0.25
+        animationDuration: TimeInterval = 0.25,
+        cornerRadius: CGFloat = 12,
+        borderWidth: CGFloat = 0,
+        iconScale: CGFloat = 1,
+        showsIcon: Bool = true,
+        padding: CGFloat = 10,
+        maximumBodyLines: Int = 0,
+        severityStyles: [BannerSeverity: BannerSeverityStyle] = [:],
+        quietHours: QuietHours = QuietHours(),
+        moduleSounds: [String: BannerSound] = [:],
+        moduleLifetimes: [String: TimeInterval] = [:]
     ) {
         self.corner = corner
         self.width = width.clamped(to: Self.widthRange)
@@ -201,6 +291,16 @@ public struct BannerAppearance: Sendable, Equatable {
         self.sound = sound
         self.screen = screen
         self.animationDuration = animationDuration.clamped(to: Self.animationDurationRange)
+        self.cornerRadius = cornerRadius.clamped(to: Self.cornerRadiusRange)
+        self.borderWidth = borderWidth.clamped(to: Self.borderWidthRange)
+        self.iconScale = iconScale.clamped(to: Self.iconScaleRange)
+        self.showsIcon = showsIcon
+        self.padding = padding.clamped(to: Self.paddingRange)
+        self.maximumBodyLines = maximumBodyLines.clamped(to: Self.bodyLinesRange)
+        self.severityStyles = severityStyles.filter { !$0.value.isDefault }
+        self.quietHours = quietHours
+        self.moduleSounds = moduleSounds
+        self.moduleLifetimes = moduleLifetimes.mapValues { $0.clamped(to: Self.lifetimeRange) }
     }
 }
 

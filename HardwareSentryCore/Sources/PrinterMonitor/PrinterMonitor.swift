@@ -116,7 +116,7 @@ public actor PrinterMonitor: Monitor {
                             .field(PrinterField.location.rawValue, "Location", printer.location),
                             .field(PrinterField.model.rawValue, "Model", printer.makeAndModel)
                         ]),
-                        icon: .asset("PrinterMonitor-Icon-SupplyLow", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .warning
+                        icon: .asset("PrinterMonitor-Icon-SupplyLow", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .ink
                     )
                 } else if wasLow, supply.hasRecovered(fallbackThreshold: supplyThreshold, margin: supplyRecoveryMargin) {
                     // Replaced. Forgotten rather than announced: a fresh cartridge is not
@@ -182,7 +182,7 @@ public actor PrinterMonitor: Monitor {
                     subject: "\(job.printerName)#\(job.id)",
                     title: "Finished printing \(job.displayTitle)",
                     body: await jobBody(job),
-                    icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")
+                    icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .positive
                 )
             case .canceled, .aborted:
                 await context.notify(
@@ -192,7 +192,7 @@ public actor PrinterMonitor: Monitor {
                         ? "Cancelled printing \(job.displayTitle)"
                         : "Print job failed: \(job.displayTitle)",
                     body: await jobBody(job),
-                    icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer")
+                    icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .blocked
                 )
             default:
                 // Left the active list without reaching a final state: CUPS moved it, or
@@ -279,7 +279,7 @@ public actor PrinterMonitor: Monitor {
                     subject: printer.name,
                     title: printer.isRejectingJobs ? "Printer Is Rejecting Jobs" : "Printer Is Accepting Jobs Again",
                     body: printer.name,
-                    icon: .asset(printer.isRejectingJobs ? "PrinterMonitor-Icon-Rejecting" : "PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: printer.isRejectingJobs ? .warning : .positive
+                    icon: .asset(printer.isRejectingJobs ? "PrinterMonitor-Icon-Rejecting" : "PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: printer.isRejectingJobs ? .blocked : .positive
                 )
             }
         }
@@ -293,7 +293,7 @@ public actor PrinterMonitor: Monitor {
                     subject: "Default",
                     title: "Default Printer Changed",
                     body: "\(previousDefault) → \(newDefault)",
-                    icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module), iconKind: DeviceIconKind("printer", "printer")
+                    icon: .asset("PrinterMonitor-Icon-DefaultChanged", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .favorite
                 )
             }
         }

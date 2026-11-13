@@ -29,6 +29,9 @@ public final class BannerDelivery: NotificationDelivering {
             if appearance.visibleLifetime != oldValue.visibleLifetime {
                 stack?.visibleLifetime = appearance.visibleLifetime
             }
+            if appearance.moduleLifetimes != oldValue.moduleLifetimes {
+                stack?.lifetimeByModule = appearance.moduleLifetimes
+            }
             if appearance.maximumVisible != oldValue.maximumVisible {
                 // Lowering it does not pull banners already up out from under anybody; it
                 // takes effect as they retire, which the next expiry sees to.
@@ -119,6 +122,14 @@ public final class BannerDelivery: NotificationDelivering {
         }
 
         let content = BannerContent(event: event)
+        let style = appearance.style(for: content.severity)
+        let quiet = appearance.quietHours.effect(for: content.severity, at: Date())
+        // Hidden is not dropped news: the history stage ran before this one.
+        if quiet == .hide { return .failed(reason: "quiet hours") }
+        // A kind that stays until it is closed is told to the stack the way any sticky
+        // notice is, so it needs nothing of its own there.
+        var event = event
+        if style.staysUntilDismissed { event.isSticky = true }
         var placedID: BannerID?
 
         // The banner has to be built before it can be measured, and measured before the
@@ -153,7 +164,7 @@ public final class BannerDelivery: NotificationDelivering {
         events[admission.id] = event
         controllers[admission.id] = controller
         apply(admission.change, in: frame)
-        playSound(for: context)
+        if quiet != .silence { playSound(for: context, style: style, module: event.category.rawValue) }
 
         return .presented
     }
@@ -203,13 +214,15 @@ public final class BannerDelivery: NotificationDelivering {
     }
 
     private func makeStack(for frame: NSRect) -> BannerStack {
-        BannerStack(
+        var stack = BannerStack(
             availableHeight: frame.height - appearance.margin * 2,
             spacing: appearance.spacing,
             visibleLifetime: appearance.visibleLifetime,
             maximumVisible: appearance.maximumVisible,
             revealSpacing: appearance.revealSpacing
         )
+        stack.lifetimeByModule = appearance.moduleLifetimes
+        return stack
     }
 
     /// Makes a noise, if one was asked for and this is a moment for it.
@@ -217,9 +230,9 @@ public final class BannerDelivery: NotificationDelivering {
     /// Silent during the opening sweep on purpose: everything already plugged in is
     /// announced at launch, and a dozen chimes in two seconds is not a notification, it is
     /// an alarm. The phase is already tracked for exactly this kind of distinction.
-    private func playSound(for context: DispatchContext) {
+    private func playSound(for context: DispatchContext, style: BannerSeverityStyle, module: String) {
         guard context.phase != .launching,
-              let name = appearance.sound.systemName
+              let name = (style.sound ?? appearance.moduleSounds[module] ?? appearance.sound).systemName
         else { return }
 
         let now = Date()

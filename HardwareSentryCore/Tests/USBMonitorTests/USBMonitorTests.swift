@@ -328,17 +328,17 @@ struct USBIconTests {
         USBDevice(name: "Thing", isHub: isHub, deviceClass: code)
     }
 
-    @Test("mass storage borrows the disk artwork, not the generic USB glyph")
+    @Test("mass storage has a drive of its own, not the generic USB glyph")
     func massStorageLooksLikeADisk() {
-        // A flash drive is a disk, and that is what somebody expects to see.
-        #expect(device(class: 0x08).iconBaseName == "Device-USBDrive")
+        // Storage is drawn as a drive, and apart from the flash-stick picture a USB Drive uses.
+        #expect(device(class: 0x08).iconBaseName == "USB-TypeMassStorage")
     }
 
-    @Test("mass storage leaving asks for the artwork that exists")
+    @Test("mass storage leaving asks for its own disconnected artwork")
     func massStorageDisconnectUsesUnmounted() {
         // The mechanical "-Disconnected" suffix would name a file that is not there, and
         // the icon would silently fall back to nothing.
-        #expect(device(class: 0x08).disconnectedIconName == "Device-USBDrive-Unmounted")
+        #expect(device(class: 0x08).disconnectedIconName == "USB-TypeMassStorage-Disconnected")
         #expect(device(class: 0x03).disconnectedIconName == "USB-TypeHID-Disconnected")
         #expect(device(class: 0x00).disconnectedIconName == "USB-Off")
     }

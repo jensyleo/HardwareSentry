@@ -16,8 +16,8 @@ public actor GamepadMonitor: Monitor {
     public static let events: [MonitorEventDescription] = [
         .init(name: GamepadEvent.controllerConnected.rawValue, title: "Game controller connected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.controller.iconKind),
         .init(name: GamepadEvent.controllerDisconnected.rawValue, title: "Game controller disconnected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.controller.iconKind),
-        .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind),
-        .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected", icon: .asset("GamepadMonitor-Icon", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind)
+        .init(name: GamepadEvent.racingWheelConnected.rawValue, title: "Racing wheel connected", icon: .asset("GamepadMonitor-Icon-RacingWheel", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind),
+        .init(name: GamepadEvent.racingWheelDisconnected.rawValue, title: "Racing wheel disconnected", icon: .asset("GamepadMonitor-Icon-RacingWheel-Disconnected", in: .module), iconKind: GamepadDeviceKind.racingWheel.iconKind)
     ]
 
     // Only what the framework will answer about a controller that is actually here. The
@@ -109,6 +109,7 @@ public actor GamepadMonitor: Monitor {
     /// own generic icon regardless of `productCategory`: too rare a category, so far, to
     /// be worth telling apart by brand the way controllers are.
     static func iconAssetName(for kind: GamepadDeviceKind, productCategory: String?) -> String {
+        if kind == .racingWheel { return "GamepadMonitor-Icon-RacingWheel" }
         guard kind == .controller, let category = productCategory?.lowercased() else {
             return "GamepadMonitor-Icon"
         }

@@ -46,6 +46,9 @@ public struct IconBadgeView: View {
         case .positive: "checkmark.circle.fill"
         case .negative: "xmark.circle.fill"
         case .warning: "exclamationmark.triangle.fill"
+        case .favorite: "star.circle.fill"
+        case .blocked: "minus.circle.fill"
+        case .ink: "drop.circle.fill"
         }
     }
 
@@ -54,6 +57,9 @@ public struct IconBadgeView: View {
         case .positive: .green
         case .negative: .red
         case .warning: .yellow
+        case .favorite: .yellow
+        case .blocked: .red
+        case .ink: .red
         }
     }
 
@@ -62,6 +68,9 @@ public struct IconBadgeView: View {
         case .positive: "Connected"
         case .negative: "Disconnected"
         case .warning: "Needs attention"
+        case .favorite: "Default"
+        case .blocked: "Blocked"
+        case .ink: "Running low"
         }
     }
 }

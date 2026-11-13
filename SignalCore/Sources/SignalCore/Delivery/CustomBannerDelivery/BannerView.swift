@@ -5,13 +5,14 @@ import SwiftUI
 /// notifications so that a banner shown this way does not read as foreign.
 struct BannerBackground: NSViewRepresentable {
     let material: BannerMaterial
+    var cornerRadius: CGFloat = 12
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.blendingMode = .behindWindow
         view.state = .active
         view.wantsLayer = true
-        view.layer?.cornerRadius = 12
+        view.layer?.cornerRadius = cornerRadius
         view.layer?.masksToBounds = true
         view.material = Self.material(for: material)
         return view
@@ -19,6 +20,7 @@ struct BannerBackground: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
         nsView.material = Self.material(for: material)
+        nsView.layer?.cornerRadius = cornerRadius
     }
 
     private static func material(for material: BannerMaterial) -> NSVisualEffectView.Material {
@@ -49,35 +51,42 @@ struct BannerView: View {
 
     @State private var isHovering = false
 
-    private var iconSide: CGFloat { 36 * appearance.textScale.factor }
+    /// The body lines the person asked to see: all of them, or only the first few.
+    private var visibleLines: [BannerContent.Line] {
+        appearance.maximumBodyLines == 0 ? content.lines : Array(content.lines.prefix(appearance.maximumBodyLines))
+    }
+
+    private var iconSide: CGFloat { 36 * appearance.textScale.factor * appearance.iconScale }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            icon
-                .frame(width: iconSide, height: iconSide)
-                .overlay(alignment: .bottomTrailing) {
-                    if let badge = content.badge {
-                        IconBadgeView(badge: badge, iconSide: iconSide)
+            if appearance.showsIcon {
+                icon
+                    .frame(width: iconSide, height: iconSide)
+                    .overlay(alignment: .bottomTrailing) {
+                        if let badge = content.badge {
+                            IconBadgeView(badge: badge, iconSide: iconSide)
+                        }
                     }
-                }
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(content.title)
                     .font(.system(size: Self.titleSize * appearance.textScale.factor, weight: .semibold))
                     .fixedSize(horizontal: false, vertical: true)
 
-                ForEach(Array(content.lines.enumerated()), id: \.offset) { _, line in
+                ForEach(Array(visibleLines.enumerated()), id: \.offset) { _, line in
                     body(for: line)
                 }
             }
 
             Spacer(minLength: 0)
         }
-        .padding(10)
+        .padding(appearance.padding)
         .frame(width: appearance.width, alignment: .leading)
         .background {
             ZStack {
-                BannerBackground(material: appearance.material)
+                BannerBackground(material: appearance.material, cornerRadius: appearance.cornerRadius)
                 // Tinted over the glass, not instead of it — a flat colour with nothing
                 // behind it would not adapt to light and dark, and would fight the
                 // vibrancy that makes a banner read as part of macOS.
@@ -86,7 +95,17 @@ struct BannerView: View {
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: appearance.cornerRadius, style: .continuous))
+        .overlay {
+            let accent = appearance.style(for: content.severity).accent
+            if appearance.borderWidth > 0 || accent != nil {
+                RoundedRectangle(cornerRadius: appearance.cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        accent.flatMap { $0.count == 3 ? Color(red: $0[0], green: $0[1], blue: $0[2]) : nil } ?? Color.primary.opacity(0.35),
+                        lineWidth: accent != nil ? max(appearance.borderWidth, 2) : appearance.borderWidth
+                    )
+            }
+        }
         // Top-left, where macOS puts it in Notification Center — over the icon's own
         // corner, which is why it only appears once the pointer is on the banner.
         .overlay(alignment: .topLeading) { closeButton }
