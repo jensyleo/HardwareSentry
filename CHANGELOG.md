@@ -5,6 +5,27 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.6.0] - 2026-11-16
+
+### Added
+
+- **Own pictures for notices that shared a generic one:** Camera (Portrait Effect, Studio Light,
+  Reactions, Background Replacement), Display (mode, role, color profile, video link), Power
+  (Low Power Mode, system and display sleep and wake), Printer (job started, job finished) and
+  Scanner (scan status, document feeder).
+- **Network pictures with a label on the globe:** DHCP, IP, WWW, a path arrow, metered, low data,
+  blocked, location, service order and computer name, each in a larger, easier-to-read frame.
+  IP and Internet reachability have a grey version with a cross for when there is no connection.
+
+### Changed
+
+- Battery pictures (Low Power Mode, Battery Failure, No Battery, Power source changed) now share the
+  drawing of the charge-level batteries; Adapter Changed and Power source changed use a swap mark.
+- "Left a Wi-Fi network" shows the greyed Wi-Fi with a cross, like the other disconnected devices.
+- The README, which had been empty since 1.2.2, is restored and brought up to date, with a second
+  screenshot of the Preview tab. The known-issues, parity and SignalCore notes now live in it, so the
+  repository carries a single README.
+
 ## [1.5.1] - 2026-11-13
 
 ### Changed

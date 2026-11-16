@@ -23,8 +23,8 @@ public actor ScannerMonitor: Monitor {
         // something the system already knows: each one costs an HTTP request to the
         // scanner every few seconds, for as long as it is on the network. That is a real
         // cost to impose on somebody who has not asked for it.
-        .init(name: ScannerEvent.scanStatus.rawValue, title: "Scan started / finished", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner")),
-        .init(name: ScannerEvent.adfStateChanged.rawValue, title: "Document feeder loaded / empty / jammed", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner"))
+        .init(name: ScannerEvent.scanStatus.rawValue, title: "Scan started / finished", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-ScanStatus", in: .module), iconKind: DeviceIconKind("scanner", "scanner")),
+        .init(name: ScannerEvent.adfStateChanged.rawValue, title: "Document feeder loaded / empty / jammed", enabledByDefault: false, icon: .asset("ScannerMonitor-Icon-AdfState", in: .module), iconKind: DeviceIconKind("scanner", "scanner"))
     ]
 
     public static let fields: [MonitorFieldDescription] = ScannerField.allCases.map {
@@ -141,7 +141,7 @@ public actor ScannerMonitor: Monitor {
                     .always(name),
                     .prose(ScannerField.statusReasons.rawValue, "Reason", status.reasonsNote)
                 ]),
-                icon: .asset("ScannerMonitor-Icon-Found", in: .module), iconKind: DeviceIconKind("scanner", "scanner"),
+                icon: .asset("ScannerMonitor-Icon-ScanStatus", in: .module), iconKind: DeviceIconKind("scanner", "scanner"),
                 // A scanner that has stopped mid-job is waiting for somebody; one that has
                 // simply finished is not.
                 priority: state == .stopped || state == .down ? .high : .normal

@@ -24,10 +24,10 @@ public actor PowerMonitor: Monitor {
         .init(name: PowerEvent.noBattery.rawValue, title: "No Battery", icon: .asset("Power-NoBattery", in: .module)),
         .init(name: PowerEvent.lowPowerModeChanged.rawValue, title: "Low Power Mode", icon: .asset("Power-LowPowerMode", in: .module)),
         .init(name: PowerEvent.adapterChanged.rawValue, title: "Adapter Changed", icon: .asset("Power-AdapterChanged", in: .module)),
-        .init(name: PowerEvent.systemSleep.rawValue, title: "System Sleep", icon: .asset("Power-LowPowerMode", in: .module)),
-        .init(name: PowerEvent.systemWake.rawValue, title: "System Wake", icon: .asset("Power-AdapterChanged", in: .module)),
-        .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) Sleep", icon: .asset("Power-LowPowerMode", in: .module)),
-        .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) Wake", icon: .asset("Power-AdapterChanged", in: .module)),
+        .init(name: PowerEvent.systemSleep.rawValue, title: "System Sleep", icon: .asset("Power-SystemSleep", in: .module)),
+        .init(name: PowerEvent.systemWake.rawValue, title: "System Wake", icon: .asset("Power-SystemWake", in: .module)),
+        .init(name: PowerEvent.screensSleep.rawValue, title: "Display(s) Sleep", icon: .asset("Power-ScreensSleep", in: .module)),
+        .init(name: PowerEvent.screensWake.rawValue, title: "Display(s) Wake", icon: .asset("Power-ScreensWake", in: .module)),
         // Two of this application's own, which the original does not have as rows.
         .init(name: PowerEvent.sourceChanged.rawValue, title: "Power source changed", icon: .asset("Power-SourceChanged", in: .module)),
         .init(name: PowerEvent.fullyCharged.rawValue, title: "Battery fully charged", icon: .asset("Power-100", in: .module)),
@@ -281,13 +281,13 @@ public actor PowerMonitor: Monitor {
         case .snapshot(let snapshot):
             await handleSnapshot(snapshot)
         case .systemWillSleep:
-            await context.notify(PowerEvent.systemSleep.rawValue, subject: "System", title: "System Going to Sleep", body: "", icon: .asset("Power-LowPowerMode", in: .module))
+            await context.notify(PowerEvent.systemSleep.rawValue, subject: "System", title: "System Going to Sleep", body: "", icon: .asset("Power-SystemSleep", in: .module))
         case .systemDidWake:
-            await context.notify(PowerEvent.systemWake.rawValue, subject: "System", title: "System Woke Up", body: "", icon: .asset("Power-AdapterChanged", in: .module))
+            await context.notify(PowerEvent.systemWake.rawValue, subject: "System", title: "System Woke Up", body: "", icon: .asset("Power-SystemWake", in: .module))
         case .screensDidSleep:
-            await context.notify(PowerEvent.screensSleep.rawValue, subject: "Screens", title: "Display(s) Went to Sleep", body: "", icon: .asset("Power-LowPowerMode", in: .module))
+            await context.notify(PowerEvent.screensSleep.rawValue, subject: "Screens", title: "Display(s) Went to Sleep", body: "", icon: .asset("Power-ScreensSleep", in: .module))
         case .screensDidWake:
-            await context.notify(PowerEvent.screensWake.rawValue, subject: "Screens", title: "Display(s) Woke Up", body: "", icon: .asset("Power-AdapterChanged", in: .module))
+            await context.notify(PowerEvent.screensWake.rawValue, subject: "Screens", title: "Display(s) Woke Up", body: "", icon: .asset("Power-ScreensWake", in: .module))
         case .lowPowerModeChanged(let enabled):
             await handleLowPowerMode(enabled)
         case .adapter(let adapter):

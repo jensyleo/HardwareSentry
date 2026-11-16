@@ -27,10 +27,10 @@ public actor CameraMonitor: Monitor {
         .init(name: CameraEvent.deskViewConnected.rawValue, title: "Desk View connected", icon: .asset("CameraMonitor-Icon-DeskView", in: .module), iconKind: DeviceIconKind("camera", "deskView")),
         .init(name: CameraEvent.deskViewDisconnected.rawValue, title: "Desk View disconnected", icon: .asset("CameraMonitor-Icon-DeskView-Disconnected", in: .module), iconKind: DeviceIconKind("camera", "deskView")),
         .init(name: CameraEvent.inUseChanged.rawValue, title: "Camera started/stopped being used", icon: .asset("CameraMonitor-Icon-InUse", in: .module)),
-        .init(name: CameraEvent.portraitEffectChanged.rawValue, title: "Portrait Effect changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
-        .init(name: CameraEvent.studioLightChanged.rawValue, title: "Studio Light changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
-        .init(name: CameraEvent.reactionsChanged.rawValue, title: "Reactions changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module)),
-        .init(name: CameraEvent.backgroundReplacementChanged.rawValue, title: "Background Replacement changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon", in: .module))
+        .init(name: CameraEvent.portraitEffectChanged.rawValue, title: "Portrait Effect changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon-Portrait", in: .module)),
+        .init(name: CameraEvent.studioLightChanged.rawValue, title: "Studio Light changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon-StudioLight", in: .module)),
+        .init(name: CameraEvent.reactionsChanged.rawValue, title: "Reactions changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon-Reactions", in: .module)),
+        .init(name: CameraEvent.backgroundReplacementChanged.rawValue, title: "Background Replacement changed", enabledByDefault: false, icon: .asset("CameraMonitor-Icon-Background", in: .module))
     ]
 
     // All off by default. These describe the camera rather than report anything that
