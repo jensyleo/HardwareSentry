@@ -19,8 +19,8 @@ public actor PrinterMonitor: Monitor {
         .init(name: PrinterEvent.supplyLow.rawValue, title: "Toner/ink running low", icon: .asset("PrinterMonitor-Icon-SupplyLow", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         // The job events are off. Somebody who has just pressed Print knows they pressed
         // Print, and on a busy queue this is one notification per document.
-        .init(name: PrinterEvent.jobStarted.rawValue, title: "Print job started", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
-        .init(name: PrinterEvent.jobFinished.rawValue, title: "Print job finished", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.jobStarted.rawValue, title: "Print job started", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-JobStarted", in: .module), iconKind: DeviceIconKind("printer", "printer")),
+        .init(name: PrinterEvent.jobFinished.rawValue, title: "Print job finished", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-JobFinished", in: .module), iconKind: DeviceIconKind("printer", "printer")),
         .init(name: PrinterEvent.jobCanceled.rawValue, title: "Print job cancelled or aborted", enabledByDefault: false, icon: .asset("PrinterMonitor-Icon-Rejecting", in: .module), iconKind: DeviceIconKind("printer", "printer"))
     ]
 
@@ -165,7 +165,7 @@ public actor PrinterMonitor: Monitor {
                 subject: "\(job.printerName)#\(job.id)",
                 title: "Printing \(job.displayTitle)",
                 body: await jobBody(job),
-                icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer")
+                icon: .asset("PrinterMonitor-Icon-JobStarted", in: .module), iconKind: DeviceIconKind("printer", "printer")
             )
         }
 
@@ -182,7 +182,7 @@ public actor PrinterMonitor: Monitor {
                     subject: "\(job.printerName)#\(job.id)",
                     title: "Finished printing \(job.displayTitle)",
                     body: await jobBody(job),
-                    icon: .asset("PrinterMonitor-Icon-Connected", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .positive
+                    icon: .asset("PrinterMonitor-Icon-JobFinished", in: .module), iconKind: DeviceIconKind("printer", "printer"), iconBadge: .positive
                 )
             case .canceled, .aborted:
                 await context.notify(

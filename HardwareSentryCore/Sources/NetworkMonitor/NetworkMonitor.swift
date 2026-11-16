@@ -16,8 +16,8 @@ public actor NetworkMonitor: Monitor {
     public static let icon: NotificationIcon = .asset("Network-Generic-On", in: .module)
 
     public static let events: [MonitorEventDescription] = [
-        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
-        .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.addresses),
+        .init(name: NetworkEvent.ipAddressChanged.rawValue, title: "IP addresses updated", icon: .asset("Network-IP-On", in: .module), group: Group.addresses),
+        .init(name: NetworkEvent.dhcpRenewed.rawValue, title: "DHCP lease renewed", enabledByDefault: false, icon: .asset("Network-DHCP", in: .module), group: Group.addresses),
         .init(name: NetworkEvent.primaryInterfaceChanged.rawValue, title: "Primary interface changed", enabledByDefault: false, icon: .asset("Network-PrimaryInterface-On", in: .module), group: Group.addresses),
         .init(name: NetworkEvent.linkUp.rawValue, title: "Network link up", icon: .asset("Network-Ethernet-On", in: .module), iconKind: DeviceIconKind("network", "wired"), group: Group.wired),
         .init(name: NetworkEvent.linkDown.rawValue, title: "Network link down", icon: .asset("Network-Ethernet-Off", in: .module), iconKind: DeviceIconKind("network", "wired"), group: Group.wired),
@@ -37,16 +37,16 @@ public actor NetworkMonitor: Monitor {
         .init(name: NetworkEvent.wifiSignalNone.rawValue, title: WiFiSignalLevel.none.settingsTitle, icon: .asset(WiFiSignalLevel.none.iconName, in: .module), group: Group.signal),
         .init(name: NetworkEvent.vpnConnected.rawValue, title: "VPN connected", icon: .asset("Network-VPN-On", in: .module), group: Group.vpn),
         .init(name: NetworkEvent.vpnDisconnected.rawValue, title: "VPN disconnected", icon: .asset("Network-VPN-Off", in: .module), group: Group.vpn),
-        .init(name: NetworkEvent.reachabilityChanged.rawValue, title: "Internet reachability changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
-        .init(name: NetworkEvent.pathStatusChanged.rawValue, title: "Network path status changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
-        .init(name: NetworkEvent.pathExpensiveChanged.rawValue, title: "Connection became metered/unmetered", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
-        .init(name: NetworkEvent.pathConstrainedChanged.rawValue, title: "Low Data Mode turned on/off", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
-        .init(name: NetworkEvent.pathQualityChanged.rawValue, title: "Network path became usable/blocked", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.reachabilityChanged.rawValue, title: "Internet reachability changed", enabledByDefault: false, icon: .asset("Network-Web-On", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathStatusChanged.rawValue, title: "Network path status changed", enabledByDefault: false, icon: .asset("Network-Path", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathExpensiveChanged.rawValue, title: "Connection became metered/unmetered", enabledByDefault: false, icon: .asset("Network-Metered", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathConstrainedChanged.rawValue, title: "Low Data Mode turned on/off", enabledByDefault: false, icon: .asset("Network-LowData", in: .module), group: Group.internet),
+        .init(name: NetworkEvent.pathQualityChanged.rawValue, title: "Network path became usable/blocked", enabledByDefault: false, icon: .asset("Network-Blocked", in: .module), group: Group.internet),
         .init(name: NetworkEvent.dnsServersChanged.rawValue, title: "DNS servers changed", enabledByDefault: false, icon: .asset("Network-DNS-On", in: .module), group: Group.system),
         .init(name: NetworkEvent.proxyConfigChanged.rawValue, title: "Proxy configuration changed", enabledByDefault: false, icon: .asset("Network-Proxy-On", in: .module), group: Group.system),
-        .init(name: NetworkEvent.locationChanged.rawValue, title: "Network location changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
-        .init(name: NetworkEvent.serviceOrderChanged.rawValue, title: "Service order changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
-        .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Generic-On", in: .module), group: Group.system),
+        .init(name: NetworkEvent.locationChanged.rawValue, title: "Network location changed", enabledByDefault: false, icon: .asset("Network-Location", in: .module), group: Group.system),
+        .init(name: NetworkEvent.serviceOrderChanged.rawValue, title: "Service order changed", enabledByDefault: false, icon: .asset("Network-ServiceOrder", in: .module), group: Group.system),
+        .init(name: NetworkEvent.hostnameChanged.rawValue, title: "Computer name changed", enabledByDefault: false, icon: .asset("Network-Hostname", in: .module), group: Group.system),
         .init(name: NetworkEvent.promiscuousModeChanged.rawValue, title: "Interface started capturing packets", icon: .asset("Network-Interface-On", in: .module), iconKind: DeviceIconKind("network", "adapter"), group: Group.system)
     ]
 
@@ -253,7 +253,7 @@ public actor NetworkMonitor: Monitor {
                 .field(NetworkField.ipProtocols.rawValue, "Protocols", isReachable ? detail?.protocolsNote : nil),
                 .field(NetworkField.dns.rawValue, "Warning", isReachable ? detail?.dnsNote : nil)
             ]),
-            icon: .asset(isReachable ? "Network-Generic-On" : "Network-Generic-Off", in: .module)
+            icon: .asset(isReachable ? "Network-Web-On" : "Network-Web-Off", in: .module)
         )
     }
 
@@ -348,7 +348,7 @@ public actor NetworkMonitor: Monitor {
             await context.notify(
                 NetworkEvent.dhcpRenewed.rawValue, subject: interfaceName,
                 title: "DHCP Lease Renewed", body: "Interface:\t\(interfaceName)",
-                icon: .asset("Network-Generic-On", in: .module)
+                icon: .asset("Network-DHCP", in: .module)
             )
         }
         knownLeaseStarts = leases
@@ -364,7 +364,7 @@ public actor NetworkMonitor: Monitor {
         await context.notify(
             NetworkEvent.hostnameChanged.rawValue, subject: "ComputerName",
             title: "Computer Name Changed", body: "\(previous) → \(name)",
-            icon: .asset("Network-Generic-On", in: .module)
+            icon: .asset("Network-Hostname", in: .module)
         )
     }
 
@@ -412,7 +412,7 @@ public actor NetworkMonitor: Monitor {
             body: hasAddresses ? (body.isEmpty ? "IP address updated" : body) : "IP address released",
             // A machine holding only self-assigned addresses has an address and no
             // connection; the icon should not read as success.
-            icon: .asset(report.hasRoutableAddress ? "Network-Generic-On" : "Network-Generic-Off", in: .module)
+            icon: .asset(report.hasRoutableAddress ? "Network-IP-On" : "Network-IP-Off", in: .module)
         )
     }
 
@@ -454,7 +454,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.locationChanged.rawValue, subject: "Location",
                 title: "Network Location Changed",
                 body: "\(was) → \(now)",
-                icon: .asset("Network-Generic-On", in: .module)
+                icon: .asset("Network-Location", in: .module)
             )
         }
 
@@ -467,7 +467,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.serviceOrderChanged.rawValue, subject: "ServiceOrder",
                 title: "Network Service Order Changed",
                 body: NetworkGlobalState.describe(order: state.serviceOrder),
-                icon: .asset("Network-Generic-On", in: .module)
+                icon: .asset("Network-ServiceOrder", in: .module)
             )
         }
     }
@@ -562,7 +562,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.pathExpensiveChanged.rawValue, subject: "PathExpensive",
                 title: detail.isExpensive ? "Network Path Is Now Costly" : "Network Path No Longer Costly",
                 body: "e.g. an iPhone Personal Hotspot or metered connection",
-                icon: .asset("Network-Generic-On", in: .module)
+                icon: .asset("Network-Metered", in: .module)
             )
         }
         if previous.isConstrained != detail.isConstrained {
@@ -570,7 +570,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.pathConstrainedChanged.rawValue, subject: "PathConstrained",
                 title: detail.isConstrained ? "Network Path Is Now Constrained" : "Network Path No Longer Constrained",
                 body: "Low Data Mode is active for this path",
-                icon: .asset("Network-Generic-On", in: .module)
+                icon: .asset("Network-LowData", in: .module)
             )
         }
         if previous.interfaceType != detail.interfaceType,
@@ -579,7 +579,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.pathStatusChanged.rawValue, subject: "PathStatus",
                 title: "Network Path Status Changed",
                 body: "\(was) → \(now)",
-                icon: .asset("Network-Generic-On", in: .module)
+                icon: .asset("Network-Path", in: .module)
             )
         }
         if previous.linkQuality != detail.linkQuality,
@@ -588,7 +588,7 @@ public actor NetworkMonitor: Monitor {
                 NetworkEvent.pathQualityChanged.rawValue, subject: "PathQuality",
                 title: "Network Link Quality Changed",
                 body: "\(was) → \(now)",
-                icon: .asset("Network-Generic-On", in: .module)
+                icon: .asset("Network-Blocked", in: .module)
             )
         }
     }
