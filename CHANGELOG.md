@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.6.1] - 2026-11-17
+
+### Fixed
+
+- The labelled globes in Network (DHCP, IP, WWW, Mac, metered, low data, path and service order) hid
+  most of the globe behind an oversized white frame. The frame now fits its text, so the globe shows.
+
 ## [1.6.0] - 2026-11-16
 
 ### Added
