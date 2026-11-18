@@ -90,6 +90,24 @@ struct BannerAppearanceStoreTests {
         #expect(reopened.appearance.tint == .custom(red: 0.1, green: 0.5, blue: 0.9))
     }
 
+    @Test("a module's own corner comes back next launch, and the others keep the shared one")
+    @MainActor
+    func moduleCornersSurviveARelaunch() {
+        let id = UUID().uuidString
+        let (store, defaults) = makeStore(id)
+        #expect(store.appearance.moduleCorners.isEmpty)
+
+        store.appearance.moduleCorners["Thermal"] = .topLeading
+        store.appearance.moduleCorners["Power"] = .bottomTrailing
+
+        let reopened = BannerAppearanceStore(defaults: defaults, keyPrefix: "Test.\(id)")
+
+        #expect(reopened.appearance.moduleCorners["Thermal"] == .topLeading)
+        #expect(reopened.appearance.moduleCorners["Power"] == .bottomTrailing)
+        #expect(reopened.appearance.moduleCorners["USB"] == nil)
+        #expect(reopened.appearance.corner == .topTrailing)
+    }
+
     @Test("choosing the system material again is remembered too, not just custom")
     @MainActor
     func tintBackToSystemMaterialSurvivesARelaunch() {

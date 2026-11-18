@@ -115,8 +115,43 @@ public final class BannerDelivery: NotificationDelivering {
         apply(StackChange(), in: frame)
     }
 
+    /// Plain notices held back to see whether more are on their way, oldest first.
+    private var heldBurst: [(event: NotificationEvent, context: DispatchContext)] = []
+    private var burstTask: Task<Void, Never>?
+
     @discardableResult
     public func present(_ event: NotificationEvent, context: DispatchContext) async -> DeliveryOutcome {
+        if appearance.coalescesBursts, BurstSummary.isGroupable(event), visibleFrame() != nil {
+            heldBurst.append((event, context))
+            if burstTask == nil {
+                let window = appearance.burstWindow
+                burstTask = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(window))
+                    guard !Task.isCancelled else { return }
+                    await self?.releaseBurst()
+                }
+            }
+            return .presented
+        }
+        return await show(event, context: context)
+    }
+
+    /// Ends a hold: several notices become one banner, a few are shown as they would have been.
+    private func releaseBurst() async {
+        let held = heldBurst
+        heldBurst = []
+        burstTask = nil
+        guard !held.isEmpty else { return }
+
+        if held.count >= appearance.burstThreshold {
+            await show(BurstSummary.summary(of: held.map(\.event)), context: held[0].context)
+        } else {
+            for item in held { await show(item.event, context: item.context) }
+        }
+    }
+
+    @discardableResult
+    private func show(_ event: NotificationEvent, context: DispatchContext) async -> DeliveryOutcome {
         guard let frame = visibleFrame() else {
             return .failed(reason: "no screen available to draw on")
         }
@@ -254,18 +289,21 @@ public final class BannerDelivery: NotificationDelivering {
     /// The gap between those two moments is exactly where the bug this replaces lived:
     /// see the note on `firePendingReveal`.
     private func layout(_ stack: BannerStack, in frame: NSRect) -> [(id: BannerID, origin: NSPoint, offscreenX: CGFloat)] {
-        let corner = appearance.corner
         let margin = appearance.margin
-        var edge = corner.isTop ? frame.maxY - margin : frame.minY + margin
         var result: [(id: BannerID, origin: NSPoint, offscreenX: CGFloat)] = []
+        // Each corner stacks on its own, so a module given a corner of its own does not
+        // push, or get pushed by, the banners waiting in another one.
+        var edges: [BannerCorner: CGFloat] = [:]
 
         for slot in stack.visible {
+            let corner = events[slot.id].flatMap { appearance.moduleCorners[$0.category.rawValue] } ?? appearance.corner
+            let edge = edges[corner] ?? (corner.isTop ? frame.maxY - margin : frame.minY + margin)
             let width = controllers[slot.id]?.width ?? appearance.width
             let x = corner.isLeading ? frame.minX + margin : frame.maxX - width - margin
             let y = corner.isTop ? edge - slot.height : edge
             let offscreenX = corner.isLeading ? frame.minX - width - 4 : frame.maxX + 4
             result.append((slot.id, NSPoint(x: x, y: y), offscreenX))
-            edge += (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
+            edges[corner] = edge + (corner.isTop ? -1 : 1) * (slot.height + appearance.spacing)
         }
 
         return result
