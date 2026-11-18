@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// Which corner banners appear in, and therefore which way they stack and slide in from.
-public enum BannerCorner: String, Sendable, Equatable, CaseIterable {
+public enum BannerCorner: String, Codable, Sendable, Equatable, CaseIterable {
     case topLeading
     case topTrailing
     case bottomLeading
@@ -203,6 +203,16 @@ public struct BannerAppearance: Sendable, Equatable {
     public var moduleSounds: [String: BannerSound]
     /// How long one module's banners stay, by the module's name, in place of the shared time.
     public var moduleLifetimes: [String: TimeInterval]
+    /// The corner one module's banners appear in, by the module's name, in place of the shared one.
+    public var moduleCorners: [String: BannerCorner]
+    /// Whether several plain notices arriving together are drawn as one banner that lists
+    /// them. Off unless asked for: each one is news, and a person who wants to see every
+    /// device that was plugged in should not have to opt out of being told.
+    public var coalescesBursts: Bool
+    /// How many plain notices inside the window it takes to make a burst.
+    public var burstThreshold: Int { didSet { burstThreshold = burstThreshold.clamped(to: Self.burstThresholdRange) } }
+    /// How long, in seconds, notices are held to see whether more are coming.
+    public var burstWindow: TimeInterval { didSet { burstWindow = burstWindow.clamped(to: Self.burstWindowRange) } }
 
     public func style(for severity: BannerSeverity) -> BannerSeverityStyle {
         severityStyles[severity] ?? BannerSeverityStyle()
@@ -248,6 +258,8 @@ public struct BannerAppearance: Sendable, Equatable {
     public static let iconScaleRange: ClosedRange<CGFloat> = 0.5...1.8
     public static let paddingRange: ClosedRange<CGFloat> = 4...22
     public static let bodyLinesRange: ClosedRange<Int> = 0...12
+    public static let burstThresholdRange: ClosedRange<Int> = 3...12
+    public static let burstWindowRange: ClosedRange<TimeInterval> = 1...6
 
     /// What a banner looks like for someone who has never opened the settings — the
     /// behaviour this package had before any of it was configurable.
@@ -278,7 +290,11 @@ public struct BannerAppearance: Sendable, Equatable {
         severityStyles: [BannerSeverity: BannerSeverityStyle] = [:],
         quietHours: QuietHours = QuietHours(),
         moduleSounds: [String: BannerSound] = [:],
-        moduleLifetimes: [String: TimeInterval] = [:]
+        moduleLifetimes: [String: TimeInterval] = [:],
+        moduleCorners: [String: BannerCorner] = [:],
+        coalescesBursts: Bool = false,
+        burstThreshold: Int = 4,
+        burstWindow: TimeInterval = 2
     ) {
         self.corner = corner
         self.width = width.clamped(to: Self.widthRange)
@@ -305,6 +321,10 @@ public struct BannerAppearance: Sendable, Equatable {
         self.quietHours = quietHours
         self.moduleSounds = moduleSounds
         self.moduleLifetimes = moduleLifetimes.mapValues { $0.clamped(to: Self.lifetimeRange) }
+        self.moduleCorners = moduleCorners
+        self.coalescesBursts = coalescesBursts
+        self.burstThreshold = burstThreshold.clamped(to: Self.burstThresholdRange)
+        self.burstWindow = burstWindow.clamped(to: Self.burstWindowRange)
     }
 }
 

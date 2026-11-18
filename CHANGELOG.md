@@ -5,6 +5,27 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.7.0] - 2026-11-18
+
+### Added
+
+- **A corner for each module.** Appearance → "Corner, by module" lets one module show its banners
+  in a corner of its own — Thermal at the bottom left and everything else at the top right, say.
+  Each corner stacks on its own, so a module in another corner never pushes the others.
+- **Group notices that arrive together** (Appearance → Bursts), off by default. When on, plain
+  notices arriving within a few seconds of each other are held back and, from a chosen number of
+  them, drawn as one banner that lists them. How many and how long are both adjustable. Anything
+  that needs attention or is critical is never held back or grouped, and the History still records
+  each notice separately.
+
+### Changed
+
+- The generic Audio picture is now a speaker with sound waves on the blue tile, drawn to the same
+  standard as the rest, with a greyed version with a cross for when a device is gone.
+- Appearance's "By module" settings are split into three sections — sound, corner and time on
+  screen — because three controls in one section drew the same value for every module.
+- Help covers the new settings.
+
 ## [1.6.1] - 2026-11-17
 
 ### Fixed

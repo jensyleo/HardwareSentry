@@ -130,7 +130,10 @@ public struct BannerAppearanceView: View {
             }
 
             if !moduleNames.isEmpty {
-                Section("By module") {
+                // Three sections rather than three loops in one: loops over the same names in
+                // one container share identities, and SwiftUI then draws the first loop's
+                // control for every one of them.
+                Section("Sound, by module") {
                     ForEach(moduleNames, id: \.self) { name in
                         Picker(name, selection: Binding(
                             get: { store.appearance.moduleSounds[name] },
@@ -144,8 +147,22 @@ public struct BannerAppearanceView: View {
                         }
                     }
                     Text("A kind of notice with a sound of its own wins over its module's.").font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Corner, by module") {
                     ForEach(moduleNames, id: \.self) { name in
-                        Picker("\(name) stays", selection: Binding(
+                        Picker(name, selection: Binding(
+                            get: { store.appearance.moduleCorners[name] },
+                            set: { store.appearance.moduleCorners[name] = $0 }
+                        )) {
+                            Text("The usual corner").tag(BannerCorner?.none)
+                            ForEach(BannerCorner.allCases, id: \.self) { Text($0.label).tag(BannerCorner?.some($0)) }
+                        }
+                    }
+                    Text("A corner stacks on its own, so a module placed in another one never pushes the banners in this one.").font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Time on screen, by module") {
+                    ForEach(moduleNames, id: \.self) { name in
+                        Picker(name, selection: Binding(
                             get: { store.appearance.moduleLifetimes[name] },
                             set: { store.appearance.moduleLifetimes[name] = $0 }
                         )) {
@@ -157,6 +174,25 @@ public struct BannerAppearanceView: View {
             }
 
             quietHoursSection
+
+            Section("Bursts") {
+                Toggle("Group notices that arrive together", isOn: $store.appearance.coalescesBursts)
+                if store.appearance.coalescesBursts {
+                    Stepper(
+                        "From \(store.appearance.burstThreshold) notices",
+                        value: $store.appearance.burstThreshold,
+                        in: BannerAppearance.burstThresholdRange
+                    )
+                    slider(
+                        "Within",
+                        value: $store.appearance.burstWindow,
+                        range: BannerAppearance.burstWindowRange,
+                        format: { String(format: "%.1fs", $0) }
+                    )
+                }
+                Text("Off by default, so every notice is shown on its own. When on, plain notices that arrive within the time above are held back and, if there are enough of them, drawn as one banner that lists them. Anything that needs attention or is critical is never held back or grouped.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
 
             Section("Behaviour") {
                 slider(

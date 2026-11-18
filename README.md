@@ -6,7 +6,7 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** version 1.6.1. Every module below is ported and covered by the parity audit; see
+**Status:** version 1.7.0. Every module below is ported and covered by the parity audit; see
 [`CHANGELOG.md`](CHANGELOG.md) for what has changed and [Known issues](#known-issues) for what is
 understood, small, and not yet worth holding a release for.
 
@@ -47,7 +47,8 @@ generated from the modules themselves, so it describes what the build in front o
   picture that is configured, the application's own, or macOS's. Nothing on the Mac changes.
 - **Appearance** — corner, display, width, text size, background and opacity, themes (with
   automatic light and dark ones), shape and border, per-kind styles (good, warning, critical),
-  quiet hours, and per-module sound and time on screen.
+  quiet hours, per-module sound, corner and time on screen, and an option (off by default) to
+  group plain notices that arrive together into one banner.
 - **History** — what was shown, kept locally.
 
 Critical is a level of its own, apart from needing attention: a disk that cannot be read, a volume

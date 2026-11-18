@@ -49,7 +49,7 @@ public final class BannerAppearanceStore {
     private enum Key: String, CaseIterable {
         case corner, width, margin, spacing, visibleLifetime, maximumVisible, revealSpacing, opacity, textScale, material, isAnimated, sound, screen, animationDuration
         case tintIsCustom, tintRed, tintGreen, tintBlue
-        case cornerRadius, borderWidth, iconScale, showsIcon, padding, maximumBodyLines, severityStyles, quietHours, moduleSounds, moduleLifetimes
+        case cornerRadius, borderWidth, iconScale, showsIcon, padding, maximumBodyLines, severityStyles, quietHours, moduleSounds, moduleLifetimes, moduleCorners, coalescesBursts, burstThreshold, burstWindow
     }
 
     private func key(_ key: Key) -> String { "\(keyPrefix).\(key.rawValue)" }
@@ -77,6 +77,10 @@ public final class BannerAppearanceStore {
         defaults.set(appearance.maximumBodyLines, forKey: key(.maximumBodyLines))
         if let data = try? JSONEncoder().encode(appearance.moduleLifetimes) { defaults.set(data, forKey: key(.moduleLifetimes)) }
         if let data = try? JSONEncoder().encode(appearance.moduleSounds) { defaults.set(data, forKey: key(.moduleSounds)) }
+        defaults.set(appearance.coalescesBursts, forKey: key(.coalescesBursts))
+        defaults.set(appearance.burstThreshold, forKey: key(.burstThreshold))
+        defaults.set(appearance.burstWindow, forKey: key(.burstWindow))
+        if let data = try? JSONEncoder().encode(appearance.moduleCorners) { defaults.set(data, forKey: key(.moduleCorners)) }
         if let data = try? JSONEncoder().encode(appearance.quietHours) { defaults.set(data, forKey: key(.quietHours)) }
         if let data = try? JSONEncoder().encode(appearance.severityStyles.reduce(into: [String: BannerSeverityStyle]()) { $0[$1.key.rawValue] = $1.value }) {
             defaults.set(data, forKey: key(.severityStyles))
@@ -136,7 +140,11 @@ public final class BannerAppearanceStore {
                 },
             quietHours: defaults.data(forKey: key(.quietHours)).flatMap { try? JSONDecoder().decode(QuietHours.self, from: $0) } ?? QuietHours(),
             moduleSounds: defaults.data(forKey: key(.moduleSounds)).flatMap { try? JSONDecoder().decode([String: BannerSound].self, from: $0) } ?? [:],
-            moduleLifetimes: defaults.data(forKey: key(.moduleLifetimes)).flatMap { try? JSONDecoder().decode([String: Double].self, from: $0) } ?? [:]
+            moduleLifetimes: defaults.data(forKey: key(.moduleLifetimes)).flatMap { try? JSONDecoder().decode([String: Double].self, from: $0) } ?? [:],
+            moduleCorners: defaults.data(forKey: key(.moduleCorners)).flatMap { try? JSONDecoder().decode([String: BannerCorner].self, from: $0) } ?? [:],
+            coalescesBursts: defaults.object(forKey: key(.coalescesBursts)) as? Bool ?? standard.coalescesBursts,
+            burstThreshold: defaults.object(forKey: key(.burstThreshold)) as? Int ?? standard.burstThreshold,
+            burstWindow: number(.burstWindow, standard.burstWindow)
         )
     }
 }
