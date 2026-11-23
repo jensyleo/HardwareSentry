@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "SystemIcons", targets: ["SystemIcons"])
     ],
     dependencies: [
-        .package(path: "../SignalCore")
+        .package(url: "https://github.com/jensyleo/SignalCore.git", from: "1.0.0")
     ],
     targets: [
         // Prints the catalogue as JSON, for `Tools/parity-audit.sh`. An executable rather
