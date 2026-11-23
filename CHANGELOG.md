@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.8.0] - 2026-11-23
+
+### Changed
+
+- **SignalCore now lives in a repository of its own**, [jensyleo/SignalCore](https://github.com/jensyleo/SignalCore),
+  released as 1.0.0 with its history. This application depends on it by version instead of carrying a copy,
+  so the `SignalCore/` folder is gone from here. Nothing changes in how the application looks or behaves.
+- The README now describes the notification core in a short section of its own and no longer lists
+  its tests as part of this repository.
+
 ## [1.7.0] - 2026-11-18
 
 ### Added

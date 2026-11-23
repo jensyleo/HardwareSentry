@@ -1,0 +1,15 @@
+{
+  "originHash" : "9b2774645393fe209e0d0575db473e2d4f2f5a092bc4c43d71dfb5556194cc6e",
+  "pins" : [
+    {
+      "identity" : "signalcore",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jensyleo/SignalCore.git",
+      "state" : {
+        "revision" : "c09cd7d112180a941fb8d19a655738a93b1cdef0",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}

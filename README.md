@@ -6,7 +6,7 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** version 1.7.0. Every module below is ported and covered by the parity audit; see
+**Status:** version 1.8.0. Every module below is ported and covered by the parity audit; see
 [`CHANGELOG.md`](CHANGELOG.md) for what has changed and [Known issues](#known-issues) for what is
 understood, small, and not yet worth holding a release for.
 
@@ -84,14 +84,13 @@ xcodegen generate
 xcodebuild -project HardwareSentry.xcodeproj -scheme HardwareSentry -configuration Release build
 ```
 
-Everything needed is in this repository. The notification core, `SignalCore`, is its own
-Swift package in the `SignalCore/` folder (see [SignalCore](#signalcore)).
+Everything needed is in this repository, apart from the notification core (see [SignalCore](#signalcore)),
+which Swift Package Manager fetches on the first build.
 
-Tests live in the `HardwareSentryCore` and `SignalCore` packages:
+Tests live in the `HardwareSentryCore` package; the notification core has its own:
 
 ```
 cd HardwareSentryCore && swift test
-cd SignalCore && swift test
 ```
 
 A third check compares what this application can notify about against the earlier application it
@@ -105,41 +104,11 @@ It exits non-zero on a gap. See [Parity](#parity) for what it covers and what it
 
 ## SignalCore
 
-A modular notification core for macOS applications, written in Swift 6 with strict concurrency
-enabled. It separates *what* to notify from *how* it gets delivered: an emitting module builds a
-value-type event and hands it to an actor-isolated dispatcher; an ordered pipeline of middleware
-decides whether the event proceeds (deduplication, instability detection, per-event preference
-gating), and a pluggable delivery channel presents it — through the system notification centre or
-through a self-contained floating banner. It hardcodes no module names, no preference keys and no
-storage backend, so the same core can serve unrelated applications.
-
-Implemented, tested, and in daily use as this application's notification core. The API may still
-change between releases; it is expected to move to a repository of its own once it settles.
-
-- An actor-isolated dispatcher with an ordered middleware pipeline and a launch phase that treats the
-  opening burst of notifications as a burst.
-- Middleware for duplicate suppression, flap (instability) detection, per-category and per-event
-  enablement, icon overrides and a history hook.
-- Two delivery channels: the system notification centre, and self-drawn floating banners with
-  stacking, pacing, sound, themes and a configurable appearance, with its own editor view.
-- Per-event icon choices and a state badge drawn on icons that do not show their state themselves.
-- A preferences store for categories, events and optional body fields.
-
-| Component | Responsibility |
-|---|---|
-| `NotificationEvent` | Value type describing a single notification request |
-| `NotificationCategory` | Identifies the emitting module; declared by the consuming application |
-| `NotificationDispatcher` | Actor that runs the middleware pipeline and hands off to delivery |
-| `NotificationMiddleware` | One pipeline stage; may pass through, transform, or suppress an event |
-| `NotificationDelivering` | A channel capable of presenting an event to the user |
-| `BannerDelivery` | Draws its own floating banners, outside Notification Centre |
-| `IconOverrideStore` | Remembers an icon chosen for an event, readable with `defaults read` |
-| `NotificationPreferencesStore` | Remembers which categories, events and body fields are wanted |
-
-Being actor-isolated rather than lock-guarded means data-race safety is enforced by the compiler
-rather than by convention, and every pipeline stage is independently testable without launching a
-host application. Requires macOS 15 and Swift 6; build and test with `swift build` and `swift test`
-inside `SignalCore/`.
+The notification core, [SignalCore](https://github.com/jensyleo/SignalCore), is a Swift package of its own,
+application-agnostic, so it can serve other applications too. This application depends on it by version
+(`HardwareSentryCore/Package.swift`), and Swift Package Manager fetches it the first time the project is built.
+It draws the self-made banners, themes, quiet hours, the corner for each module and the optional grouping of
+notices that arrive together, runs the dispatcher and its middleware pipeline, and stores the preferences.
 
 ## Parity
 
