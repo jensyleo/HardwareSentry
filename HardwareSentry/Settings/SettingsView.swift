@@ -23,6 +23,7 @@ struct SettingsView: View {
     let checkSerialVendorUpdateNow: () -> Void
     let simulateThermal: (ThermalState, ThermalState) -> Void
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
+    let simulate: (MonitorSimulation) -> Void
     let previewNotification: (MonitorEventDescription, NotificationCategory, IconBadge?, IconSource, Bool) -> Void
 
     @State private var tab = "general"
@@ -43,7 +44,7 @@ struct SettingsView: View {
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
                 .tag("appearance")
 
-            EventSettingsView(model: events, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, selection: $notificationsModule, pane: $notificationsPane, highlightedEvent: $notificationsHighlight)
+            EventSettingsView(model: events, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, simulate: simulate, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, selection: $notificationsModule, pane: $notificationsPane, highlightedEvent: $notificationsHighlight)
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
                 .tag("notifications")
 

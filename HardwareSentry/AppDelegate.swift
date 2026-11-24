@@ -277,6 +277,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await registry.simulateThermalTransition(from: from, to: to) }
     }
 
+    /// Raises one notification at a chosen value, for the Simulate controls of Power, Volume
+    /// and Network.
+    func simulate(_ simulation: MonitorSimulation) {
+        guard let registry else { return }
+        Task { await registry.simulate(simulation) }
+    }
+
     /// Fires one of a module's own declared events, for the generic "Simulate a
     /// Notification" section every module's settings tab offers.
     ///

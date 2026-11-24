@@ -77,6 +77,12 @@ public struct MonitorContext: Sendable {
         await preferences.isFieldEnabled(name, in: category)
     }
 
+    /// Whether one notification of this module is switched on, for the rare monitor whose
+    /// single announcement stands for several rows and must consult the right one.
+    public func isEventEnabled(_ name: String) async -> Bool {
+        await preferences.isEventEnabled(name, in: category)
+    }
+
     /// The title for something connecting or disconnecting, named the way this
     /// application has been asked to name them.
     public func connectionTitle(medium: String, type: String?, action: String) -> String {

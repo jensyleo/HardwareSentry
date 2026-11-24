@@ -6,7 +6,7 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** version 1.8.1. Every module below is ported and covered by the parity audit; see
+**Status:** version 1.9.0. Every module below is ported and covered by the parity audit; see
 [`CHANGELOG.md`](CHANGELOG.md) for what has changed and [Known issues](#known-issues) for what is
 understood, small, and not yet worth holding a release for.
 
@@ -188,9 +188,9 @@ code it affects.
 - *The flash-drive and SD-card heuristic* is a scoped copy of Volume's own, and imperfect where it came
   from: it matches token lists against a disk's protocol and name with no ground truth. It has not been
   watched against a real flash drive and a real SD reader with the icons in front of a person.
-- *Per-module Simulate.* Every module offers a generic "Simulate a Notification"; only Thermal has its own,
-  because its events are transitions. Power, Volume (a percentage free) and Network (signal level, lease)
-  are candidates for the same treatment and have not been reviewed module by module.
+- *Per-module Simulate.* Every module offers a generic "Simulate a Notification"; Thermal has its own, because
+  its events are transitions, and Power, Volume and Network have "Simulate at a Value", for the battery level,
+  the space left and the signal strength. The other modules have not been reviewed one by one.
 - *"First disconnection after launch is still announced"* was written against an implementation that no
   longer exists and needs re-testing against the current code.
 

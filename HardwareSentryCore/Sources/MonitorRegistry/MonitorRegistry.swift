@@ -223,6 +223,24 @@ public actor MonitorRegistry {
         }
     }
 
+    /// Raises one notification at a chosen value, for the settings screen's Simulate controls.
+    public func simulate(_ simulation: MonitorSimulation) async {
+        switch simulation {
+        case .power(let percentage, let isCharging):
+            for case let power as PowerMonitor in monitors {
+                await power.simulate(percentage: percentage, isCharging: isCharging)
+            }
+        case .lowDiskSpace(let freePercent):
+            for case let volume as VolumeMonitor in monitors {
+                await volume.simulateLowSpace(freePercent: freePercent)
+            }
+        case .wifiSignal(let rssi):
+            for case let network as NetworkMonitor in monitors {
+                await network.simulateWiFiSignal(rssi: rssi)
+            }
+        }
+    }
+
     /// Reads the battery's condition right now, whatever the schedule says.
     ///
     /// What the "Check Now" button calls. Reached by asking the assembled monitors rather

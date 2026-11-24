@@ -609,3 +609,122 @@ struct PowerRungTests {
         #expect(PowerMonitor.icon == .asset("Power-Plugged", in: .module))
     }
 }
+
+private struct SwitchedOff: NotificationPreferences {
+    let events: Set<String>
+    func isEventEnabled(_ name: String, in category: NotificationCategory) async -> Bool {
+        !events.contains(name)
+    }
+}
+
+@Suite("PowerMonitor · a level's own switch")
+struct PowerLevelSwitchTests {
+    private func run(_ script: [PowerSourceEvent], off: Set<String>) async -> [NotificationEvent] {
+        let delivery = CollectingDelivery()
+        let dispatcher = NotificationDispatcher(delivery: delivery)
+        let monitor = PowerMonitor(
+            source: ScriptedPowerSource(script: script),
+            context: MonitorContext(
+                dispatcher: dispatcher,
+                category: PowerMonitor.category,
+                preferences: SwitchedOff(events: off),
+                announcesWhatIsAlreadyThere: false
+            )
+        )
+        await monitor.start()
+        await settle()
+        await monitor.stop()
+        return await delivery.events
+    }
+
+    private func charging(_ percent: Int) -> String { PowerRung(percentage: percent, isCharging: true).event.rawValue }
+    private func draining(_ percent: Int) -> String { PowerRung(percentage: percent, isCharging: false).event.rawValue }
+
+    @Test("a source change at a level whose row is off says nothing")
+    func sourceChangeAtASwitchedOffLevelIsQuiet() async {
+        let events = await run([
+            .snapshot(snapshot(.battery, percent: 80)),
+            .snapshot(snapshot(.ac, percent: 82))
+        ], off: [charging(80)])
+        #expect(events.isEmpty)
+    }
+
+    @Test("switching off a different level leaves this one alone")
+    func otherLevelsDoNotSilenceIt() async {
+        let events = await run([
+            .snapshot(snapshot(.battery, percent: 80)),
+            .snapshot(snapshot(.ac, percent: 82))
+        ], off: [charging(20), draining(80)])
+        #expect(events.count == 1)
+    }
+
+    @Test("the low-battery warning is silenced by the row of the level it happens at")
+    func warningFollowsTheLevelRow() async {
+        let script: [PowerSourceEvent] = [
+            .snapshot(snapshot(.battery, percent: 14)),
+            .snapshot(snapshot(.battery, percent: 10, warning: true))
+        ]
+        #expect(await run(script, off: [draining(10)]).isEmpty)
+        #expect(await run(script, off: [draining(80)]).count == 1)
+    }
+
+    @Test("fully charged is switched by the plugged-in row")
+    func fullyChargedFollowsPluggedIn() async {
+        let script: [PowerSourceEvent] = [
+            .snapshot(snapshot(.ac, percent: 98)),
+            .snapshot(snapshot(.ac, percent: 100))
+        ]
+        #expect(await run(script, off: [PowerEvent.pluggedIn.rawValue]).isEmpty)
+        #expect(await run(script, off: []).count == 1)
+    }
+}
+
+@Suite("PowerMonitor · simulating a level")
+struct PowerSimulationTests {
+    private func simulate(_ percentage: Int, charging: Bool) async -> NotificationEvent? {
+        let delivery = CollectingDelivery()
+        let dispatcher = NotificationDispatcher(delivery: delivery)
+        let monitor = PowerMonitor(
+            source: ScriptedPowerSource(script: []),
+            context: MonitorContext(dispatcher: dispatcher, category: PowerMonitor.category, announcesWhatIsAlreadyThere: false)
+        )
+        await monitor.simulate(percentage: percentage, isCharging: charging)
+        await settle()
+        return await delivery.events.first
+    }
+
+    @Test("a level on battery wears that level's picture and says how much is left")
+    func onBattery() async {
+        let event = await simulate(48, charging: false)
+        #expect(event?.title == "On Battery Power")
+        #expect(event?.body.contains("48%") == true)
+        #expect(event?.icon == .asset("Power-50", in: .module))
+    }
+
+    @Test("a level on a charger wears the charging picture")
+    func onCharger() async {
+        let event = await simulate(33, charging: true)
+        #expect(event?.title == "On AC Power")
+        #expect(event?.icon == .asset("Power-Charging-30", in: .module))
+    }
+
+    @Test("ten per cent or less on battery uses the low-battery wording, with its warning mark")
+    func low() async {
+        let event = await simulate(7, charging: false)
+        #expect(event?.title == "Battery Low!")
+        #expect(event?.name == PowerEvent.lowBatteryWarning.rawValue)
+        #expect(event?.iconBadge == .warning)
+    }
+
+    @Test("a full battery on a charger is announced as fully charged")
+    func full() async {
+        let event = await simulate(100, charging: true)
+        #expect(event?.title == "Battery Fully Charged")
+    }
+
+    @Test("a figure outside the gauge is brought back into it")
+    func clamped() async {
+        let event = await simulate(250, charging: true)
+        #expect(event?.title == "Battery Fully Charged")
+    }
+}

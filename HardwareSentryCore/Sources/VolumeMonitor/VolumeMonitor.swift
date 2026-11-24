@@ -439,6 +439,23 @@ public actor VolumeMonitor: Monitor {
         }
     }
 
+    /// Raises the low-space notice for an imaginary volume with `freePercent` left.
+    ///
+    /// Worded and pictured as a real one, minus the purgeable figure, which belongs to a
+    /// real volume. Does not touch the record of which volumes are already below the
+    /// threshold, so a real one is still announced when it genuinely gets there.
+    public func simulateLowSpace(freePercent: Int) async {
+        let percent = min(100, max(0, freePercent))
+        await context.notify(
+            VolumeEvent.lowSpace.rawValue,
+            subject: "/Volumes/Simulated",
+            title: "Low Disk Space",
+            body: "/Volumes/Simulated has \(percent)% free space left.",
+            icon: .asset("Device-Critical", in: .module),
+            iconBadge: .critical
+        )
+    }
+
     private func handleFreeSpaceSnapshot(_ byPath: [String: Double]) async {
         for (path, freePercent) in byPath {
             let wasBelow = pathsBelowSpaceThreshold.contains(path)
