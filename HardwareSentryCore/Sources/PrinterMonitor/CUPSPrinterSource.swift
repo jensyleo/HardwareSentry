@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Polling, not push-driven: neither libcups nor AppKit's printing API exposes a
 /// notification/KVO hook for "a printer was added" or "state changed" — confirmed in
-/// HG4MAC's own history, including a reverted attempt to watch CUPS's config file directly
+/// the original application's own history, including a reverted attempt to watch CUPS's config file directly
 /// (root-owned, mode 0600 — an ordinary process cannot even open it).
 public struct CUPSPrinterSource: PrinterSource {
     private let pollInterval: Duration

@@ -6,7 +6,7 @@ import SignalCore
 ///
 /// Assembled like every other monitor, but the only one that does not run until someone
 /// switches it on: browsing Bonjour is what triggers macOS's Local Network permission
-/// prompt. HG4MAC shipped this off by default for exactly that reason, and the registry
+/// prompt. The original application shipped this off by default for exactly that reason, and the registry
 /// honours the same choice through `enabledByDefault`.
 public actor ScannerMonitor: Monitor {
     public static let category = ScannerEvent.category

@@ -1078,7 +1078,7 @@ private struct IgnoredDrivesEditor: View {
                     // A bare "*" would silence the module while appearing to run, and a
                     // duplicate would sit in the list doing nothing twice.
                     .disabled(!canAdd)
-                // HG4MAC's own way of building this list: a Finder-style picker rooted at
+                // the original application's own way of building this list: a Finder-style picker rooted at
                 // /Volumes rather than typing a name from memory — the typed field stays
                 // for the one thing a picker cannot do, a wildcard pattern.
                 Button("Choose…", action: choose)
@@ -1103,7 +1103,7 @@ private struct IgnoredDrivesEditor: View {
         return !pattern.isEmpty && pattern != "*" && !drives.contains(pattern)
     }
 
-    /// A native, Finder-style picker rooted at `/Volumes`, exactly where HG4MAC's own
+    /// A native, Finder-style picker rooted at `/Volumes`, exactly where the original application's own
     /// "Add" opens one — someone silencing a drive is choosing from what is actually
     /// attached, not remembering how its name is spelled.
     private func choose() {

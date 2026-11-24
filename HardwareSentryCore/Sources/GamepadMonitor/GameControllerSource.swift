@@ -49,7 +49,7 @@ public final class GameControllerSource: GamepadSource, @unchecked Sendable {
             // Without this, a controller connecting after launch is never reported: the
             // framework doesn't route connect events to a background/menu-bar-only app
             // unless it has actively asked to search for wireless controllers — confirmed
-            // in HG4MAC's own history, and true even for a wired controller.
+            // in the original application's own history, and true even for a wired controller.
             GCController.startWirelessControllerDiscovery(completionHandler: nil)
 
             continuation.onTermination = { _ in

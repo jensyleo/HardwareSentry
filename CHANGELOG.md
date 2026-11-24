@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.8.1] - 2026-11-24
+
+### Changed
+
+- Comments, the changelog and the parity script no longer name the application this one was rewritten
+  from; they say "the original". The parity script now takes the path of the original as an argument.
+- Removed five pictures nothing used any more, about 550 KB, and one compiler warning.
+
 ## [1.8.0] - 2026-11-23
 
 ### Changed
@@ -404,7 +412,7 @@ unused-in-repo package API — was confirmed live or deliberate.
 
 `THIRD-PARTY-NOTICES.md` claimed the per-module icons and two camera workarounds were
 Growl's. Neither claim survived a provenance audit against the original HardwareGrowler-NC
-import inside HG4MAC's own history: the icons are independently drawn artwork that only
+import inside the original application's own history: the icons are independently drawn artwork that only
 kept Growl's old filenames, and Camera Monitor — the two workarounds' whole subject — never
 existed in the original at all. Removed the file; the README's Attribution section is now
 Inspiration, and says plainly that this is a clean-room rewrite sharing no source, artwork,
@@ -627,7 +635,7 @@ to follow.
 
 ### The application has an icon of its own
 
-Until now the bundle carried HG4MAC's icon as a placeholder — the last inherited asset
+Until now the bundle carried the original application's icon as a placeholder — the last inherited asset
 in it. The icon it ships with now is its own: a radar sweep ringed by the devices this
 application watches for.
 
@@ -1013,7 +1021,7 @@ background timer, tracked separately.
 - **Gamepad Monitor no longer has a keyboard/mouse row.** Turning it on was reported to
   announce an entirely ordinary keyboard and mouse — nothing gaming-specific — because
   macOS's GameController framework cannot tell "a dedicated gaming peripheral opted into
-  game input" apart from "any keyboard/mouse the system already has". HG4MAC's own switch
+  game input" apart from "any keyboard/mouse the system already has". The original application's own switch
   for this rests on the opposite, incorrect assumption. Removed rather than kept and
   mislabelled; recorded in `PARITY.md`/`Tools/parity-map.tsv` as a deliberate,
   zero-replacement omission, not a gap.
@@ -1073,7 +1081,7 @@ code (no `Process`/shell invocation anywhere in the project; no `as!`/`try!` any
   a plain picker cannot honestly stand in for.
 - A visual SF Symbol browser for picking an icon override.
 - `Tools/parity-audit.sh` / `sentry-inventory`: mechanically compares every notification
-  HG4MAC (the Objective-C original) can raise against what this rewrite can raise, and
+  the Objective-C original can raise against what this rewrite can raise, and
   fails the build on any gap. See `PARITY.md`.
 - A resizable, properly sized settings window; a Help window (`Help ▸ HardwareSentry
   Help`) generated from the modules themselves, so it always describes the build in front
@@ -1101,7 +1109,7 @@ code (no `Process`/shell invocation anywhere in the project; no `as!`/`try!` any
   microphone access before arming the mic-in-use listener.
 - **Volume** — mount/unmount, unsafe eject, low disk space, three rows per kind of drive
   (external disk, USB drive, SD card, optical, NAS), an Ignored Drives editor using
-  HG4MAC's own picker, and a second C bridge (`CNVMeSMART`).
+  the original application's own picker, and a second C bridge (`CNVMeSMART`).
 - **Power** — power source changes, fully-charged, low battery, sleep/wake, Low Power
   Mode, and an hourly battery-health reminder.
 - **Network** — reachability, Wi-Fi join/leave and signal (one row per bar), wired link

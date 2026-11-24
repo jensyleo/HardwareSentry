@@ -135,7 +135,7 @@ struct AudioMonitorTests {
 
     @Test("a USB audio device is announced too, alongside whatever USB Monitor says")
     func usbTransportIsAnnouncedTooNow() async {
-        // Reported live: HG4MAC and this application both used to stay quiet here, on the
+        // Reported live: the original application and this application both used to stay quiet here, on the
         // theory that USB Monitor already said something about the same physical device.
         // What USB Monitor says is "a USB device connected" and never the sample rate, the
         // channel count, or which of two interfaces just became the default — asked for

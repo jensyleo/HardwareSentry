@@ -38,7 +38,7 @@ targets:
         # only the permission it unlocks.
         NSLocationUsageDescription: "HardwareSentry uses Location access only to read the name of the Wi-Fi network you join, so it can notify you about it. Your location is never read or stored."
         NSLocationWhenInUseUsageDescription: "HardwareSentry uses Location access only to read the name of the Wi-Fi network you join, so it can notify you about it. Your location is never read or stored."
-        # The application's own icon, replacing the HG4MAC one that stood in until it
+        # The application's own icon, replacing the one inherited from the original application that stood in until it
         # was drawn — the last inherited asset in the bundle. Built from
         # Icons/AppIcon-source.png by Tools/make-app-icon.py; see that script for why
         # the artwork cannot simply be shipped as it comes.
@@ -66,7 +66,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jensyleo.hardwaresentry
         PRODUCT_NAME: HardwareSentry
-        MARKETING_VERSION: "1.8.0"
+        MARKETING_VERSION: "1.8.1"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete

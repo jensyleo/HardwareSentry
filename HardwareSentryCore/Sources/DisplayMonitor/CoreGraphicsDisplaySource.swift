@@ -14,7 +14,7 @@ import Foundation
 /// Detection is driven by `CGDisplayRegisterReconfigurationCallback` +
 /// `CGGetOnlineDisplayList`, not `NSScreen`/`NSApplicationDidChangeScreenParametersNotification`:
 /// `NSScreen` only exposes displays AppKit can address a window to, so a display macOS puts
-/// in Mirror mode never gets its own `NSScreen` entry — confirmed in HG4MAC's own history.
+/// in Mirror mode never gets its own `NSScreen` entry — confirmed in the original application's own history.
 public struct CoreGraphicsDisplaySource: DisplaySource {
     private let videoLinkPolling: Duration?
 

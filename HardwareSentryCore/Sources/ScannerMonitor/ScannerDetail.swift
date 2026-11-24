@@ -2,7 +2,7 @@ import Foundation
 
 /// What Bonjour said about a scanner beyond its name.
 ///
-/// None of this exists in HG4MAC, which reports the service name and nothing else. The
+/// None of this exists in the original application, which reports the service name and nothing else. The
 /// name alone is often something like "HP Color LaserJet MFP [A1B2C3]", which says which
 /// box it is but not where it stands or what it can do — and on a network with several,
 /// where it stands is usually the question being asked.
