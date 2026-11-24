@@ -5,6 +5,32 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [2.0.0] - 2026-11-24
+
+The first major version. Nothing is removed and nothing about your settings, profiles or icon choices
+changes: it marks the point where what was set out for this application is in place, and every module
+has been through a review of its pictures and its switches.
+
+### What 2.0 brings together
+
+- **A notification of its own for everything it watches.** Thirteen modules, over two hundred notices,
+  each with a picture that carries its own state — a cross, a warning triangle, a radiation mark — so a
+  notice never needs a second badge on top of it, and Critical is a level of its own.
+- **Banners drawn by the application**, with themes (automatic light and dark ones), shape and border,
+  quiet hours, per-kind styles, and a sound, a corner and a time on screen for each module; and an optional
+  grouping of notices that arrive together, off by default.
+- **A Preview tab** that shows any notice in each state it can really have, and Simulate controls in every
+  module — with a value to choose for Power, Volume and Network.
+- **"Only what changed"** options for the notices that used to repeat what was already known.
+- **The notification core, SignalCore, as a package of its own** (version 1.0.0), which this application
+  depends on by version.
+- **A README, help and changelog** that describe what the build in front of you does.
+
+### Known and still open
+
+- Several modules were checked against real devices only in part; the Known issues section of the README
+  lists what is understood and what has not been seen with hardware yet.
+
 ## [1.9.0] - 2026-11-24
 
 ### Added
