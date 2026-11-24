@@ -9,7 +9,7 @@ import SignalCore
 public actor VolumeMonitor: Monitor {
     public static let category = VolumeEvent.category
 
-    /// Same hysteresis shape as `PrinterMonitor`'s toner/ink check and HG4MAC's own
+    /// Same hysteresis shape as `PrinterMonitor`'s toner/ink check and the original application's own
     /// original: fire once crossing at/below the threshold, re-arm only once recovered
     /// comfortably above it, so a volume hovering right at the line can't spam notices.
     /// Where the low-space warning fires, and where it re-arms.

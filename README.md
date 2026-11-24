@@ -6,7 +6,7 @@ starting to throttle because it is hot.
 
 Requires macOS 15 or later. Apple Silicon.
 
-**Status:** version 1.8.0. Every module below is ported and covered by the parity audit; see
+**Status:** version 1.8.1. Every module below is ported and covered by the parity audit; see
 [`CHANGELOG.md`](CHANGELOG.md) for what has changed and [Known issues](#known-issues) for what is
 understood, small, and not yet worth holding a release for.
 
@@ -97,7 +97,7 @@ A third check compares what this application can notify about against the earlie
 was rewritten from, so nothing is quietly lost in the rewrite:
 
 ```
-Tools/parity-audit.sh [path-to-original]
+Tools/parity-audit.sh <path-to-original>
 ```
 
 It exits non-zero on a gap. See [Parity](#parity) for what it covers and what it cannot.

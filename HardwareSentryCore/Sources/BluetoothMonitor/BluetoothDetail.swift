@@ -2,7 +2,7 @@ import Foundation
 
 /// What a classic Bluetooth device could be described as when it connected.
 ///
-/// Everything here comes from public `IOBluetoothDevice` API. The parts of HG4MAC's list
+/// Everything here comes from public `IOBluetoothDevice` API. The parts of the original application's list
 /// that need undocumented selectors (accessory battery) or hand-parsing of SDP attribute
 /// records (VID:PID, HFP features, HID country code) are deliberately absent rather than
 /// half-done — see the pendings document.

@@ -42,7 +42,7 @@ struct NotificationPreviewView: View {
                     ForEach(model.modules) { module in Text(module.category.rawValue).tag(module.id) }
                 }
                 .frame(maxWidth: 260)
-                if let module {
+                if module != nil {
                     Picker("Icons", selection: $viewedSource) {
                         Text("Configured").tag(IconSource?.none)
                         Text("App").tag(IconSource?.some(.app))

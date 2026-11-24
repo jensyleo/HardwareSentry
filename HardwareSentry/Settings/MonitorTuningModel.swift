@@ -181,7 +181,7 @@ final class MonitorTuningModel {
     /// Audio Monitor always announces a USB device with its own, correct notice — that no
     /// longer depends on this. What this decides is whether USB Monitor's own generic
     /// notice *also* fires for the same physical device: on (the default) is both, the
-    /// full detail of a redundant pair, matching the improvement over HG4MAC's own
+    /// full detail of a redundant pair, matching the improvement over the original application's own
     /// behaviour asked for directly; off folds USB Monitor's notice away and leaves only
     /// Audio's own.
     var notifiesUSBAudioDevices: Bool {
@@ -389,7 +389,7 @@ final class MonitorTuningModel {
 
     /// How often CUPS's destination and job lists are re-read. Neither libcups nor
     /// AppKit's printing API offers a push notification for "a printer was added" or "a
-    /// job's state changed" — confirmed in HG4MAC's own history.
+    /// job's state changed" — confirmed in the original application's own history.
     var printerSeconds: Double {
         didSet { defaults.set(printerSeconds, forKey: Self.printerSecondsKey) }
     }

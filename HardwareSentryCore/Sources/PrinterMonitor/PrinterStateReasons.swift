@@ -6,7 +6,7 @@ import Foundation
 /// informational, e.g. `connecting-to-device` — a normal part of sending a job over
 /// network/Wi-Fi, not something to flag). Only `-error`/`-warning` count as a real problem;
 /// treating every non-"none" reason as one produced false "Needs Attention"/"OK" pairs
-/// around ordinary network printing, confirmed live in HG4MAC's own history.
+/// around ordinary network printing, confirmed live in the original application's own history.
 public enum PrinterStateReasons {
     public static func indicatesProblem(_ reasons: String) -> Bool {
         guard !reasons.isEmpty, reasons != "none" else { return false }

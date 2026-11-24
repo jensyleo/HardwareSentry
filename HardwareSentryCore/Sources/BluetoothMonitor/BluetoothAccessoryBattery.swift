@@ -136,7 +136,7 @@ public extension BluetoothAccessoryBattery {
     /// small integer, not an object, and `perform(_:)` — the same as a plain
     /// `performSelector:` — treats whatever bit pattern comes back as a pointer and asks
     /// ARC to retain it. For a battery reading of 100 that pattern is the address 0x64,
-    /// which is not a valid object and crashes the moment ARC touches it. HG4MAC hits the
+    /// which is not a valid object and crashes the moment ARC touches it. The original application hits the
     /// same undocumented selectors and never had this problem, because it never calls
     /// them this way — its own comment says exactly why: "the return type is a small
     /// integer, not an object; a plain performSelector: would misinterpret it." It builds
@@ -150,7 +150,7 @@ public extension BluetoothAccessoryBattery {
         guard device.responds(to: selector) else { return nil }
         guard let method = class_getInstanceMethod(type(of: device), selector) else { return nil }
 
-        // The same defence HG4MAC's own comment describes needing, against a macOS
+        // The same defence the original application's own comment describes needing, against a macOS
         // update ever widening this undocumented return type: read the declared return
         // type and refuse to call through the wrong function shape rather than guess.
         // All four known selectors return `int8_t` ("c").

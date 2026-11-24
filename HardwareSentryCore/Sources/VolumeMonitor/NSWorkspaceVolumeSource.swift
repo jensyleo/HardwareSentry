@@ -5,7 +5,7 @@ import Foundation
 import IOKit
 
 /// Watches `NSWorkspace` for volume mount/unmount, and polls local mounted volumes' free
-/// space every 5 minutes (matching HG4MAC's own interval).
+/// space every 5 minutes (matching the original application's own interval).
 ///
 /// Deliberately thin and untested, for the same reason `IOKitUSBDeviceSource` is: none of
 /// it can run without a real volume mounting/unmounting. Everything worth reasoning about
@@ -244,7 +244,7 @@ private final class Watcher: @unchecked Sendable {
         // container as a whole, which used to satisfy the size guess below and mark all
         // of them "External Disk". Internal storage is never any of the four removable
         // kinds this classifies, so it is excluded before the guess ever runs, the same
-        // fix HG4MAC shipped for the identical bug.
+        // fix the original application shipped for the identical bug.
         return VolumeKind.infer(
             protocolName: description[kDADiskDescriptionDeviceProtocolKey as String] as? String,
             mediaName: Self.mediaNameForGuessing(description),
@@ -341,7 +341,7 @@ private final class Watcher: @unchecked Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// Plain `getmntinfo()` — same POSIX call HG4MAC's own low-space poll uses, not
+    /// Plain `getmntinfo()` — same POSIX call the original application's own low-space poll uses, not
     /// `NSFileManager`/`NSWorkspace`, so this never touches TCC-gated file access. Skips
     /// virtual/pseudo filesystems (devfs/autofs) and non-local mounts (a network share's
     /// "free space" belongs to the server, not this Mac).

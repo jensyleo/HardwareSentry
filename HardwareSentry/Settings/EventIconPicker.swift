@@ -25,7 +25,7 @@ struct EventIconPicker: View {
 
     @State private var isAskingForSymbol = false
 
-    /// 32pt, the same size HG4MAC's icon rows use, scaled proportionally so a non-square
+    /// 32pt, the same size the original application's icon rows use, scaled proportionally so a non-square
     /// image is letterboxed rather than squashed. One constant for every branch below —
     /// the branches differ in where the picture comes from, never in how big it is.
     private static let side: CGFloat = 32
@@ -98,7 +98,7 @@ struct EventIconPicker: View {
 
     /// Built as a fixed-size `NSImage` rather than a `.resizable()` SwiftUI image: a
     /// resizable image has no intrinsic size, so the `Menu` wrapping it is told the label
-    /// wants all the room there is and the icon fills the window. The same thing HG4MAC
+    /// wants all the room there is and the icon fills the window. The same thing the original application
     /// does with a 32pt-constrained `NSImageView`.
     private var preview: some View {
         Group {

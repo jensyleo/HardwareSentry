@@ -73,7 +73,7 @@ private final class Watcher: NSObject, @unchecked Sendable {
         let deviceListChangedBlock: CMIOObjectPropertyListenerBlock = { [weak self] _, _ in
             // Deferred to the next run-loop turn: calling CMIOObjectRemovePropertyListenerBlock
             // synchronously from inside this exact callback is an unsafe reentrant call into
-            // CoreMediaIO's internal DAL, confirmed to crash in HG4MAC's own history.
+            // CoreMediaIO's internal DAL, confirmed to crash in the original application's own history.
             DispatchQueue.main.async {
                 self?.unregisterRunningStateListeners()
                 self?.registerRunningStateListeners()
@@ -215,7 +215,7 @@ private final class Watcher: NSObject, @unchecked Sendable {
         )
         // Only for IDs still in the current device list — removing a listener from an
         // already-torn-down ID (the common reason this runs at all: a camera just
-        // disconnected) is what crashed in HG4MAC's own history.
+        // disconnected) is what crashed in the original application's own history.
         let currentIDs = Set(allCMIODeviceIDs())
         for deviceID in deviceIDsWithListener where currentIDs.contains(deviceID) {
             CMIOObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, block)

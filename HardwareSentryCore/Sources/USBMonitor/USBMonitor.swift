@@ -41,7 +41,7 @@ public actor USBMonitor: Monitor {
     /// step aside for — Camera or Audio's own "notify for USB devices independently"
     /// switch, seen from the other side.
     ///
-    /// Empty by default: parity with HG4MAC's own behaviour is showing everything, and a
+    /// Empty by default: parity with the original application's own behaviour is showing everything, and a
     /// composite webcam producing both "USB Webcam Connected" and "Camera Connected" was
     /// the improvement asked for directly, not a defect to quietly undo. A kind only ever
     /// belongs here while its own monitor is actually switched on to cover it — folding

@@ -8,7 +8,7 @@ public enum DisplayRole: Sendable, Equatable {
 
 /// A display's state as of one read of `CGGetOnlineDisplayList` — enough to notice a
 /// connect/disconnect, a mode change (resolution/refresh rate/rotation — folded into one
-/// signature the way HG4MAC does, since a physical rotation already changes the reported
+/// signature the way the original application does, since a physical rotation already changes the reported
 /// pixel width/height), a role change, or it falling asleep/waking, all without the
 /// display having gone offline in between.
 public struct DisplaySnapshot: Sendable, Equatable {

@@ -14,13 +14,13 @@ struct VolumeKindTests {
         // sibling of the boot container ("Preboot", "VM", "Update", "xarts", "Hardware")
         // reports the SAME size as the container as a whole — on this Mac, comfortably
         // over the 400 GB threshold below — and arrived as "External Disk Mounted" until
-        // this was fixed. HG4MAC hit and fixed the identical bug on 23-jul-2026.
+        // this was fixed. The original application hit and fixed the identical bug on 23-jul-2026.
         let containerSize: UInt64 = 494_384_795_648 // this Mac's actual container size
         #expect(infer(nil, nil, nil, containerSize) == .externalDisk)
         #expect(infer(nil, nil, nil, containerSize, isInternal: true) == nil)
 
         // Internal storage is excluded unconditionally, ahead of every other signal —
-        // matching HG4MAC's own ordering — not merely exempted from the size guess.
+        // matching the original application's own ordering — not merely exempted from the size guess.
         #expect(infer("USB", "External HDD", nil, nil, isInternal: true) == nil)
         #expect(infer(nil, "Secure Digital", nil, nil, isInternal: true) == nil)
     }
@@ -59,7 +59,7 @@ struct VolumeKindTests {
         #expect(infer("USB", "STORAGE DEVICE", nil, bigAnonymous) == .externalDisk)
     }
 
-    /// The exact case that made HG4MAC revert its "plain USB under the threshold is a
+    /// The exact case that made the original application revert its "plain USB under the threshold is a
     /// pendrive" fallback: an SD card in a reader that identifies itself as nothing in
     /// particular. Guessing here is what broke it, so the honest answer is no answer.
     @Test("unidentifiable USB storage gets no specific kind rather than a confident wrong one")

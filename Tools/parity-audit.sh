@@ -1,11 +1,11 @@
 #!/bin/bash
-# Checks HardwareSentry still covers everything HG4MAC can notify about.
+# Checks HardwareSentry still covers everything the original application can notify about.
 #
 # Written because every parity gap found during this rewrite was the same mistake: a
 # module believed finished, because somebody read the code and thought it looked complete.
 # Reading is not a check. This asks both codebases what they actually declare.
 #
-#   Tools/parity-audit.sh [path-to-HG4MAC]
+#   Tools/parity-audit.sh <path-to-original-application>
 #
 # Exits non-zero if the original can raise a notification this application cannot, or if a
 # module or event would show without an icon. Extra events here are reported, not failed:
@@ -13,10 +13,10 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"
-original="${1:-$here/../HG4MAC}"
+original="${1:-}"
 
-if [ ! -d "$original" ]; then
-    echo "HG4MAC not found at $original — pass its path as the first argument." >&2
+if [ -z "$original" ] || [ ! -d "$original" ]; then
+    echo "Pass the path of the original application as the first argument." >&2
     exit 2
 fi
 
@@ -186,12 +186,12 @@ for key in original_settings:
 mapped = {r for rs in covered_by.values() for r in rs}
 extra = sorted(mine - original - mapped)
 
-print(f"HG4MAC declares      {len(original)} notifications")
+print(f"The original declares {len(original)} notifications")
 print(f"HardwareSentry has   {len(data['modules'])} modules, {data['eventCount']} events, {data['fieldCount']} optional body fields")
 print(f"covered by name      {len(original & mine)}")
 print(f"covered by mapping   {len(covered_by)} original names -> {len(mapped)} finer-grained events")
-print(f"tuning knobs         {len(original_settings)} settings in HG4MAC")
-print(f"optional lines       {len(original_fields)} preference keys in HG4MAC, all accounted for" if not [p for p in problems if p.startswith(("MISSING  HWG", "UNKNOWN"))] else f"optional lines       {len(original_fields)} preference keys in HG4MAC")
+print(f"tuning knobs         {len(original_settings)} settings in the original")
+print(f"optional lines       {len(original_fields)} preference keys in the original, all accounted for" if not [p for p in problems if p.startswith(("MISSING  HWG", "UNKNOWN"))] else f"optional lines       {len(original_fields)} preference keys in the original")
 print()
 
 if todo_settings:
@@ -201,7 +201,7 @@ if todo_settings:
     print()
 
 if extra:
-    print(f"{len(extra)} events with no counterpart in HG4MAC (additions, not failures):")
+    print(f"{len(extra)} events with no counterpart in the original (additions, not failures):")
     for name in extra:
         print(f"  +  {name}")
     print()
@@ -212,5 +212,5 @@ if problems:
         print(f"  {problem}")
     sys.exit(1)
 
-print("No gaps: every notification HG4MAC can raise, this application can raise.")
+print("No gaps: every notification the original can raise, this application can raise.")
 PYEOF

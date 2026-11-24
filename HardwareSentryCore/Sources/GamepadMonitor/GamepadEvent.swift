@@ -2,7 +2,7 @@ import SignalCore
 
 /// What this monitor can tell you about.
 ///
-/// No keyboard/mouse row on purpose. HG4MAC has one (`GCKeyboardDidConnect`/
+/// No keyboard/mouse row on purpose. The original application has one (`GCKeyboardDidConnect`/
 /// `GCMouseDidConnect`), on the belief that these only fire for a "Made for Game
 /// Controllers"-recognized keyboard or mouse, not an ordinary one — its own comment says
 /// so directly. Reported live, 2026-09-05: with that switch on, a completely ordinary
@@ -11,7 +11,7 @@ import SignalCore
 /// dedicated gaming peripheral into game input" apart from "any keyboard/mouse the system
 /// already has", so a switch promising the former cannot honestly be built from this API.
 /// Removed rather than kept and mislabelled — see `PARITY.md` for how this is recorded
-/// against HG4MAC.
+/// against the original application.
 public enum GamepadEvent: String, NotificationEventKey {
     case controllerConnected = "GamepadConnected"
     case controllerDisconnected = "GamepadDisconnected"

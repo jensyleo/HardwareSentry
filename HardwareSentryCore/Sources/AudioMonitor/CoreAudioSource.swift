@@ -12,7 +12,7 @@ import Foundation
 ///
 /// Uses `AudioObjectPropertyListenerBlock` (not AVFoundation) — this is system-wide device
 /// enumeration/defaults, squarely CoreAudio's domain; AVFoundation's device APIs are scoped
-/// to what the current app/session can use, not "what's on the system", per HG4MAC's own
+/// to what the current app/session can use, not "what's on the system", per the original application's own
 /// history.
 public struct CoreAudioSource: AudioSource {
     public init() {}

@@ -135,7 +135,7 @@ public struct VolumeDetail: Sendable, Equatable {
 ///
 /// Deliberately incomplete. There is no public API that reliably tells a pendrive from an
 /// external disk enclosure — both appear as plain USB mass storage with nothing to separate
-/// them on much real hardware. HG4MAC learned this the hard way: a fallback of "plain USB
+/// them on much real hardware. The original application learned this the hard way: a fallback of "plain USB
 /// storage under the size threshold is essentially always a pendrive" was added after one
 /// live test and removed after the very next, when a real SD card in a USB reader
 /// (reporting itself as "STORAGE DEVICE", protocol USB, 64 GB) was confidently mislabelled.
@@ -246,7 +246,7 @@ public enum VolumeKind: String, Sendable, Equatable, CaseIterable {
         // container as a whole, which would otherwise satisfy the size guess below and
         // tag every one of them "External Disk". Internal storage is never any of the
         // four removable kinds this infers, checked first and unconditionally, matching
-        // the fix HG4MAC shipped for the identical, dated bug (23-jul-2026).
+        // the fix the original application shipped for the identical, dated bug (23-jul-2026).
         guard !isInternal else { return nil }
 
         // Optical media and network shares are unambiguous: both are standard fields with
