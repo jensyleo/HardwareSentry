@@ -154,6 +154,7 @@ public actor PowerMonitor: Monitor {
     func refireNow() async {
         guard let snapshot = lastSnapshot else { return }
         if refire.onlyOnBattery, snapshot.kind == .ac { return }
+        guard await isLevelWanted(snapshot) else { return }
 
         await context.notify(
             PowerEvent.sourceChanged.rawValue,
@@ -367,7 +368,7 @@ public actor PowerMonitor: Monitor {
             // stating outright rather than waiting for it to change — it is the answer to
             // "what is this machine running on right now", which is the question the
             // module exists for. Said without a "from → to" line, because nothing changed.
-            if context.announcesWhatIsAlreadyThere {
+            if context.announcesWhatIsAlreadyThere, await isLevelWanted(snapshot) {
                 await context.notify(
                     PowerEvent.sourceChanged.rawValue,
                     subject: "Source",
@@ -384,13 +385,16 @@ public actor PowerMonitor: Monitor {
 
         if isFull, !announcedFullyCharged {
             announcedFullyCharged = true
-            await context.notify(
-                PowerEvent.fullyCharged.rawValue,
-                subject: "Battery",
-                title: "Battery Fully Charged",
-                body: await body(for: snapshot),
-                icon: .asset("Power-100", in: .module)
-            )
+            // Fully charged wears the plugged-in picture, so the plugged-in row is its switch.
+            if await context.isEventEnabled(PowerEvent.pluggedIn.rawValue) {
+                await context.notify(
+                    PowerEvent.fullyCharged.rawValue,
+                    subject: "Battery",
+                    title: "Battery Fully Charged",
+                    body: await body(for: snapshot),
+                    icon: .asset("Power-100", in: .module)
+                )
+            }
         } else if !isFull {
             announcedFullyCharged = false
         }
@@ -400,7 +404,11 @@ public actor PowerMonitor: Monitor {
         let justStartedWarning = snapshot.isLowBatteryWarning && !lastWarnState
         lastWarnState = snapshot.isLowBatteryWarning
 
+        // A level that is switched off stays quiet whichever of the two would have spoken.
+        let levelWanted = await isLevelWanted(snapshot)
+
         if justStartedWarning {
+            guard levelWanted else { return }
             await context.notify(
                 PowerEvent.lowBatteryWarning.rawValue,
                 subject: "Battery",
@@ -412,7 +420,7 @@ public actor PowerMonitor: Monitor {
                 icon: .asset(Self.iconName(for: snapshot), in: .module),
                 iconBadge: .warning
             )
-        } else if changedKind {
+        } else if changedKind, levelWanted {
             await context.notify(
                 PowerEvent.sourceChanged.rawValue,
                 subject: "Source",
@@ -433,6 +441,56 @@ public actor PowerMonitor: Monitor {
         }
     }
 
+    /// Raises the notice the battery would at `percentage`, on or off a charger.
+    ///
+    /// Built from the same pieces as a real one — the body, the picture for that level, the
+    /// low-battery wording — but not from a reading, and it does not ask whether that level's
+    /// row is switched on: asking for a simulation is the opt-in, so every level can be
+    /// seen, including the ones that are off.
+    public func simulate(percentage: Int, isCharging: Bool) async {
+        let percent = min(100, max(0, percentage))
+        let low = !isCharging && percent <= 10
+        let detail = PowerSourceDetail(
+            typeName: "Battery",
+            chargeState: isCharging ? (percent >= 100 ? "Charged" : "Charging") : "Discharging",
+            percentage: percent,
+            minutesRemaining: isCharging ? (100 - percent) * 2 : percent * 3,
+            isCharging: isCharging
+        )
+        let snapshot = PowerSnapshot(
+            kind: isCharging ? .ac : .battery,
+            percentage: percent,
+            isLowBatteryWarning: low,
+            sources: [detail]
+        )
+        if low {
+            await context.notify(
+                PowerEvent.lowBatteryWarning.rawValue,
+                subject: "Battery",
+                title: "Battery Low!",
+                body: await body(for: snapshot, leading: [.always("Find a charger soon — the battery is running out.")]),
+                icon: .asset(Self.iconName(for: snapshot), in: .module),
+                iconBadge: .warning
+            )
+        } else if isCharging, percent >= 100 {
+            await context.notify(
+                PowerEvent.fullyCharged.rawValue,
+                subject: "Battery",
+                title: "Battery Fully Charged",
+                body: await body(for: snapshot),
+                icon: .asset("Power-100", in: .module)
+            )
+        } else {
+            await context.notify(
+                PowerEvent.sourceChanged.rawValue,
+                subject: "Source",
+                title: "On \(Self.localizedName(for: snapshot.kind))",
+                body: await body(for: snapshot),
+                icon: .asset(Self.iconName(for: snapshot), in: .module)
+            )
+        }
+    }
+
     private func handleLowPowerMode(_ enabled: Bool) async {
         let previous = lastLowPowerMode
         lastLowPowerMode = enabled
@@ -445,6 +503,30 @@ public actor PowerMonitor: Monitor {
             body: "",
             icon: .asset("Power-LowPowerMode", in: .module)
         )
+    }
+
+    /// The row of the gauge that a snapshot falls on: the one whose switch decides whether
+    /// an announcement showing that level is wanted.
+    ///
+    /// One announcement serves every level, and the level it happens at is what decides
+    /// which picture it wears. The rows exist so that "Battery 20%" can be switched off
+    /// without silencing the module — so each announcement asks the row of the level it is
+    /// about to show, which is the row whose picture it would have worn.
+    static func levelEvent(for snapshot: PowerSnapshot) -> PowerEvent {
+        switch snapshot.kind {
+        case .ac:
+            guard let percentage = snapshot.percentage, percentage < 100 else { return .pluggedIn }
+            return PowerRung.rung(forPercentage: percentage, isCharging: true).event
+        case .battery, .ups:
+            guard let percentage = snapshot.percentage else { return .noBattery }
+            return PowerRung.rung(forPercentage: percentage, isCharging: false).event
+        case .unknown:
+            return .batteryFailure
+        }
+    }
+
+    private func isLevelWanted(_ snapshot: PowerSnapshot) async -> Bool {
+        await context.isEventEnabled(Self.levelEvent(for: snapshot).rawValue)
     }
 
     /// Which battery icon matches the situation.

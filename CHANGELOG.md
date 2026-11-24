@@ -5,6 +5,21 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [1.9.0] - 2026-11-24
+
+### Added
+
+- **Simulate at a value** for Power, Volume and Network, in each module's Notifications tab: the battery
+  at any level and on or off a charger, a volume with any amount of space left, a Wi-Fi network at any
+  signal strength. Their notices change with the figure, so one fixed example showed a single point of the range.
+
+### Fixed
+
+- **Power's per-level rows did nothing.** The twenty-two "Battery N%" and "Charging N%" rows, and
+  "Plugged In", were listed with switches, but the notices that follow the battery — a change of source,
+  the low-battery warning, the opening announcement, the repeat while on battery — ignored them. Each
+  now asks the row of the level it happens at, and "Battery fully charged" follows "Plugged In".
+
 ## [1.8.1] - 2026-11-24
 
 ### Changed

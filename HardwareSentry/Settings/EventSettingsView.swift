@@ -24,6 +24,7 @@ struct EventSettingsView: View {
     let simulateThermal: (ThermalState, ThermalState) -> Void
     /// Fires one of a module's own declared events on demand. See `GenericEventSimulator`.
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
+    let simulate: (MonitorSimulation) -> Void
     /// Reads the battery now, rather than waiting for the next scheduled check.
     let checkBatteryHealthNow: () -> Void
     /// Checks the serial-adapter vendor list now, rather than waiting for the schedule.
@@ -82,7 +83,7 @@ struct EventSettingsView: View {
     @ViewBuilder
     private var detail: some View {
             if let module = model.modules.first(where: { $0.id == selection }) {
-                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, pane: $pane, highlightedEvent: $highlightedEvent)
+                ModuleDetail(module: module, model: model, iconOverrides: iconOverrides, iconSources: iconSources, tuning: tuning, simulateThermal: simulateThermal, simulateEvent: simulateEvent, simulate: simulate, checkBatteryHealthNow: checkBatteryHealthNow, checkSerialVendorUpdateNow: checkSerialVendorUpdateNow, pane: $pane, highlightedEvent: $highlightedEvent)
             } else {
                 ContentUnavailableView(
                     "Choose a Module",
@@ -216,6 +217,7 @@ private struct ModuleDetail: View {
     @Bindable var tuning: MonitorTuningModel
     let simulateThermal: (ThermalState, ThermalState) -> Void
     let simulateEvent: (MonitorEventDescription, NotificationCategory) -> Void
+    let simulate: (MonitorSimulation) -> Void
     let checkBatteryHealthNow: () -> Void
     let checkSerialVendorUpdateNow: () -> Void
     @Binding var pane: String
@@ -638,6 +640,7 @@ private struct ModuleDetail: View {
                 if module.category.rawValue == "Thermal" {
                     ThermalSimulator(simulate: simulateThermal)
                 } else {
+                    ValueSimulator(module: module.category.rawValue, simulate: simulate)
                     GenericEventSimulator(
                         events: module.events,
                         simulate: { simulateEvent($0, module.category) }
@@ -1000,6 +1003,73 @@ private struct ThermalSimulator: View {
         ForEach(ThermalState.allCases, id: \.self) { state in
             Text(state.label).tag(state)
         }
+    }
+}
+
+/// Shows a notice at a value of your choosing, for the modules whose notices say little
+/// without a figure: how full a battery is, how little space is left, how strong a signal is.
+///
+/// Thermal has its own, which asks "from which state to which"; the rest of the modules need
+/// only a name and a picture, which `GenericEventSimulator` gives them. These three are the
+/// ones in between — the picture and the wording both change with the number — so a fixed
+/// example would show one point of a range and say nothing about the rest.
+private struct ValueSimulator: View {
+    let module: String
+    let simulate: (MonitorSimulation) -> Void
+
+    @State private var percentage = 20.0
+    @State private var isCharging = false
+    @State private var freePercent = 4.0
+    @State private var rssi = -70.0
+
+    var body: some View {
+        if module == "Power" || module == "Volume" || module == "Network" {
+            Section("Simulate at a Value") {
+                switch module {
+                case "Power":
+                    LabeledContent("Battery at") {
+                        HStack {
+                            Slider(value: $percentage, in: 0...100, step: 1)
+                            Text("\(Int(percentage))%").monospacedDigit().frame(width: 44, alignment: .trailing)
+                        }
+                    }
+                    Toggle("On a charger", isOn: $isCharging)
+                    simulateButton { .power(percentage: Int(percentage), isCharging: isCharging) }
+                    note("Shows the notice for that level, with the low-battery wording at 10% or less on battery.")
+                case "Volume":
+                    LabeledContent("Space left") {
+                        HStack {
+                            Slider(value: $freePercent, in: 0...30, step: 1)
+                            Text("\(Int(freePercent))%").monospacedDigit().frame(width: 44, alignment: .trailing)
+                        }
+                    }
+                    simulateButton { .lowDiskSpace(freePercent: Int(freePercent)) }
+                    note("Shows the low-space notice for an imaginary volume with that much left.")
+                default:
+                    LabeledContent("Signal") {
+                        HStack {
+                            Slider(value: $rssi, in: -95...(-30), step: 1)
+                            Text("\(Int(rssi)) dBm").monospacedDigit().frame(width: 62, alignment: .trailing)
+                        }
+                    }
+                    simulateButton { .wifiSignal(rssi: Int(rssi)) }
+                    note("Shows the notice for the bar that signal lands on.")
+                }
+            }
+        }
+    }
+
+    private func simulateButton(_ make: @escaping () -> MonitorSimulation) -> some View {
+        HStack {
+            Button("Simulate") { simulate(make()) }
+            Spacer()
+        }
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text + " Nothing on this Mac changes, and what the application believes about the real state is left alone.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 }
 

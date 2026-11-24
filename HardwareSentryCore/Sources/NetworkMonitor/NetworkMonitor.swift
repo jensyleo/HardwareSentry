@@ -496,6 +496,22 @@ public actor NetworkMonitor: Monitor {
         )
     }
 
+    /// Raises the Wi-Fi signal notice for a network heard at `rssi` dBm.
+    ///
+    /// The level is worked out the way a real reading is, and the notice carries that
+    /// level's own event, so the bar it lands on can be seen whether or not that bar's
+    /// switch is on. It does not feed the watcher, so a real change is still caught.
+    public func simulateWiFiSignal(rssi: Int) async {
+        let level = WiFiSignalLevel(rssi: rssi)
+        await context.notify(
+            level.event.rawValue,
+            subject: "SimulatedWiFi",
+            title: "Wi-Fi Signal Changed",
+            body: "Wi-Fi\nSignal \(level.label) (\(rssi) dBm, \(level.rawValue)/4)",
+            icon: .asset(level.iconName, in: .module)
+        )
+    }
+
     /// Says when an interface starts capturing every packet on its network.
     ///
     /// Only ever reported on the way in. Something switching an interface into promiscuous
