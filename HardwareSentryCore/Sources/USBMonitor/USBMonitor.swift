@@ -10,7 +10,7 @@ public actor USBMonitor: Monitor {
     ///
     /// The same trap Network fell into: the module list takes the first event's artwork,
     /// so declaring one row per device class quietly turned the whole of USB into a hub.
-    public static let icon: NotificationIcon = .asset("USB-On", in: .module)
+    public static let icon: NotificationIcon = .asset("USB-Module", in: .module)
 
     /// One row per device class, in the original's order, each with its own artwork and
     /// its own switch: a Mac with a hub, a keyboard and a webcam permanently attached
