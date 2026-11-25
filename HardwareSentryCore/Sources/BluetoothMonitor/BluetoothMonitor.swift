@@ -44,7 +44,7 @@ public actor BluetoothMonitor: Monitor {
     ]
 
     /// Said outright: the first event is now a computer, and this module is about more.
-    public static let icon: NotificationIcon = .asset("Bluetooth-On", in: .module)
+    public static let icon: NotificationIcon = .asset("Bluetooth-Module", in: .module)
 
     public static let fields: [MonitorFieldDescription] = BluetoothField.allCases.map {
         .init(name: $0.rawValue, title: $0.settingsTitle, shownByDefault: $0.shownByDefault, group: $0.group)

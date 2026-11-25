@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format loosely foll
 [semantic versioning](https://semver.org/). Everything before 0.2.0 is grouped under 0.1.0,
 the first tagged release.
 
+## [2.0.1] - 2026-11-25
+
+### Fixed
+
+- USB and Bluetooth showed the green tick of a connected device as their module picture, in the list of
+  modules and beside each module's name. They now have a plain picture of their own; the tick appears only
+  on the "connected" notices, where it means something.
+
 ## [2.0.0] - 2026-11-24
 
 The first major version. Nothing is removed and nothing about your settings, profiles or icon choices
